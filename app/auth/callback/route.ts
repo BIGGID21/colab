@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
             response.cookies.set({ name, value, ...options });
           },
           remove(name: string, options: CookieOptions) {
-            response.cookies.set({ name, value: '', ...options });
+            // Using the official Next.js delete method instead of an empty string
+            response.cookies.delete({ name, ...options });
           },
         },
       }
@@ -37,5 +38,6 @@ export async function GET(request: NextRequest) {
   }
 
   // FAILSAFE: If auth fails, redirect to login with a specific error 
+  // rather than letting the user hit a 404 on a broken callback URL.
   return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`);
 }
