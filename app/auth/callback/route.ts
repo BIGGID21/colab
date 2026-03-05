@@ -2,7 +2,6 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
-  // Fixing the cookie error for Vercel
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
   // Use "next" param to determine the destination, defaulting to /discover
@@ -38,6 +37,5 @@ export async function GET(request: NextRequest) {
   }
 
   // FAILSAFE: If auth fails, redirect to login with a specific error 
-  // rather than letting the user hit a 404 on a broken callback URL.
   return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`);
 }
