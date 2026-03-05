@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* THE MAGIC LINE FOR TAILWIND V4: Forces dark mode to strictly use your toggle class */
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Premium Light Mode Canvas (Pure White) */
+  --background: #ffffff;
+  --foreground: #18181b; 
+}
+
+.dark {
+  /* Premium Dark Mode Canvas (Deep Black) */
+  --background: #000000;
+  --foreground: #ffffff;
+}
+
+body {
+  /* THE PREMIUM APPLE FONT STACK (San Francisco) */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  
+  background-color: var(--background);
+  color: var(--foreground);
+  
+  /* Smooth theme switching */
+  transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), 
+              color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+              
+  /* Crisp font rendering (prevents the font from looking too thick on Macs) */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* Default body text to small and normal weight */
+  font-size: 0.875rem; /* text-sm equivalent */
+  font-weight: 400;
+}
+
+/* Force all headings to San Francisco Medium (500) with NO spacing and normal casing */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+}

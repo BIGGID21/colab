@@ -1,0 +1,57 @@
+import { NextResponse } from 'next/server';
+import crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
+
+// We use the SERVICE ROLE key here because this is the backend.
+// It allows us to securely bypass Row Level Security to update the milestone.
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function POST(req: Request) {
+  try {
+    // 1. Get the raw body as text so we can verify the signature
+    const text = await req.text();
+    const signature = req.headers.get('x-paystack-signature');
+
+    // 2. Verify the request actually came from Paystack
+    const hash = crypto
+      .createHmac('sha512', process.env.PAYSTACK_SECRET_KEY!)
+      .update(text)
+      .digest('hex');
+
+    if (hash !== signature) {
+      return NextResponse.json({ message: 'Invalid signature' }, { status: 401 });
+    }
+
+    // 3. Parse the event data
+    const event = JSON.parse(text);
+
+    // 4. Handle a successful payment
+    if (event.event === 'charge.success') {
+      const reference = event.data.reference;
+      
+      // Extract the milestone ID from the custom metadata we will pass
+      const milestoneId = event.data.metadata?.milestone_id;
+
+      if (milestoneId) {
+        // Securely update the database
+        const { error } = await supabaseAdmin
+          .from('milestones')
+          .update({
+            payment_status: 'escrow_funded',
+            payment_reference: reference
+          })
+          .eq('id', milestoneId);
+
+        if (error) throw error;
+      }
+    }
+
+    return NextResponse.json({ message: 'Webhook received successfully' }, { status: 200 });
+  } catch (error) {
+    console.error('Webhook Error:', error);
+    return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 });
+  }
+}
