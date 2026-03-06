@@ -173,9 +173,38 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           <div className="space-y-2 text-left">
             <h1 className="text-2xl md:text-4xl font-bold text-black dark:text-white tracking-tight">{profile?.full_name || 'Creator'}</h1>
             <p className="text-[#5a9a00] dark:text-[#9cf822] text-sm md:text-lg font-medium">{profile?.role || 'Creative professional'}</p>
+            
             <div className="flex flex-wrap items-center gap-5 text-zinc-500 text-sm md:text-base pt-2">
-              <div className="flex items-center gap-1.5"><Calendar size={16} /> Joined {new Date(profile?.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</div>
               {profile?.address && <div className="flex items-center gap-1.5"><MapPin size={16} /> {profile.address}</div>}
+            </div>
+
+            {/* Social Links Restoration */}
+            <div className="flex flex-wrap items-center gap-3 pt-4">
+              {profile?.linkedin_url && (
+                <Link href={profile.linkedin_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-blue-600 transition-colors">
+                  <Linkedin size={18} />
+                </Link>
+              )}
+              {profile?.twitter_url && (
+                <Link href={profile.twitter_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-sky-500 transition-colors">
+                  <Twitter size={18} />
+                </Link>
+              )}
+              {profile?.instagram_url && (
+                <Link href={profile.instagram_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-rose-500 transition-colors">
+                  <Instagram size={18} />
+                </Link>
+              )}
+              {profile?.facebook_url && (
+                <Link href={profile.facebook_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-blue-700 transition-colors">
+                  <Facebook size={18} />
+                </Link>
+              )}
+              {profile?.website_url && (
+                <Link href={profile.website_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-[#9cf822] transition-colors">
+                  <ExternalLink size={18} />
+                </Link>
+              )}
             </div>
           </div>
         </div>
