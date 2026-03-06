@@ -25,6 +25,8 @@ const BrandLogo = ({ collapsed, isMobile = false }: { collapsed?: boolean, isMob
     setMounted(true);
   }, []);
 
+  // Use absolute paths starting with '/' to ensure Vercel finds them in the public folder
+  // Logic: If dark theme is active and no error, show white logo. Otherwise, show standard logo.
   const logoSrc = (mounted && resolvedTheme === 'dark' && !imgError) ? '/white.png' : '/logo.png';
   
   const containerSize = isMobile ? "w-8" : "w-9"; 
@@ -35,8 +37,11 @@ const BrandLogo = ({ collapsed, isMobile = false }: { collapsed?: boolean, isMob
       <div className={`${containerSize} flex items-center justify-center shrink-0`}>
         <img 
           src={logoSrc} 
-          alt="CoLab" 
-          onError={() => setImgError(true)}
+          alt="CoLab Logo" 
+          onError={() => {
+            console.error("Logo failed to load:", logoSrc);
+            setImgError(true);
+          }}
           className={`${iconSize} object-contain transition-opacity duration-300`} 
         />
       </div>
@@ -341,7 +346,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </>
           )}
 
-          {/* ADDED: bg-white dark:bg-black to main container */}
           <main className={`flex-grow w-full transition-all duration-500 bg-white dark:bg-black ${showSidebar && !isAppLoading ? 'px-4 md:px-10 pb-24 md:pb-10 pt-4 md:pt-10' : ''}`}>
             {!isAppLoading && children}
           </main>
