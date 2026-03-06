@@ -97,20 +97,26 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
   const handleSave = async () => {
     setLoading(true);
     try {
+      // Sanitize payload to prevent 22P02 database errors (empty strings sent to numeric columns)
+      const payload = {
+        id: user.id,
+        ...formData,
+        avatar_zoom: parseFloat(formData.avatar_zoom as any) || 1,
+        header_zoom: parseFloat(formData.header_zoom as any) || 1,
+        header_y: parseInt(formData.header_y as any) || 50,
+        updated_at: new Date().toISOString(),
+      };
+
       const { error } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          ...formData,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(payload);
 
       if (error) throw error;
       onUpdate();
       onClose();
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('Save failed!');
+      alert('Save failed! Please check console for details.');
     } finally {
       setLoading(false);
     }
@@ -155,7 +161,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
                           <input 
                             type="range" min="1" max="2" step="0.01" 
                             value={formData.header_zoom}
-                            onChange={(e) => setFormData({...formData, header_zoom: parseFloat(e.target.value)})}
+                            onChange={(e) => setFormData({...formData, header_zoom: parseFloat(e.target.value) || 1})}
                             className="w-24 accent-[#9cf822]" 
                           />
                         </div>
@@ -164,7 +170,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
                           <input 
                             type="range" min="0" max="100" step="1" 
                             value={formData.header_y}
-                            onChange={(e) => setFormData({...formData, header_y: parseInt(e.target.value)})}
+                            onChange={(e) => setFormData({...formData, header_y: parseInt(e.target.value) || 50})}
                             className="w-24 accent-[#9cf822]" 
                           />
                         </div>
@@ -209,7 +215,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
                     <input 
                       type="range" min="1" max="2" step="0.01" 
                       value={formData.avatar_zoom}
-                      onChange={(e) => setFormData({...formData, avatar_zoom: parseFloat(e.target.value)})}
+                      onChange={(e) => setFormData({...formData, avatar_zoom: parseFloat(e.target.value) || 1})}
                       className="w-20 accent-[#9cf822] rotate-270" 
                     />
                   </div>
