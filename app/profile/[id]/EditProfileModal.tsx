@@ -40,6 +40,8 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  // This useEffect is what makes the modal "remember" the user's details
+  // Every time the modal opens, it pulls the existing data from the 'user' prop and fills the form
   useEffect(() => {
     if (user && isOpen) {
       setFormData({
@@ -236,7 +238,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
           </div>
 
           <div className="p-8 space-y-8">
-            {/* Section: Basic Info (Updated with text-base to prevent zoom) */}
+            {/* Section: Basic Info */}
             <div className="space-y-4">
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Basic Details</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -282,6 +284,11 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
                 <div className="relative group">
                   <Instagram className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-rose-500 transition-colors" size={16} />
                   <input type="text" placeholder="Instagram URL" value={formData.instagram_url} onChange={(e) => setFormData({...formData, instagram_url: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm outline-none" />
+                </div>
+                {/* NEW: Facebook Input Block Added Here */}
+                <div className="relative group">
+                  <Facebook className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors" size={16} />
+                  <input type="text" placeholder="Facebook URL" value={formData.facebook_url} onChange={(e) => setFormData({...formData, facebook_url: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm outline-none" />
                 </div>
                 <div className="relative group">
                   <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-[#9cf822] transition-colors" size={16} />
