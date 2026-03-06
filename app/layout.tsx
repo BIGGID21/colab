@@ -199,8 +199,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Adds support for modern mobile "Safe Areas" like the iPhone Home Indicator */}
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        {/* Adds support for Safe Areas and prevents auto-zoom on input focus for mobile devices */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
       </head>
       <body className={`min-h-screen antialiased flex flex-col md:flex-row overflow-x-hidden transition-colors duration-500 bg-white dark:bg-black text-zinc-900 dark:text-white`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
