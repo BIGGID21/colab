@@ -159,7 +159,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
           <div className="p-8 space-y-8">
             {/* Basic Info */}
             <div className="space-y-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#9cf822]">Basic Details</p>
+              <p className="text-[10px] font-medium title case text-[#000000]">Basic Details</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input 
                   type="text" placeholder="Full Name" value={formData.full_name}
@@ -181,7 +181,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
 
             {/* Social Links */}
             <div className="space-y-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#9cf822]">Social Presence</p>
+              <p className="text-[10px] font-medium title case text-[#000000]">Social Presence</p>
               <div className="space-y-3">
                 <div className="relative">
                   <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-600" size={16} />
