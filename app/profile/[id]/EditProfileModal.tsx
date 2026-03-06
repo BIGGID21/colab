@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { 
   X, Loader2, Camera, Globe, Linkedin, 
-  Twitter, Instagram, Facebook, MapPin, User, Briefcase, Image as ImageIcon 
+  Twitter, Instagram, Facebook, MapPin, User, Briefcase, 
+  Image as ImageIcon, MoveHorizontal, Maximize, MoveVertical
 } from 'lucide-react';
 
 interface EditProfileModalProps {
@@ -29,6 +30,9 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
     website_url: '',
     avatar_url: '',
     header_url: '',
+    avatar_zoom: 1,
+    header_zoom: 1,
+    header_y: 50, // Vertical position percentage
   });
 
   const supabase = createBrowserClient(
@@ -49,6 +53,9 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
         website_url: user.website_url || '',
         avatar_url: user.avatar_url || '',
         header_url: user.header_url || '',
+        avatar_zoom: user.avatar_zoom || 1,
+        header_zoom: user.header_zoom || 1,
+        header_y: user.header_y || 50,
       });
     }
   }, [user, isOpen]);
@@ -63,27 +70,25 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
       const fileName = `${user.id}-${type}-${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // 1. Upload to Supabase Storage Bucket 'profiles'
       const { error: uploadError } = await supabase.storage
         .from('profiles')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // 2. Get the Public URL
       const { data: { publicUrl } } = supabase.storage
         .from('profiles')
         .getPublicUrl(filePath);
 
-      // 3. Update local state so it shows immediately in the modal
       setFormData(prev => ({
         ...prev,
-        [type === 'avatar' ? 'avatar_url' : 'header_url']: publicUrl
+        [type === 'avatar' ? 'avatar_url' : 'header_url']: publicUrl,
+        [type === 'avatar' ? 'avatar_zoom' : 'header_zoom']: 1, // Reset zoom on new upload
       }));
 
     } catch (error) {
       console.error('Error uploading:', error);
-      alert('Upload failed! Make sure your "profiles" bucket is set to Public in Supabase.');
+      alert('Upload failed! Check bucket permissions.');
     } finally {
       setUploading(null);
     }
@@ -105,7 +110,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
       onClose();
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('Save failed! Check if your database columns exist.');
+      alert('Save failed!');
     } finally {
       setLoading(false);
     }
@@ -114,8 +119,8 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#0f0f0f] w-full max-w-xl rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-[#0f0f0f] w-full max-w-xl md:rounded-[2.5rem] border-t md:border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden flex flex-col h-full md:max-h-[90vh]">
         
         {/* Header */}
         <div className="px-8 py-6 border-b border-zinc-100 dark:border-zinc-900 flex items-center justify-between">
@@ -125,79 +130,145 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-grow">
-          {/* Images Section */}
-          <div className="relative">
-            <div className="h-40 bg-zinc-100 dark:bg-zinc-900 relative group">
+        <div className="overflow-y-auto flex-grow scrollbar-hide">
+          {/* ADJUSTABLE IMAGES SECTION */}
+          <div className="relative group/main">
+            {/* Header / Banner Container */}
+            <div className="h-48 md:h-56 bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden">
               {formData.header_url ? (
-                <img src={formData.header_url} className="w-full h-full object-cover" alt="Banner" />
+                <div className="w-full h-full relative">
+                  <img 
+                    src={formData.header_url} 
+                    className="w-full h-full object-cover transition-transform duration-300" 
+                    style={{ 
+                      objectPosition: `center ${formData.header_y}%`,
+                      transform: `scale(${formData.header_zoom})`
+                    }}
+                    alt="Banner" 
+                  />
+                  {/* Adjustment Overlays (Only visible when not uploading) */}
+                  {!uploading && (
+                    <div className="absolute bottom-4 right-4 flex flex-col gap-2 opacity-0 group-hover/main:opacity-100 transition-opacity">
+                      <div className="bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-white/10 flex flex-col gap-3">
+                        <div className="flex items-center gap-3">
+                          <Maximize size={14} className="text-white/60" />
+                          <input 
+                            type="range" min="1" max="2" step="0.01" 
+                            value={formData.header_zoom}
+                            onChange={(e) => setFormData({...formData, header_zoom: parseFloat(e.target.value)})}
+                            className="w-24 accent-[#9cf822]" 
+                          />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <MoveVertical size={14} className="text-white/60" />
+                          <input 
+                            type="range" min="0" max="100" step="1" 
+                            value={formData.header_y}
+                            onChange={(e) => setFormData({...formData, header_y: parseInt(e.target.value)})}
+                            className="w-24 accent-[#9cf822]" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-zinc-400"><ImageIcon size={32} /></div>
               )}
-              <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white text-sm font-bold gap-2">
-                <Camera size={20} /> {uploading === 'header' ? 'Uploading...' : 'Change Banner'}
+              
+              <label className="absolute top-4 left-4 p-3 bg-black/50 hover:bg-black/70 rounded-xl cursor-pointer text-white transition-all backdrop-blur-sm">
+                <Camera size={18} />
                 <input type="file" accept="image/*" onChange={(e) => uploadImage(e, 'header')} className="hidden" />
               </label>
             </div>
 
-            <div className="px-8">
-              <div className="relative w-28 h-28 -mt-14 rounded-full border-4 border-white dark:border-[#0f0f0f] bg-zinc-200 dark:bg-zinc-800 overflow-hidden shadow-lg group">
-                {formData.avatar_url ? (
-                  <img src={formData.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-zinc-400"><User size={40} /></div>
+            {/* Avatar Container */}
+            <div className="px-8 flex items-end justify-between">
+              <div className="relative group">
+                <div className="w-28 h-28 md:w-36 md:h-36 -mt-14 rounded-full border-4 border-white dark:border-[#0f0f0f] bg-zinc-200 dark:bg-zinc-800 overflow-hidden shadow-xl relative">
+                  {formData.avatar_url ? (
+                    <img 
+                      src={formData.avatar_url} 
+                      className="w-full h-full object-cover" 
+                      style={{ transform: `scale(${formData.avatar_zoom})` }}
+                      alt="Avatar" 
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-zinc-400"><User size={40} /></div>
+                  )}
+                  
+                  <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-white">
+                    <Camera size={20} />
+                    <input type="file" accept="image/*" onChange={(e) => uploadImage(e, 'avatar')} className="hidden" />
+                  </label>
+                </div>
+                
+                {/* Avatar Zoom Slider */}
+                {formData.avatar_url && (
+                  <div className="absolute -right-16 top-1/2 -translate-y-1/2 bg-black/60 backdrop-blur-md p-2 rounded-xl border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
+                    <input 
+                      type="range" min="1" max="2" step="0.01" 
+                      value={formData.avatar_zoom}
+                      onChange={(e) => setFormData({...formData, avatar_zoom: parseFloat(e.target.value)})}
+                      className="w-20 accent-[#9cf822] rotate-270" 
+                    />
+                  </div>
                 )}
-                <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-white">
-                  <Camera size={20} />
-                  <span className="text-[10px] font-bold uppercase mt-1">{uploading === 'avatar' ? '...' : 'Edit'}</span>
-                  <input type="file" accept="image/*" onChange={(e) => uploadImage(e, 'avatar')} className="hidden" />
-                </label>
               </div>
             </div>
           </div>
 
           <div className="p-8 space-y-8">
-            {/* Basic Info */}
+            {/* Section: Basic Info (Updated with text-base to prevent zoom) */}
             <div className="space-y-4">
-              <p className="text-[10px] font-medium title case text-[#000000]">Basic Details</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Basic Details</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold ml-1 text-zinc-500">Full Name</label>
+                  <input 
+                    type="text" placeholder="Your name" value={formData.full_name}
+                    onChange={(e) => setFormData({...formData, full_name: e.target.value})}
+                    className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm focus:ring-2 focus:ring-[#9cf822] transition-all outline-none" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold ml-1 text-zinc-500">Professional Role</label>
+                  <input 
+                    type="text" placeholder="e.g. Designer" value={formData.role}
+                    onChange={(e) => setFormData({...formData, role: e.target.value})}
+                    className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm focus:ring-2 focus:ring-[#9cf822] transition-all outline-none" 
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold ml-1 text-zinc-500">Location</label>
                 <input 
-                  type="text" placeholder="Full Name" value={formData.full_name}
-                  onChange={(e) => setFormData({...formData, full_name: e.target.value})}
-                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm" 
-                />
-                <input 
-                  type="text" placeholder="Role (e.g. Designer)" value={formData.role}
-                  onChange={(e) => setFormData({...formData, role: e.target.value})}
-                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm" 
+                  type="text" placeholder="City, Country" value={formData.address}
+                  onChange={(e) => setFormData({...formData, address: e.target.value})}
+                  className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm focus:ring-2 focus:ring-[#9cf822] transition-all outline-none" 
                 />
               </div>
-              <input 
-                type="text" placeholder="Location" value={formData.address}
-                onChange={(e) => setFormData({...formData, address: e.target.value})}
-                className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm" 
-              />
             </div>
 
-            {/* Social Links */}
+            {/* Section: Social Links */}
             <div className="space-y-4">
-              <p className="text-[10px] font-medium title case text-[#000000]">Social Presence</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Social Presence</p>
               <div className="space-y-3">
-                <div className="relative">
-                  <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-600" size={16} />
-                  <input type="text" placeholder="LinkedIn URL" value={formData.linkedin_url} onChange={(e) => setFormData({...formData, linkedin_url: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm" />
+                <div className="relative group">
+                  <Linkedin className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-600 transition-colors" size={16} />
+                  <input type="text" placeholder="LinkedIn URL" value={formData.linkedin_url} onChange={(e) => setFormData({...formData, linkedin_url: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm outline-none" />
                 </div>
-                <div className="relative">
-                  <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-500" size={16} />
-                  <input type="text" placeholder="Twitter URL" value={formData.twitter_url} onChange={(e) => setFormData({...formData, twitter_url: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm" />
+                <div className="relative group">
+                  <Twitter className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-sky-500 transition-colors" size={16} />
+                  <input type="text" placeholder="Twitter URL" value={formData.twitter_url} onChange={(e) => setFormData({...formData, twitter_url: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm outline-none" />
                 </div>
-                <div className="relative">
-                  <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-500" size={16} />
-                  <input type="text" placeholder="Instagram URL" value={formData.instagram_url} onChange={(e) => setFormData({...formData, instagram_url: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm" />
+                <div className="relative group">
+                  <Instagram className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-rose-500 transition-colors" size={16} />
+                  <input type="text" placeholder="Instagram URL" value={formData.instagram_url} onChange={(e) => setFormData({...formData, instagram_url: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm outline-none" />
                 </div>
-                <div className="relative">
-                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9cf822]" size={16} />
-                  <input type="text" placeholder="Website URL" value={formData.website_url} onChange={(e) => setFormData({...formData, website_url: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm" />
+                <div className="relative group">
+                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-[#9cf822] transition-colors" size={16} />
+                  <input type="text" placeholder="Personal Website URL" value={formData.website_url} onChange={(e) => setFormData({...formData, website_url: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm outline-none" />
                 </div>
               </div>
             </div>
