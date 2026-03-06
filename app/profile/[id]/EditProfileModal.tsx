@@ -97,13 +97,24 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
   const handleSave = async () => {
     setLoading(true);
     try {
-      // Sanitize payload to prevent 22P02 database errors (empty strings sent to numeric columns)
+      // STRICT PAYLOAD: We abandon "...formData" to prevent ANY empty strings ("")
+      // from sneaking into columns that Supabase expects to be numbers or text.
+      // We explicitly cast numbers and fall back to null for empty text.
       const payload = {
         id: user.id,
-        ...formData,
-        avatar_zoom: parseFloat(formData.avatar_zoom as any) || 1,
-        header_zoom: parseFloat(formData.header_zoom as any) || 1,
-        header_y: parseInt(formData.header_y as any) || 50,
+        full_name: formData.full_name || null,
+        role: formData.role || null,
+        address: formData.address || null,
+        linkedin_url: formData.linkedin_url || null,
+        twitter_url: formData.twitter_url || null,
+        instagram_url: formData.instagram_url || null,
+        facebook_url: formData.facebook_url || null,
+        website_url: formData.website_url || null,
+        avatar_url: formData.avatar_url || null,
+        header_url: formData.header_url || null,
+        avatar_zoom: Number(formData.avatar_zoom) || 1,
+        header_zoom: Number(formData.header_zoom) || 1,
+        header_y: Number(formData.header_y) || 50,
         updated_at: new Date().toISOString(),
       };
 
