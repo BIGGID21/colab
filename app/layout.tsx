@@ -25,8 +25,6 @@ const BrandLogo = ({ collapsed, isMobile = false }: { collapsed?: boolean, isMob
     setMounted(true);
   }, []);
 
-  // Use absolute paths starting with '/' to ensure Vercel finds them in the public folder
-  // Logic: If dark theme is active and no error, show white logo. Otherwise, show standard logo.
   const logoSrc = (mounted && resolvedTheme === 'dark' && !imgError) ? '/white.png' : '/logo.png';
   
   const containerSize = isMobile ? "w-8" : "w-9"; 
@@ -200,6 +198,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Adds support for modern mobile "Safe Areas" like the iPhone Home Indicator */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      </head>
       <body className={`min-h-screen antialiased flex flex-col md:flex-row overflow-x-hidden transition-colors duration-500 bg-white dark:bg-black text-zinc-900 dark:text-white`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           
@@ -325,7 +327,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </aside>
 
-              <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pb-safe pt-2">
+              {/* MOBILE BOTTOM NAV - Updated with Safe Area Padding */}
+              <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))]">
                 {navItems.filter(item => item.showOnMobileBar).map((item) => (
                   <Link key={item.name} href={item.href!} className="flex flex-col items-center justify-center w-full py-1">
                     <div className={`relative flex items-center justify-center ${item.highlight ? '-mt-6' : ''}`}>
