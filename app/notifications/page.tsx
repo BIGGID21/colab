@@ -42,7 +42,7 @@ export default function NotificationsPage() {
       }
 
       if (notifsData && notifsData.length > 0) {
-        const actorIds = [...new Set(notifsData.map(n => n.actor_id).filter(Boolean))];
+        const actorIds = Array.from(new Set(notifsData.map(n => n.actor_id).filter(Boolean)));
         
         let profileMap: Record<string, any> = {};
 
