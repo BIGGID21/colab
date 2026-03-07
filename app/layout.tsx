@@ -112,6 +112,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null); 
+  const [fullName, setFullName] = useState<string | null>(null); 
   const [unreadCount, setUnreadCount] = useState(0); 
   const [showMenu, setShowMenu] = useState(false);
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -143,8 +144,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     };
 
     const fetchProfileData = async (userId: string) => {
-      const { data } = await supabase.from('profiles').select('avatar_url').eq('id', userId).single();
-      if (data) setAvatarUrl(data.avatar_url);
+      const { data } = await supabase
+        .from('profiles')
+        .select('avatar_url, full_name')
+        .eq('id', userId)
+        .single();
+        
+      if (data) {
+        setAvatarUrl(data.avatar_url);
+        setFullName(data.full_name);
+      }
     };
 
     const fetchInitialUnread = async (userId: string) => {
@@ -275,7 +284,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   })}
                 </nav>
 
-                <div className="p-4 mt-auto relative" ref={menuRef}>
+                <div className="p-4 mb-4 mt-auto relative" ref={menuRef}>
                   {showMenu && (
                     <div className={`absolute bottom-20 border rounded-2xl py-2 z-[120] shadow-xl bg-white dark:bg-[#121212] border-zinc-200 dark:border-zinc-800 animate-in fade-in slide-in-from-bottom-2 duration-200 ${isCollapsed && !isMobileMenuOpen ? 'left-4 w-64' : 'left-4 right-4'}`}>
                       <div className="px-2 pb-2 mb-2 border-b border-zinc-100 dark:border-zinc-900">
@@ -318,7 +327,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     {(!isCollapsed || isMobileMenuOpen) && (
                       <div className="text-left flex-grow">
                         <p className="text-sm font-medium text-zinc-900 dark:text-white truncate">
-                          {user?.user_metadata?.full_name?.split(' ')[0] || 'User'}
+                          {fullName?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || 'User'}
                         </p>
                       </div>
                     )}
