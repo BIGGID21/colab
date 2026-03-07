@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { 
   Loader2, Send, MapPin, Coffee, Image as ImageIcon, 
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
-  Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User
+  Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
+  BadgeCheck
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -55,12 +56,12 @@ export default function CommunityFeedPage() {
         .single();
       setProfile(userProfile);
 
-      // FIX: Added 'user_id' to comments and repost queries so we know where to route them
+      // ADDED is_verified to profiles selections for posts, comments, and reposts
       const { data: postData, error } = await supabase
         .from('posts')
         .select(`
           *,
-          profiles:user_id(full_name, avatar_url, role),
+          profiles:user_id(full_name, avatar_url, role, is_verified),
           likes(user_id),
           comments(
             id,
@@ -68,7 +69,7 @@ export default function CommunityFeedPage() {
             created_at,
             parent_id,
             user_id,
-            profiles:user_id(full_name, avatar_url),
+            profiles:user_id(full_name, avatar_url, is_verified),
             comment_likes(user_id)
           ),
           repost:repost_id(
@@ -78,7 +79,7 @@ export default function CommunityFeedPage() {
             image_url,
             created_at,
             user_id,
-            profiles:user_id(full_name, avatar_url, role)
+            profiles:user_id(full_name, avatar_url, role, is_verified)
           )
         `)
         .order('created_at', { ascending: false });
@@ -151,6 +152,7 @@ export default function CommunityFeedPage() {
     const postContent = newPost.trim();
     const tempId = `temp-${Date.now()}`;
     
+    // Optimistic rendering includes the verified badge
     const optimisticPost = {
       id: tempId,
       user_id: user.id,
@@ -164,7 +166,8 @@ export default function CommunityFeedPage() {
       profiles: {
         full_name: profile?.full_name || 'Anonymous',
         avatar_url: profile?.avatar_url,
-        role: profile?.role || 'Member'
+        role: profile?.role || 'Member',
+        is_verified: profile?.is_verified
       }
     };
     
@@ -227,7 +230,7 @@ export default function CommunityFeedPage() {
       profiles: {
         full_name: profile?.full_name || 'Me',
         avatar_url: profile?.avatar_url,
-    
+        is_verified: profile?.is_verified
       }
     };
 
@@ -334,10 +337,14 @@ export default function CommunityFeedPage() {
       content: commentText.trim(),
       created_at: new Date().toISOString(),
       parent_id: replyTo?.commentId || null,
-      user_id: user.id, // Ensure user ID is attached for optimistic routing
+      user_id: user.id, 
       likes_count: 0,
       _hasLiked: false,
-      profiles: { full_name: profile?.full_name || 'Me', avatar_url: profile?.avatar_url }
+      profiles: { 
+        full_name: profile?.full_name || 'Me', 
+        avatar_url: profile?.avatar_url,
+        is_verified: profile?.is_verified
+      }
     };
 
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: [...(p.comments || []), newComment] } : p));
@@ -375,7 +382,6 @@ export default function CommunityFeedPage() {
   const renderComments = (postId: string, comments: any[], parentId: string | null = null, depth = 0) => {
     return comments.filter(c => c.parent_id === parentId).map(c => (
       <div key={c.id} className={`flex gap-3 text-sm ${depth > 0 ? 'ml-8 mt-3' : 'mt-4'}`}>
-        {/* FIX: Clickable Commenter Avatar */}
         <Link href={`/profile/${c.user_id}`} className="shrink-0">
           <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 dark:border-zinc-800 hover:opacity-80 transition-opacity">
             {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
@@ -383,9 +389,10 @@ export default function CommunityFeedPage() {
         </Link>
         <div className="flex-grow min-w-0">
           <div className="bg-zinc-100 dark:bg-zinc-900 p-2.5 rounded-xl rounded-tl-none inline-block max-w-full overflow-hidden">
-            {/* FIX: Clickable Commenter Name */}
-            <Link href={`/profile/${c.user_id}`} className="hover:underline">
-              <span className="font-bold block text-xs mb-0.5 text-black dark:text-white truncate">{c.profiles?.full_name}</span>
+            {/* Display Badge for Commenter */}
+            <Link href={`/profile/${c.user_id}`} className="hover:underline flex items-center gap-1 mb-0.5">
+              <span className="font-bold block text-xs text-black dark:text-white truncate">{c.profiles?.full_name}</span>
+              {c.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
             </Link>
             <span className="text-zinc-800 dark:text-zinc-300 break-words">{c.content}</span>
           </div>
@@ -500,16 +507,16 @@ export default function CommunityFeedPage() {
                   {post.repost_id && (
                     <div className="flex items-center gap-2 text-zinc-500 text-xs font-bold mb-4 ml-1">
                       <Repeat size={14} className="text-[#9cf822]" /> 
-                      {/* Optional: Make the reposter's name clickable too */}
-                      <Link href={`/profile/${post.user_id}`} className="hover:underline">
+                      {/* Display Badge for the Reposter */}
+                      <Link href={`/profile/${post.user_id}`} className="hover:underline flex items-center gap-1">
                         <span>{post.profiles?.full_name} reshared</span>
+                        {post.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
                       </Link>
                     </div>
                   )}
 
                   <div className="flex items-start gap-3 sm:gap-4">
                     
-                    {/* FIX: Clickable Main Avatar */}
                     <Link href={`/profile/${targetUserId}`} className="shrink-0">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:opacity-80 transition-opacity">
                         <img src={post.repost_id ? post.repost?.profiles?.avatar_url : post.profiles?.avatar_url} className="w-full h-full object-cover" alt="" />
@@ -519,11 +526,14 @@ export default function CommunityFeedPage() {
                     <div className="flex-grow w-full overflow-hidden">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2 min-w-0">
-                          {/* FIX: Clickable Main Name */}
-                          <Link href={`/profile/${targetUserId}`} className="hover:underline truncate">
+                          {/* Display Badge for the Main Author */}
+                          <Link href={`/profile/${targetUserId}`} className="hover:underline truncate flex items-center gap-1">
                             <h4 className="font-bold text-black dark:text-white truncate text-sm sm:text-base">
                               {post.repost_id ? post.repost?.profiles?.full_name : (post.profiles?.full_name || 'Anonymous')}
                             </h4>
+                            {(post.repost_id ? post.repost?.profiles?.is_verified : post.profiles?.is_verified) && (
+                              <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black shrink-0" />
+                            )}
                           </Link>
                           <span className="hidden sm:inline-block text-[10px] uppercase bg-zinc-100 dark:bg-zinc-900 text-zinc-500 px-2 py-0.5 rounded font-bold whitespace-nowrap shrink-0">
                             {post.repost_id ? post.repost?.profiles?.role : (post.profiles?.role || 'Member')}
