@@ -69,12 +69,12 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       setProjects(userProjects || []);
       setProjectCount(pCount || 0);
 
-      // Fetch Feed (Posts & Reshares)
+      // Fetch Feed (Posts & Reshares) WITH is_verified INCLUDED
       const { data: feedData } = await supabase
         .from('posts')
         .select(`
           *,
-          profiles:user_id(full_name, avatar_url, role),
+          profiles:user_id(full_name, avatar_url, role, is_verified),
           likes(user_id),
           comments(id),
           repost:repost_id(
@@ -82,7 +82,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             content,
             media,
             created_at,
-            profiles:user_id(full_name, avatar_url, role)
+            profiles:user_id(full_name, avatar_url, role, is_verified)
           )
         `)
         .eq('user_id', userId)
@@ -146,31 +146,32 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-20">
       
-      <div className="max-w-5xl mx-auto px-0 md:px-8 pt-0 md:pt-8">
-        
-        {/* Banner */}
-        <div className="h-44 md:h-72 bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden md:rounded-t-[2rem] border-b md:border border-zinc-200 dark:border-zinc-900">
-          {profile?.header_url ? (
-            <img 
-              src={profile.header_url} 
-              className="w-full h-full object-cover" 
-              style={{ 
-                objectPosition: `center ${profile.header_y !== undefined && profile.header_y !== null ? profile.header_y : 50}%`,
-                transform: `scale(${profile.header_zoom || 1})`
-              }}
-              alt="Banner" 
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-zinc-50 to-zinc-200 dark:from-[#0a0a0a] dark:to-zinc-900" />
-          )}
-        </div>
+      {/* FULL WIDTH BANNER */}
+      <div className="w-full h-48 md:h-80 bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden border-b border-zinc-200 dark:border-zinc-900">
+        {profile?.header_url ? (
+          <img 
+            src={profile.header_url} 
+            className="w-full h-full object-cover" 
+            style={{ 
+              objectPosition: `center ${profile.header_y !== undefined && profile.header_y !== null ? profile.header_y : 50}%`,
+              transform: `scale(${profile.header_zoom || 1})`
+            }}
+            alt="Banner" 
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-zinc-50 to-zinc-200 dark:from-[#0a0a0a] dark:to-zinc-900" />
+        )}
+      </div>
 
+      {/* CONSTRAINED CONTENT AREA */}
+      <div className="max-w-5xl mx-auto px-0 md:px-8">
+        
         {/* Profile Info */}
-        <div className="relative px-4 md:px-10 pb-8 border-b md:border-x md:border-b border-zinc-200 dark:border-zinc-900 md:rounded-b-[2rem] bg-white dark:bg-black">
+        <div className="relative px-4 md:px-10 pb-8 border-b md:border-x border-zinc-200 dark:border-zinc-900 md:rounded-b-[2rem] bg-white dark:bg-black">
           <div className="flex justify-between items-start mb-6 relative">
             <div 
               onClick={() => isOwnProfile && setIsModalOpen(true)}
-              className={`group relative w-28 h-28 md:w-40 md:h-40 rounded-full border-4 border-white dark:border-black bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0 shadow-lg -mt-10 md:-mt-20 transition-transform ${isOwnProfile ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
+              className={`group relative w-28 h-28 md:w-40 md:h-40 rounded-full border-4 border-white dark:border-black bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0 shadow-lg -mt-14 md:-mt-20 transition-transform ${isOwnProfile ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
             >
               {profile?.avatar_url ? (
                 <img 
@@ -190,7 +191,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           <div className="space-y-2 text-left">
             <div className="flex items-center gap-2 mt-1">
               <h1 className="text-2xl md:text-4xl font-bold text-black dark:text-white tracking-tight">{profile?.full_name || 'Creator'}</h1>
-              {/* TRUE Verified Badge: Only renders if the database confirms it */}
               {profile?.is_verified && (
                 <BadgeCheck size={28} fill="#9cf822" className="text-white dark:text-black shrink-0" />
               )}
@@ -297,7 +297,12 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     </div>
                     <div className="flex-grow min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-black dark:text-white text-sm sm:text-base">{post.repost_id ? post.repost?.profiles?.full_name : post.profiles?.full_name}</span>
+                        <span className="font-bold text-black dark:text-white text-sm sm:text-base flex items-center gap-1">
+                          {post.repost_id ? post.repost?.profiles?.full_name : post.profiles?.full_name}
+                          {(post.repost_id ? post.repost?.profiles?.is_verified : post.profiles?.is_verified) && (
+                            <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black shrink-0" />
+                          )}
+                        </span>
                         <span className="text-zinc-500 text-xs">· {new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                       </div>
                       <p className="text-zinc-800 dark:text-zinc-200 text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap">{post.repost_id ? post.repost?.content : post.content}</p>
