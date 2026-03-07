@@ -227,7 +227,7 @@ export default function CommunityFeedPage() {
       profiles: {
         full_name: profile?.full_name || 'Me',
         avatar_url: profile?.avatar_url,
-        role: profile?.role
+    
       }
     };
 
