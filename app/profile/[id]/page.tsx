@@ -151,7 +151,15 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         {/* Banner */}
         <div className="h-44 md:h-72 bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden md:rounded-t-[2rem] border-b md:border border-zinc-200 dark:border-zinc-900">
           {profile?.header_url ? (
-            <img src={profile.header_url} className="w-full h-full object-cover" alt="Banner" />
+            <img 
+              src={profile.header_url} 
+              className="w-full h-full object-cover" 
+              style={{ 
+                objectPosition: `center ${profile.header_y !== undefined && profile.header_y !== null ? profile.header_y : 50}%`,
+                transform: `scale(${profile.header_zoom || 1})`
+              }}
+              alt="Banner" 
+            />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-zinc-50 to-zinc-200 dark:from-[#0a0a0a] dark:to-zinc-900" />
           )}
@@ -164,7 +172,16 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               onClick={() => isOwnProfile && setIsModalOpen(true)}
               className={`group relative w-28 h-28 md:w-40 md:h-40 rounded-full border-4 border-white dark:border-black bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0 shadow-lg -mt-10 md:-mt-20 transition-transform ${isOwnProfile ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
             >
-              {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Avatar" /> : <div className="w-full h-full flex items-center justify-center text-zinc-400"><User size={48} /></div>}
+              {profile?.avatar_url ? (
+                <img 
+                  src={profile.avatar_url} 
+                  className="w-full h-full object-cover" 
+                  style={{ transform: `scale(${profile.avatar_zoom || 1})` }}
+                  alt="Avatar" 
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-zinc-400"><User size={48} /></div>
+              )}
               {isOwnProfile && <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white"><Camera size={24} /><span className="text-[10px] font-bold uppercase">Edit</span></div>}
             </div>
             {isOwnProfile && <button onClick={() => setIsModalOpen(true)} className="px-5 py-2 md:px-6 md:py-2.5 bg-zinc-100 text-black dark:bg-zinc-900 dark:text-white rounded-xl border border-zinc-200 dark:border-zinc-800 transition-all font-medium text-sm mt-4">Edit profile</button>}
