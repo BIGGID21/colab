@@ -146,8 +146,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-20">
       
-      {/* FULL WIDTH BANNER */}
-      <div className="w-full h-48 md:h-80 bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden border-b border-zinc-200 dark:border-zinc-900">
+      {/* FULL BLEED BANNER - Uses negative margins to bypass layout padding */}
+      <div className="-mx-4 md:-mx-10 -mt-20 md:-mt-10 h-48 md:h-80 bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden border-b border-zinc-200 dark:border-zinc-900">
         {profile?.header_url ? (
           <img 
             src={profile.header_url} 
