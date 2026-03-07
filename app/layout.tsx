@@ -185,85 +185,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     };
   }, [supabase, user?.id]);
 
-  // Fleshed out Modal Content Dictionary
-  const modalContent: Record<string, { title: string, content: React.ReactNode }> = {
-    faq: { 
-      title: "Frequently Asked Questions", 
-      content: (
-        <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-5 text-sm text-zinc-600 dark:text-zinc-400">
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">What is CoLab?</h4>
-            <p>CoLab is a unified ecosystem where Project Owners can discover and invite skilled Creators (Collaborators) to speed up their delivery rate and complete projects.</p>
-          </div>
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">How do percentage splits work?</h4>
-            <p>When you invite a collaborator to a project, you can establish a percentage split (e.g., 50/50). This defines ownership or revenue sharing for that specific project task.</p>
-          </div>
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">How do I get discovered?</h4>
-            <p>Post your best design, code, or ideas to the Community Feed. Project Owners browse this feed and can send you a Project Invitation directly from your post.</p>
-          </div>
-        </div>
-      ) 
-    },
-    help: { 
-      title: "Help Center", 
-      content: (
-        <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-5 text-sm text-zinc-600 dark:text-zinc-400">
-          <p>Need assistance with your account or a project? We're here to help.</p>
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">Contact Support</h4>
-            <p>Email us at: <a href="mailto:support@colab.app" className="text-[#9cf822] hover:underline">support@colab.app</a></p>
-            <p>Response time: 24 - 48 hours.</p>
-          </div>
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">Report a Bug</h4>
-            <p>If you encounter any technical issues, please include screenshots and a brief description of how to reproduce the bug in your email.</p>
-          </div>
-        </div>
-      ) 
-    },
-    terms: { 
-      title: "Terms of Use", 
-      content: (
-        <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-5 text-sm text-zinc-600 dark:text-zinc-400">
-          <p className="italic">Last updated: October 2023</p>
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">1. Acceptance of Terms</h4>
-            <p>By accessing and using CoLab, you accept and agree to be bound by the terms and provision of this agreement.</p>
-          </div>
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">2. User Conduct & Projects</h4>
-            <p>You agree to use the platform only for lawful purposes. Any agreements, percentage splits, or collaborations formed between users are the sole responsibility of the parties involved.</p>
-          </div>
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">3. Intellectual Property</h4>
-            <p>You retain full ownership rights to the original content and portfolios you upload to CoLab. By posting to the Community Feed, you grant CoLab a license to display your work within the platform.</p>
-          </div>
-        </div>
-      ) 
-    },
-    privacy: { 
-      title: "Privacy Policy", 
-      content: (
-        <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-5 text-sm text-zinc-600 dark:text-zinc-400">
-          <p className="italic">Last updated: October 2023</p>
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">1. Data Collection</h4>
-            <p>We collect information you provide directly to us when you create an account, update your profile, or communicate with other users on the platform.</p>
-          </div>
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">2. How We Use Your Data</h4>
-            <p>Your data is strictly used to match you with potential collaborators, personalize your feed, and improve the overall performance of the CoLab application.</p>
-          </div>
-          <div>
-            <h4 className="font-bold text-zinc-900 dark:text-white mb-1">3. Data Security (RLS)</h4>
-            <p>CoLab utilizes robust backend infrastructure, including Supabase Row Level Security (RLS), to ensure that your private profile data and project negotiations are only accessible to authorized users.</p>
-          </div>
-        </div>
-      ) 
-    }
-  };
+  // Content dictionary kept empty since we are routing to actual pages now
+  const modalContent: Record<string, { title: string, content: React.ReactNode }> = {};
 
   const isAuthPage = pathname === '/login' || pathname === '/signup';
   const showSidebar = !isAuthPage && pathname !== '/';
@@ -357,7 +280,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   })}
                 </nav>
 
-                <div className="p-4 mb-4 mt-auto relative" ref={menuRef}>
+                {/* Profile section correctly pushed up with pb-10 mb-6 */}
+                <div className="p-4 pb-10 mb-6 mt-auto relative" ref={menuRef}>
                   {showMenu && (
                     <div className={`absolute bottom-20 border rounded-2xl py-2 z-[120] shadow-xl bg-white dark:bg-[#121212] border-zinc-200 dark:border-zinc-800 animate-in fade-in slide-in-from-bottom-2 duration-200 ${isCollapsed && !isMobileMenuOpen ? 'left-4 w-64' : 'left-4 right-4'}`}>
                       <div className="px-2 pb-2 mb-2 border-b border-zinc-100 dark:border-zinc-900">
@@ -375,13 +299,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         <ThemeToggle />
                       </div>
                       <div className="px-2 pb-2 border-b border-zinc-100 dark:border-zinc-900">
-                        <button onClick={() => { setShowMenu(false); setActiveModal('faq'); }} className="w-full flex items-center gap-3 px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg transition-colors text-sm font-medium">
+                        {/* Correctly routing to pages instead of opening modals */}
+                        <button onClick={() => { setShowMenu(false); router.push('/faq'); }} className="w-full flex items-center gap-3 px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg transition-colors text-sm font-medium">
                           <HelpCircle size={16} /> FAQ
                         </button>
-                        <button onClick={() => { setShowMenu(false); setActiveModal('terms'); }} className="w-full flex items-center gap-3 px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg transition-colors text-sm font-medium">
+                        <button onClick={() => { setShowMenu(false); router.push('/terms'); }} className="w-full flex items-center gap-3 px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg transition-colors text-sm font-medium">
                           <FileText size={16} /> Terms
                         </button>
-                        <button onClick={() => { setShowMenu(false); setActiveModal('privacy'); }} className="w-full flex items-center gap-3 px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg transition-colors text-sm font-medium">
+                        <button onClick={() => { setShowMenu(false); router.push('/privacy'); }} className="w-full flex items-center gap-3 px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg transition-colors text-sm font-medium">
                           <Shield size={16} /> Privacy
                         </button>
                       </div>
