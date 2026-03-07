@@ -172,7 +172,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
           <div className="space-y-2 text-left">
             <h1 className="text-2xl md:text-4xl font-bold text-black dark:text-white tracking-tight">{profile?.full_name || 'Creator'}</h1>
-            <p className="text-[#ffffff] dark:text-[#000000] text-sm md:text-lg font-medium">{profile?.role || 'Creative professional'}</p>
+            <p className="text-[#000000] dark:text-[#ffffff] text-sm md:text-lg font-medium">{profile?.role || 'Creative professional'}</p>
             
             <div className="flex flex-wrap items-center gap-5 text-zinc-500 text-sm md:text-base pt-2">
               {profile?.address && <div className="flex items-center gap-1.5"><MapPin size={16} /> {profile.address}</div>}
