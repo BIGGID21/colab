@@ -9,7 +9,7 @@ import {
   Home, Compass, PlusCircle, FolderClosed, Settings, User, 
   LogOut, TrendingUp, ChevronUp, Menu, X, ChevronLeft, ChevronRight,
   HelpCircle, FileText, Shield, Bell, Search, Palette, Sun, Moon, CreditCard,
-  Globe 
+  Globe, BadgeCheck 
 } from 'lucide-react';
 import Modal from '@/components/Modal'; 
 import SearchModal from '@/components/SearchModal'; 
@@ -113,11 +113,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [user, setUser] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null); 
   const [fullName, setFullName] = useState<string | null>(null); 
+  const [isVerified, setIsVerified] = useState(false); 
   const [unreadCount, setUnreadCount] = useState(0); 
   const [showMenu, setShowMenu] = useState(false);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  // Mobile Top Bar Scroll State
+  const [isMobileNavVisible, setIsMobileNavVisible] = useState(true);
+  const lastScrollY = useRef(0);
   
   const menuRef = useRef<HTMLDivElement>(null);
   const supabase = createBrowserClient(
@@ -146,13 +151,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     const fetchProfileData = async (userId: string) => {
       const { data } = await supabase
         .from('profiles')
-        .select('avatar_url, full_name')
+        .select('avatar_url, full_name, is_verified') 
         .eq('id', userId)
         .single();
         
       if (data) {
         setAvatarUrl(data.avatar_url);
         setFullName(data.full_name);
+        setIsVerified(data.is_verified);
       }
     };
 
@@ -185,7 +191,31 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     };
   }, [supabase, user?.id]);
 
-  // Content dictionary kept empty since we are routing to actual pages now
+  // Scroll Listener for Mobile Top Bar
+  useEffect(() => {
+    const handleScroll = () => {
+      if (typeof window === 'undefined') return;
+      
+      const currentScrollY = window.scrollY;
+      
+      // Prevent hiding on the "elastic bounce" at the very top of iOS Safari
+      if (currentScrollY < 60) {
+        setIsMobileNavVisible(true);
+      } else if (currentScrollY > lastScrollY.current) {
+        // Scrolling down -> Hide Navbar
+        setIsMobileNavVisible(false);
+      } else {
+        // Scrolling up -> Show Navbar
+        setIsMobileNavVisible(true);
+      }
+      
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const modalContent: Record<string, { title: string, content: React.ReactNode }> = {};
 
   const isAuthPage = pathname === '/login' || pathname === '/signup';
@@ -204,7 +234,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Adds support for Safe Areas and prevents auto-zoom on input focus for mobile devices */}
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
       </head>
       <body className={`min-h-screen antialiased flex flex-col md:flex-row overflow-x-hidden transition-colors duration-500 bg-white dark:bg-black text-zinc-900 dark:text-white`}>
@@ -214,8 +243,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           {showSidebar && !isAppLoading && (
             <>
-              {/* MOBILE TOP BAR */}
-              <div className="md:hidden flex items-center justify-between p-4 h-16 backdrop-blur-md border-b sticky top-0 z-[100] w-full transition-colors bg-white/90 dark:bg-black/90 border-zinc-200 dark:border-zinc-900">
+              {/* MOBILE TOP BAR (Fixed + Hide on Scroll) */}
+              <div 
+                className={`md:hidden flex items-center justify-between p-4 h-16 backdrop-blur-md border-b fixed top-0 w-full z-[100] bg-white/90 dark:bg-black/90 border-zinc-200 dark:border-zinc-900 transition-transform duration-300 ease-in-out ${
+                  isMobileNavVisible ? 'translate-y-0' : '-translate-y-full'
+                }`}
+              >
                 <BrandLogo isMobile />
                 <div className="flex items-center gap-4 text-zinc-500 dark:text-zinc-400">
                     <button onClick={() => setActiveModal('search')}><Search size={20} /></button>
@@ -280,7 +313,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   })}
                 </nav>
 
-                {/* Profile section correctly pushed up with pb-10 mb-6 */}
                 <div className="p-4 pb-10 mb-6 mt-auto relative" ref={menuRef}>
                   {showMenu && (
                     <div className={`absolute bottom-20 border rounded-2xl py-2 z-[120] shadow-xl bg-white dark:bg-[#121212] border-zinc-200 dark:border-zinc-800 animate-in fade-in slide-in-from-bottom-2 duration-200 ${isCollapsed && !isMobileMenuOpen ? 'left-4 w-64' : 'left-4 right-4'}`}>
@@ -299,7 +331,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         <ThemeToggle />
                       </div>
                       <div className="px-2 pb-2 border-b border-zinc-100 dark:border-zinc-900">
-                        {/* Correctly routing to pages instead of opening modals */}
                         <button onClick={() => { setShowMenu(false); router.push('/faq'); }} className="w-full flex items-center gap-3 px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg transition-colors text-sm font-medium">
                           <HelpCircle size={16} /> FAQ
                         </button>
@@ -323,18 +354,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" alt="Avatar" /> : <User size={18} className="text-zinc-400" />}
                     </div>
                     {(!isCollapsed || isMobileMenuOpen) && (
-                      <div className="text-left flex-grow">
+                      <div className="text-left flex-grow flex items-center gap-1.5 min-w-0">
                         <p className="text-sm font-medium text-zinc-900 dark:text-white truncate">
                           {fullName?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || 'User'}
                         </p>
+                        {isVerified && <BadgeCheck size={14} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
                       </div>
                     )}
-                    {(!isCollapsed || isMobileMenuOpen) && <ChevronUp size={16} className={`text-zinc-400 transition-transform ${showMenu ? 'rotate-180' : ''}`} />}
+                    {(!isCollapsed || isMobileMenuOpen) && <ChevronUp size={16} className={`text-zinc-400 shrink-0 transition-transform ${showMenu ? 'rotate-180' : ''}`} />}
                   </button>
                 </div>
               </aside>
 
-              {/* MOBILE BOTTOM NAV - Updated with Safe Area Padding */}
+              {/* MOBILE BOTTOM NAV */}
               <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))]">
                 {navItems.filter(item => item.showOnMobileBar).map((item) => (
                   <Link key={item.name} href={item.href!} className="flex flex-col items-center justify-center w-full py-1">
@@ -356,7 +388,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </>
           )}
 
-          <main className={`flex-grow w-full transition-all duration-500 bg-white dark:bg-black ${showSidebar && !isAppLoading ? 'px-4 md:px-10 pb-24 md:pb-10 pt-4 md:pt-10' : ''}`}>
+          {/* MAIN CONTENT AREA */}
+          <main className={`flex-grow w-full transition-all duration-500 bg-white dark:bg-black ${showSidebar && !isAppLoading ? 'px-4 md:px-10 pb-24 md:pb-10 pt-20 md:pt-10' : ''}`}>
             {!isAppLoading && children}
           </main>
 
