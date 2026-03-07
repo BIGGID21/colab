@@ -172,7 +172,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
           <div className="space-y-2 text-left">
             <h1 className="text-2xl md:text-4xl font-bold text-black dark:text-white tracking-tight">{profile?.full_name || 'Creator'}</h1>
-            <p className="text-[#5a9a00] dark:text-[#9cf822] text-sm md:text-lg font-medium">{profile?.role || 'Creative professional'}</p>
+            <p className="text-[#5a9a00] dark:text-[#000000] text-sm md:text-lg font-medium">{profile?.role || 'Creative professional'}</p>
             
             <div className="flex flex-wrap items-center gap-5 text-zinc-500 text-sm md:text-base pt-2">
               {profile?.address && <div className="flex items-center gap-1.5"><MapPin size={16} /> {profile.address}</div>}
@@ -211,8 +211,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
         {/* Stats Bar */}
         <div className="grid grid-cols-2 md:flex items-center gap-8 md:gap-20 py-8 border-b md:border-y border-zinc-200 dark:border-zinc-900 mb-0 px-6 md:px-10">
-          <div><p className="text-[#5a9a00] dark:text-[#9cf822] text-3xl md:text-4xl font-bold">{projectCount}</p><p className="text-zinc-500 text-xs md:text-sm font-bold uppercase tracking-widest">Projects</p></div>
-          <div><p className="text-black dark:text-white text-3xl md:text-4xl font-bold">{collabCount}</p><p className="text-zinc-500 text-xs md:text-sm font-bold uppercase tracking-widest">Collaborations</p></div>
+          <div><p className="text-[#5a9a00] dark:text-[#9cf822] text-3xl md:text-4xl font-bold">{projectCount}</p><p className="text-zinc-500 text-xs md:text-sm font-bold title case ">Projects</p></div>
+          <div><p className="text-black dark:text-white text-3xl md:text-4xl font-bold">{collabCount}</p><p className="text-zinc-500 text-xs md:text-sm font-bold title case ">Collaborations</p></div>
         </div>
 
         {/* TABS SYSTEM */}
