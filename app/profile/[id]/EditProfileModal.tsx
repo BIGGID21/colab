@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { 
-  X, Loader2, Camera, Globe, Linkedin, 
-  Twitter, Instagram, Facebook, MapPin, User, Briefcase, 
-  Image as ImageIcon, MoveHorizontal, Maximize, MoveVertical
+  X, Loader2, Camera, Linkedin, 
+  Twitter, Instagram, Facebook, User, 
+  Image as ImageIcon, Maximize, MoveVertical
 } from 'lucide-react';
 
 interface EditProfileModalProps {
@@ -27,12 +27,11 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
     twitter_url: '',
     instagram_url: '',
     facebook_url: '',
-    website_url: '',
     avatar_url: '',
     header_url: '',
     avatar_zoom: 1,
     header_zoom: 1,
-    header_y: 50, // Vertical position percentage
+    header_y: 50, 
   });
 
   const supabase = createBrowserClient(
@@ -40,27 +39,40 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // This useEffect is what makes the modal "remember" the user's details
-  // Every time the modal opens, it pulls the existing data from the 'user' prop and fills the form
+  // BUG FIX 1: Direct Database Fetch
+  // We actively fetch the latest profile data when the modal opens to guarantee 
+  // we have the actual database values (like zoom/y-axis), not just the Auth user.
   useEffect(() => {
-    if (user && isOpen) {
-      setFormData({
-        full_name: user.user_metadata?.full_name || user.full_name || '',
-        role: user.role || '',
-        address: user.address || '',
-        linkedin_url: user.linkedin_url || '',
-        twitter_url: user.twitter_url || '',
-        instagram_url: user.instagram_url || '',
-        facebook_url: user.facebook_url || '',
-        website_url: user.website_url || '',
-        avatar_url: user.avatar_url || '',
-        header_url: user.header_url || '',
-        avatar_zoom: user.avatar_zoom || 1,
-        header_zoom: user.header_zoom || 1,
-        header_y: user.header_y || 50,
-      });
+    if (user?.id && isOpen) {
+      const fetchLatestProfile = async () => {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (data && !error) {
+          setFormData({
+            full_name: data.full_name || user.user_metadata?.full_name || '',
+            role: data.role || '',
+            address: data.address || '',
+            linkedin_url: data.linkedin_url || '',
+            twitter_url: data.twitter_url || '',
+            instagram_url: data.instagram_url || '',
+            facebook_url: data.facebook_url || '',
+            avatar_url: data.avatar_url || '',
+            header_url: data.header_url || '',
+            avatar_zoom: data.avatar_zoom || 1,
+            header_zoom: data.header_zoom || 1,
+            // We check for undefined so that a saved value of "0" doesn't trigger the fallback
+            header_y: data.header_y !== undefined && data.header_y !== null ? data.header_y : 50,
+          });
+        }
+      };
+      
+      fetchLatestProfile();
     }
-  }, [user, isOpen]);
+  }, [user, isOpen, supabase]);
 
   const uploadImage = async (event: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'header') => {
     try {
@@ -85,7 +97,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
       setFormData(prev => ({
         ...prev,
         [type === 'avatar' ? 'avatar_url' : 'header_url']: publicUrl,
-        [type === 'avatar' ? 'avatar_zoom' : 'header_zoom']: 1, // Reset zoom on new upload
+        [type === 'avatar' ? 'avatar_zoom' : 'header_zoom']: 1, 
       }));
 
     } catch (error) {
@@ -99,9 +111,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
   const handleSave = async () => {
     setLoading(true);
     try {
-      // STRICT PAYLOAD: We abandon "...formData" to prevent ANY empty strings ("")
-      // from sneaking into columns that Supabase expects to be numbers or text.
-      // We explicitly cast numbers and fall back to null for empty text.
+      // BUG FIX 2: Strict Payload with 0 handling
       const payload = {
         id: user.id,
         full_name: formData.full_name || null,
@@ -111,12 +121,12 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
         twitter_url: formData.twitter_url || null,
         instagram_url: formData.instagram_url || null,
         facebook_url: formData.facebook_url || null,
-        website_url: formData.website_url || null,
         avatar_url: formData.avatar_url || null,
         header_url: formData.header_url || null,
-        avatar_zoom: Number(formData.avatar_zoom) || 1,
-        header_zoom: Number(formData.header_zoom) || 1,
-        header_y: Number(formData.header_y) || 50,
+        avatar_zoom: parseFloat(formData.avatar_zoom.toString()) || 1,
+        header_zoom: parseFloat(formData.header_zoom.toString()) || 1,
+        // Using a strict check here so that sliding it to 0 doesn't accidentally save as 50
+        header_y: formData.header_y !== undefined && formData.header_y !== null ? Number(formData.header_y) : 50,
         updated_at: new Date().toISOString(),
       };
 
@@ -165,7 +175,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
                     }}
                     alt="Banner" 
                   />
-                  {/* Adjustment Overlays (Only visible when not uploading) */}
+                  {/* Adjustment Overlays */}
                   {!uploading && (
                     <div className="absolute bottom-4 right-4 flex flex-col gap-2 opacity-0 group-hover/main:opacity-100 transition-opacity">
                       <div className="bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-white/10 flex flex-col gap-3">
@@ -183,7 +193,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
                           <input 
                             type="range" min="0" max="100" step="1" 
                             value={formData.header_y}
-                            onChange={(e) => setFormData({...formData, header_y: parseInt(e.target.value) || 50})}
+                            onChange={(e) => setFormData({...formData, header_y: parseInt(e.target.value) || 0})}
                             className="w-24 accent-[#9cf822]" 
                           />
                         </div>
@@ -285,14 +295,9 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
                   <Instagram className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-rose-500 transition-colors" size={16} />
                   <input type="text" placeholder="Instagram URL" value={formData.instagram_url} onChange={(e) => setFormData({...formData, instagram_url: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm outline-none" />
                 </div>
-                {/* NEW: Facebook Input Block Added Here */}
                 <div className="relative group">
                   <Facebook className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors" size={16} />
                   <input type="text" placeholder="Facebook URL" value={formData.facebook_url} onChange={(e) => setFormData({...formData, facebook_url: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm outline-none" />
-                </div>
-                <div className="relative group">
-                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-[#9cf822] transition-colors" size={16} />
-                  <input type="text" placeholder="Personal Website URL" value={formData.website_url} onChange={(e) => setFormData({...formData, website_url: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-base md:text-sm outline-none" />
                 </div>
               </div>
             </div>
