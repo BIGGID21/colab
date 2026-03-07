@@ -6,7 +6,7 @@ import {
   Loader2, Image as ImageIcon, Plus, Grid, 
   Linkedin, MapPin, Phone, ExternalLink, 
   Facebook, Instagram, Twitter, Video, Trash2, 
-  User, Camera, Calendar, Heart, MessageSquare, Repeat, X
+  User, Camera, Calendar, Heart, MessageSquare, Repeat, X, BadgeCheck
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -188,7 +188,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           </div>
 
           <div className="space-y-2 text-left">
-            <h1 className="text-2xl md:text-4xl font-bold text-black dark:text-white tracking-tight">{profile?.full_name || 'Creator'}</h1>
+            <div className="flex items-center gap-2 mt-1">
+              <h1 className="text-2xl md:text-4xl font-bold text-black dark:text-white tracking-tight">{profile?.full_name || 'Creator'}</h1>
+              {/* TRUE Verified Badge: Only renders if the database confirms it */}
+              {profile?.is_verified && (
+                <BadgeCheck size={28} fill="#9cf822" className="text-white dark:text-black shrink-0" />
+              )}
+            </div>
             <p className="text-[#000000] dark:text-[#ffffff] text-sm md:text-lg font-medium">{profile?.role || 'Creative professional'}</p>
             
             <div className="flex flex-wrap items-center gap-5 text-zinc-500 text-sm md:text-base pt-2">
