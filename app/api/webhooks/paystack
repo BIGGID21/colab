@@ -1,57 +1,43 @@
-import { NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
-// We use the SERVICE ROLE key here because this is the backend.
-// It allows us to securely bypass Row Level Security to update the milestone.
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export async function POST(req) {
+  // We use the SERVICE ROLE KEY here because the webhook is a "system" process, 
+  // not a logged-in user. This key has permission to update any profile.
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY 
+  );
 
-export async function POST(req: Request) {
   try {
-    // 1. Get the raw body as text so we can verify the signature
-    const text = await req.text();
-    const signature = req.headers.get('x-paystack-signature');
+    const body = await req.json();
 
-    // 2. Verify the request actually came from Paystack
-    const hash = crypto
-      .createHmac('sha512', process.env.PAYSTACK_SECRET_KEY!)
-      .update(text)
-      .digest('hex');
-
-    if (hash !== signature) {
-      return NextResponse.json({ message: 'Invalid signature' }, { status: 401 });
-    }
-
-    // 3. Parse the event data
-    const event = JSON.parse(text);
-
-    // 4. Handle a successful payment
-    if (event.event === 'charge.success') {
-      const reference = event.data.reference;
+    // Check if the event is a successful payment
+    if (body.event === 'charge.success') {
+      const userId = body.data.metadata?.userId;
       
-      // Extract the milestone ID from the custom metadata we will pass
-      const milestoneId = event.data.metadata?.milestone_id;
+      console.log("🔔 WEBHOOK: Payment success received for User ID:", userId);
 
-      if (milestoneId) {
-        // Securely update the database
-        const { error } = await supabaseAdmin
-          .from('milestones')
-          .update({
-            payment_status: 'escrow_funded',
-            payment_reference: reference
-          })
-          .eq('id', milestoneId);
+      if (userId) {
+        // Update the user's profile to verified
+        const { error } = await supabase
+          .from('profiles')
+          .update({ is_verified: true })
+          .eq('id', userId);
 
-        if (error) throw error;
+        if (error) {
+          console.error("❌ WEBHOOK: Supabase update failed:", error.message);
+          return new Response('Database Update Failed', { status: 500 });
+        }
+        
+        console.log("✅ WEBHOOK: Database updated successfully! User is now PRO.");
+      } else {
+        console.warn("⚠️ WEBHOOK: No User ID found in metadata.");
       }
     }
 
-    return NextResponse.json({ message: 'Webhook received successfully' }, { status: 200 });
-  } catch (error) {
-    console.error('Webhook Error:', error);
-    return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 });
+    return new Response('Webhook Received', { status: 200 });
+  } catch (err) {
+    console.error("💀 WEBHOOK: Crashed during processing:", err.message);
+    return new Response('Webhook Error', { status: 500 });
   }
 }
