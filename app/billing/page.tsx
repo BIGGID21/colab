@@ -1,21 +1,57 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Check, Sparkles, Building2, Zap, ArrowLeft, BadgeCheck, BarChart3, Pin, Link as LinkIcon } from 'lucide-react';
-import Link from 'next/link';
+import { Check, Sparkles, Building2, Zap, ArrowLeft, BadgeCheck, BarChart3, Pin, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-export default function BillingPage() {
+// Add the 'user' prop here so we can get email and ID
+export default function BillingPage({ user }: { user: any }) {
   const router = useRouter();
   const [isAnnual, setIsAnnual] = useState(true);
+  const [loading, setLoading] = useState<string | null>(null);
 
   const triggerHaptic = () => {
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(10);
   };
 
+  // --- THE PAYMENT LOGIC ---
+  const handleUpgrade = async (planType: 'monthly' | 'annual') => {
+    setLoading(planType);
+    triggerHaptic();
+
+    try {
+      // Set price: $5 for monthly, $50 for annual (2 months free)
+      const amountInDollars = planType === 'annual' ? 50 : 5;
+
+      const response = await fetch('/api/paystack/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user?.email,
+          amount: amountInDollars,
+          userId: user?.id,
+          planType: planType
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status && data.data.authorization_url) {
+        // Redirect to Paystack secure checkout
+        window.location.href = data.data.authorization_url;
+      } else {
+        alert("Payment initialization failed. Check your Vercel Environment Variables.");
+      }
+    } catch (error) {
+      console.error("Upgrade error:", error);
+      alert("Something went wrong connecting to Paystack.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-24">
-      
       {/* HEADER NAV */}
       <header className="bg-white dark:bg-[#0a0a0a] border-b border-zinc-200 dark:border-zinc-900 px-4 sm:px-6 py-4 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -37,7 +73,7 @@ export default function BillingPage() {
             Level up your creative career.
           </h1>
           <p className="text-zinc-500 dark:text-zinc-400 text-base md:text-lg mb-8">
-            Join thousands of professionals standing out, landing clients, and growing their network on CoLab.
+            Join thousands of professionals standing out and landing clients on CoLab.
           </p>
 
           <div className="flex items-center justify-center gap-3">
@@ -71,14 +107,13 @@ export default function BillingPage() {
               <FeatureItem text="Standard Profile & Portfolio" />
               <FeatureItem text="Post to Community Feed" />
               <FeatureItem text="Upload up to 10 Projects" />
-              <FeatureItem text="Basic Engagement Analytics" />
             </ul>
-            <button className="w-full py-3.5 bg-zinc-100 dark:bg-zinc-900 text-black dark:text-white font-bold rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
+            <button className="w-full py-3.5 bg-zinc-100 dark:bg-zinc-900 text-black dark:text-white font-bold rounded-xl opacity-50 cursor-not-allowed">
               Current Plan
             </button>
           </div>
 
-          {/* TIER 2: PRO (HIGHLIGHTED) */}
+          {/* TIER 2: PRO (THE 5 DOLLAR PLAN) */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border-2 border-[#9cf822] shadow-[0_0_40px_-15px_rgba(156,248,34,0.3)] flex flex-col relative transform md:-translate-y-4">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#9cf822] text-black text-xs font-black px-4 py-1 rounded-b-xl uppercase tracking-widest">
               Most Popular
@@ -90,20 +125,27 @@ export default function BillingPage() {
               <p className="text-sm text-zinc-500 min-h-[40px]">For serious creators who want to stand out and get hired.</p>
             </div>
             <div className="mb-8">
-              <span className="text-4xl font-black text-black dark:text-white">${isAnnual ? '10' : '12'}</span>
+              <span className="text-4xl font-black text-black dark:text-white">${isAnnual ? '4' : '5'}</span>
               <span className="text-zinc-500 font-medium">/month</span>
-              {isAnnual && <p className="text-xs text-zinc-400 mt-1">Billed $120 yearly</p>}
+              {isAnnual && <p className="text-xs text-zinc-400 mt-1">Billed $48 yearly</p>}
             </div>
             <ul className="space-y-4 mb-8 flex-grow">
               <FeatureItem text="Official PRO Verification Badge" icon={<BadgeCheck size={18} className="text-[#9cf822]" />} />
               <FeatureItem text='See "Who Viewed Your Profile"' icon={<BarChart3 size={18} className="text-[#9cf822]" />} />
               <FeatureItem text="Custom colab.com/name URL" icon={<LinkIcon size={18} className="text-[#9cf822]" />} />
-              <FeatureItem text="Pin top projects to your profile" icon={<Pin size={18} className="text-[#9cf822]" />} />
               <FeatureItem text="Unlimited High-Res Uploads" />
               <FeatureItem text="Priority visibility in Search" />
             </ul>
-            <button className="w-full py-3.5 bg-[#9cf822] text-black font-black rounded-xl shadow-lg shadow-[#9cf822]/20 hover:scale-[1.02] transition-transform">
-              Upgrade to PRO
+            <button 
+              onClick={() => handleUpgrade(isAnnual ? 'annual' : 'monthly')}
+              disabled={!!loading}
+              className="w-full py-3.5 bg-[#9cf822] text-black font-black rounded-xl shadow-lg shadow-[#9cf822]/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+            >
+              {loading === (isAnnual ? 'annual' : 'monthly') ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                "Upgrade to PRO"
+              )}
             </button>
           </div>
 
@@ -118,20 +160,16 @@ export default function BillingPage() {
             <div className="mb-8">
               <span className="text-4xl font-black text-black dark:text-white">${isAnnual ? '39' : '49'}</span>
               <span className="text-zinc-500 font-medium">/month</span>
-              {isAnnual && <p className="text-xs text-zinc-400 mt-1">Billed $468 yearly</p>}
             </div>
             <ul className="space-y-4 mb-8 flex-grow">
               <FeatureItem text="Everything in PRO" />
               <FeatureItem text="Advanced Talent Search Filters" />
               <FeatureItem text="Unlimited Direct Messaging" />
-              <FeatureItem text="Export Portfolio PDFs" />
-              <FeatureItem text="Dedicated Account Manager" />
             </ul>
             <button className="w-full py-3.5 bg-black text-white dark:bg-white dark:text-black font-bold rounded-xl hover:opacity-80 transition-opacity">
               Contact Sales
             </button>
           </div>
-
         </div>
       </div>
     </div>
