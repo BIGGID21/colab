@@ -1,5 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
+// 1. ADD THIS GET FUNCTION: This forces the browser to see the page so we can test it
+export async function GET() {
+  return new Response("WEBHOOK IS LIVE AND REACHABLE!", { status: 200 });
+}
+
+// 2. Your existing POST function
 export async function POST(req) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -11,7 +17,6 @@ export async function POST(req) {
     console.log("🔔 WEBHOOK EVENT RECEIVED:", body.event);
 
     if (body.event === 'charge.success') {
-      // SAFE CHECK: Make sure data and metadata exist before reading them
       const userId = body.data?.metadata?.userId;
       
       console.log("👤 USER ID FROM PAYSTACK:", userId);
@@ -35,7 +40,6 @@ export async function POST(req) {
 
     return new Response('Webhook Received', { status: 200 });
   } catch (err) {
-    // This catches the "TypeError" we saw in your screenshot
     console.error("💀 WEBHOOK CRASHED:", err.message);
     return new Response('Internal Error', { status: 500 });
   }
