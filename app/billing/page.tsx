@@ -1,50 +1,72 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Check, Sparkles, Building2, Zap, ArrowLeft, BadgeCheck, BarChart3, Pin, Link as LinkIcon, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Check, Sparkles, Building2, ArrowLeft, BadgeCheck, BarChart3, Pin, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 
-// Add the 'user' prop here so we can get email and ID
-export default function BillingPage({ user }: { user: any }) {
+// Initialize Supabase safely on the client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export default function BillingPage() {
   const router = useRouter();
   const [isAnnual, setIsAnnual] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+
+  // 1. Fetch the user the moment they open the billing page
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+    };
+    getUser();
+  }, []);
 
   const triggerHaptic = () => {
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(10);
   };
 
-  // --- THE PAYMENT LOGIC ---
+  // 2. The upgraded payment logic
   const handleUpgrade = async (planType: 'monthly' | 'annual') => {
+    if (!user) {
+      alert("We are still loading your profile, please wait a second and try again!");
+      return;
+    }
+
     setLoading(planType);
     triggerHaptic();
 
     try {
-      // Set price: $5 for monthly, $50 for annual (2 months free)
-      const amountInDollars = planType === 'annual' ? 50 : 5;
+      // Set price: $5 for monthly, $48 for annual
+      const amountInDollars = planType === 'annual' ? 48 : 5;
 
       const response = await fetch('/api/paystack/upgrade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: user?.email,
+          email: user.email,
           amount: amountInDollars,
-          userId: user?.id,
+          userId: user.id,
           planType: planType
         }),
       });
 
       const data = await response.json();
 
-      if (data.status && data.data.authorization_url) {
+      if (data.status && data.data?.authorization_url) {
         // Redirect to Paystack secure checkout
         window.location.href = data.data.authorization_url;
       } else {
-        alert("Payment initialization failed. Check your Vercel Environment Variables.");
+        console.error("Paystack Error:", data);
+        alert("Payment initialization failed. Please check your connection.");
       }
     } catch (error) {
       console.error("Upgrade error:", error);
-      alert("Something went wrong connecting to Paystack.");
+      alert("Something went wrong connecting to the payment gateway.");
     } finally {
       setLoading(null);
     }
@@ -113,7 +135,7 @@ export default function BillingPage({ user }: { user: any }) {
             </button>
           </div>
 
-          {/* TIER 2: PRO (THE 5 DOLLAR PLAN) */}
+          {/* TIER 2: PRO (THE $5 PLAN) */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border-2 border-[#9cf822] shadow-[0_0_40px_-15px_rgba(156,248,34,0.3)] flex flex-col relative transform md:-translate-y-4">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#9cf822] text-black text-xs font-black px-4 py-1 rounded-b-xl uppercase tracking-widest">
               Most Popular
