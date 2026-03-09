@@ -5,46 +5,63 @@ import { Check, Sparkles, Building2, ArrowLeft, BadgeCheck, BarChart3, Pin, Link
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 
-// 1. Initialize Supabase using the SSR package (Matches your Dashboard!)
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 export default function BillingPage() {
   const router = useRouter();
   const [isAnnual, setIsAnnual] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true); // NEW: Tracks if Supabase is loading
 
-  // 2. Fetch the user using the exact same method as your RootLayout
+  // 1. Initialize Supabase INSIDE the component (Next.js best practice)
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  // 2. Ironclad User Detection with Loading State
   useEffect(() => {
-    const checkUser = async () => {
-      const { data, error } = await supabase.auth.getUser();
-      
-      if (error) {
-        console.error("Supabase Auth Error:", error.message);
-      }
+    let mounted = true;
 
-      if (data?.user) {
-        setUser(data.user);
-        console.log("User successfully loaded:", data.user.email);
-      } else {
-        console.warn("No active session found. Are you logged in?");
+    const checkAuth = async () => {
+      try {
+        // getSession is much faster/more reliable for SSR cookies than getUser
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted && session?.user) {
+          setUser(session.user);
+          console.log("✅ Session found:", session.user.email);
+        }
+      } catch (error) {
+        console.error("Auth check failed:", error);
+      } finally {
+        if (mounted) setIsCheckingAuth(false); // Done checking!
       }
     };
-    
-    checkUser();
-  }, []);
+
+    checkAuth();
+
+    // Listener for real-time changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setUser(session?.user || null);
+        setIsCheckingAuth(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   const triggerHaptic = () => {
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(10);
   };
 
-  // 3. The upgraded payment logic
+  // 3. Payment logic
   const handleUpgrade = async (planType: 'monthly' | 'annual') => {
     if (!user) {
-      alert("We can't find your logged-in profile. Please make sure you are signed in first!");
+      alert("You must be logged in to upgrade. Please sign in!");
+      router.push('/login');
       return;
     }
 
@@ -52,7 +69,6 @@ export default function BillingPage() {
     triggerHaptic();
 
     try {
-      // Set price: $5 for monthly, $48 for annual
       const amountInDollars = planType === 'annual' ? 48 : 5;
 
       const response = await fetch('/api/paystack/upgrade', {
@@ -61,7 +77,7 @@ export default function BillingPage() {
         body: JSON.stringify({
           email: user.email,
           amount: amountInDollars,
-          userId: user.id,
+          userId: user.id, // Luggage tag attached!
           planType: planType
         }),
       });
@@ -69,15 +85,13 @@ export default function BillingPage() {
       const data = await response.json();
 
       if (data.status && data.data?.authorization_url) {
-        // Redirect to Paystack secure checkout
         window.location.href = data.data.authorization_url;
       } else {
-        console.error("Paystack Error:", data);
-        alert("Payment initialization failed. Please check your connection.");
+        alert("Payment gateway failed to initialize.");
       }
     } catch (error) {
       console.error("Upgrade error:", error);
-      alert("Something went wrong connecting to the payment gateway.");
+      alert("Connection error.");
     } finally {
       setLoading(null);
     }
@@ -99,8 +113,6 @@ export default function BillingPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 md:pt-20">
-        
-        {/* TITLE & TOGGLE */}
         <div className="text-center max-w-2xl mx-auto mb-12 md:mb-20">
           <h1 className="text-3xl md:text-5xl font-black text-black dark:text-white tracking-tight mb-4">
             Level up your creative career.
@@ -123,10 +135,8 @@ export default function BillingPage() {
           </div>
         </div>
 
-        {/* PRICING CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          
-          {/* TIER 1: FREE */}
+          {/* FREE */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-200 dark:border-zinc-800 flex flex-col relative overflow-hidden">
             <div className="mb-6">
               <h3 className="text-xl font-bold text-black dark:text-white mb-2">Basic</h3>
@@ -146,7 +156,7 @@ export default function BillingPage() {
             </button>
           </div>
 
-          {/* TIER 2: PRO (THE $5 PLAN) */}
+          {/* PRO */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border-2 border-[#9cf822] shadow-[0_0_40px_-15px_rgba(156,248,34,0.3)] flex flex-col relative transform md:-translate-y-4">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#9cf822] text-black text-xs font-black px-4 py-1 rounded-b-xl uppercase tracking-widest">
               Most Popular
@@ -171,10 +181,12 @@ export default function BillingPage() {
             </ul>
             <button 
               onClick={() => handleUpgrade(isAnnual ? 'annual' : 'monthly')}
-              disabled={!!loading}
-              className="w-full py-3.5 bg-[#9cf822] text-black font-black rounded-xl shadow-lg shadow-[#9cf822]/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+              disabled={!!loading || isCheckingAuth} // NEW: Disabled while checking auth
+              className="w-full py-3.5 bg-[#9cf822] text-black font-black rounded-xl shadow-lg shadow-[#9cf822]/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-              {loading === (isAnnual ? 'annual' : 'monthly') ? (
+              {isCheckingAuth ? ( // NEW: Shows loader while fetching user
+                <Loader2 size={18} className="animate-spin text-black/70" />
+              ) : loading === (isAnnual ? 'annual' : 'monthly') ? (
                 <Loader2 size={18} className="animate-spin" />
               ) : (
                 "Upgrade to PRO"
@@ -182,7 +194,7 @@ export default function BillingPage() {
             </button>
           </div>
 
-          {/* TIER 3: TEAMS / AGENCY */}
+          {/* AGENCY */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-200 dark:border-zinc-800 flex flex-col relative overflow-hidden">
             <div className="mb-6">
               <h3 className="text-xl font-bold text-black dark:text-white flex items-center gap-2 mb-2">
