@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { Check, Sparkles, Building2, ArrowLeft, BadgeCheck, BarChart3, Pin, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
-// Initialize Supabase safely on the client
-const supabase = createClient(
+// 1. Initialize Supabase using the SSR package (Matches your Dashboard!)
+const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
@@ -17,18 +17,18 @@ export default function BillingPage() {
   const [loading, setLoading] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
 
-  // 1. Fetch the user using getSession (More reliable on live Vercel apps)
+  // 2. Fetch the user using the exact same method as your RootLayout
   useEffect(() => {
     const checkUser = async () => {
-      const { data, error } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getUser();
       
       if (error) {
         console.error("Supabase Auth Error:", error.message);
       }
 
-      if (data?.session?.user) {
-        setUser(data.session.user);
-        console.log("User successfully loaded:", data.session.user.email);
+      if (data?.user) {
+        setUser(data.user);
+        console.log("User successfully loaded:", data.user.email);
       } else {
         console.warn("No active session found. Are you logged in?");
       }
@@ -41,11 +41,10 @@ export default function BillingPage() {
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(10);
   };
 
-  // 2. The upgraded payment logic
+  // 3. The upgraded payment logic
   const handleUpgrade = async (planType: 'monthly' | 'annual') => {
     if (!user) {
       alert("We can't find your logged-in profile. Please make sure you are signed in first!");
-      router.push('/login'); // Optional: redirect them to login if you have a /login page
       return;
     }
 
