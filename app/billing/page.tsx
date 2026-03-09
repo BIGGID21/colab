@@ -17,13 +17,24 @@ export default function BillingPage() {
   const [loading, setLoading] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
 
-  // 1. Fetch the user the moment they open the billing page
+  // 1. Fetch the user using getSession (More reliable on live Vercel apps)
   useEffect(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
+    const checkUser = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error("Supabase Auth Error:", error.message);
+      }
+
+      if (data?.session?.user) {
+        setUser(data.session.user);
+        console.log("User successfully loaded:", data.session.user.email);
+      } else {
+        console.warn("No active session found. Are you logged in?");
+      }
     };
-    getUser();
+    
+    checkUser();
   }, []);
 
   const triggerHaptic = () => {
@@ -33,7 +44,8 @@ export default function BillingPage() {
   // 2. The upgraded payment logic
   const handleUpgrade = async (planType: 'monthly' | 'annual') => {
     if (!user) {
-      alert("We are still loading your profile, please wait a second and try again!");
+      alert("We can't find your logged-in profile. Please make sure you are signed in first!");
+      router.push('/login'); // Optional: redirect them to login if you have a /login page
       return;
     }
 
