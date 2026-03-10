@@ -1,12 +1,15 @@
+export const dynamic = 'force-dynamic';
+
 import { createClient } from '@supabase/supabase-js';
 
-// 1. ADD THIS GET FUNCTION: This forces the browser to see the page so we can test it
+// GET: Allows us to test if the URL is reachable in a browser
 export async function GET() {
   return new Response("WEBHOOK IS LIVE AND REACHABLE!", { status: 200 });
 }
 
-// 2. Your existing POST function
+// POST: Where Paystack sends the actual payment receipts
 export async function POST(req) {
+  // Initialize Supabase with the Master Key to bypass security rules
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY 
@@ -17,11 +20,13 @@ export async function POST(req) {
     console.log("🔔 WEBHOOK EVENT RECEIVED:", body.event);
 
     if (body.event === 'charge.success') {
+      // Safe check to find the user ID we attached earlier
       const userId = body.data?.metadata?.userId;
       
       console.log("👤 USER ID FROM PAYSTACK:", userId);
 
       if (userId) {
+        // Find the user in Supabase and flip the verified switch
         const { error } = await supabase
           .from('profiles')
           .update({ is_verified: true })
@@ -38,6 +43,7 @@ export async function POST(req) {
       }
     }
 
+    // Always tell Paystack "OK" so they don't keep retrying
     return new Response('Webhook Received', { status: 200 });
   } catch (err) {
     console.error("💀 WEBHOOK CRASHED:", err.message);
