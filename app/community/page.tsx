@@ -267,15 +267,14 @@ export default function CommunityFeedPage() {
                     className="w-full bg-transparent resize-none text-black dark:text-white text-lg focus:outline-none min-h-[80px]"
                   />
                   
-                  {/* COMPOSER MEDIA - TWITTER STYLE DIMENSIONS */}
+                  {/* COMPOSER MEDIA - 16:9 DIMENSIONS */}
                   {postMedia.length > 0 && (
                     <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${postMedia.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
                       {postMedia.map((m, idx) => {
                         const isVideo = m.type === 'video' || m.url.includes('.mp4');
-                        const itemClass = postMedia.length === 1 ? (isVideo ? 'aspect-video' : 'aspect-video sm:aspect-[16/9]') : 'aspect-square sm:aspect-[4/3]';
                         
                         return (
-                          <div key={idx} className={`relative bg-black ${itemClass}`}>
+                          <div key={idx} className="relative bg-black aspect-video">
                             {isVideo ? (
                               <video src={m.url} className="w-full h-full object-cover" controls playsInline />
                             ) : (
@@ -348,15 +347,14 @@ export default function CommunityFeedPage() {
                       </div>
                       <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap text-[15px] leading-relaxed mt-2">{post.content}</p>
                       
-                      {/* POST MEDIA - TWITTER STYLE DIMENSIONS */}
+                      {/* POST MEDIA - 16:9 DIMENSIONS */}
                       {post.media?.length > 0 && (
                         <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${post.media.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
                           {post.media.map((m: any, i: number) => {
                             const isVideo = m.type === 'video' || m.url.includes('.mp4');
-                            const itemClass = post.media.length === 1 ? (isVideo ? 'aspect-video' : 'aspect-video sm:aspect-[16/9]') : 'aspect-square sm:aspect-[4/3]';
                             
                             return (
-                              <div key={i} className={`relative bg-black cursor-pointer ${itemClass}`} onClick={() => !isVideo && setExpandedMedia(m.url)}>
+                              <div key={i} className="relative bg-black cursor-pointer aspect-video" onClick={() => !isVideo && setExpandedMedia(m.url)}>
                                 {isVideo ? (
                                   <video src={m.url} className="w-full h-full object-cover" controls playsInline />
                                 ) : (
