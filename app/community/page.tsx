@@ -241,7 +241,7 @@ export default function CommunityFeedPage() {
       <div className="sm:hidden w-full bg-white dark:bg-black border-b border-zinc-100 dark:border-zinc-900 py-3 overflow-hidden">
         <div className="px-4 flex items-center gap-2 mb-2">
           <Zap size={14} className="text-[#9cf822] fill-[#9cf822]" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">What's Happening</span>
+          <span className="text-xs font-black text-zinc-500">What Is Happening</span>
         </div>
         <div className="flex gap-4 overflow-x-auto px-4 no-scrollbar pb-1">
           {recentActivity.map((activity, i) => (
@@ -333,14 +333,23 @@ export default function CommunityFeedPage() {
           {/* Posts List */}
           <div className="space-y-0 sm:space-y-6">
             {posts.map((post) => {
+              const isOfficial = post.profiles?.role === 'official';
+              
               return (
                 <div 
                   key={post.id} 
-                  className="bg-white dark:bg-[#0a0a0a] sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all text-left relative overflow-hidden"
+                  className={`sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border transition-all text-left relative overflow-hidden ${
+                    isOfficial 
+                      ? 'bg-zinc-50 dark:bg-[#9cf822]/[0.02] border-[#9cf822] dark:border-[#9cf822]/40 shadow-[0_0_20px_rgba(156,248,34,0.05)]' 
+                      : 'bg-white dark:bg-[#0a0a0a] border-zinc-200 dark:border-zinc-800 shadow-sm'
+                  }`}
                 >
+                  {/* Official Top Accent Line */}
+                  {isOfficial && <div className="absolute top-0 left-0 w-full h-1.5 bg-[#9cf822]"></div>}
+
                   <div className="flex items-start gap-4">
                     <Link href={`/profile/${post.user_id}`} className="shrink-0 mt-1">
-                      <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 border-transparent hover:border-[#9cf822] transition-colors">
+                      <div className={`w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 transition-colors ${isOfficial ? 'border-[#9cf822]' : 'border-transparent hover:border-[#9cf822]'}`}>
                         <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
                       </div>
                     </Link>
@@ -456,7 +465,7 @@ export default function CommunityFeedPage() {
 
         {/* STATIC DESKTOP SIDEBAR */}
         <div className="lg:col-span-4 space-y-8 order-1 lg:order-2 hidden lg:block">
-          <div className="sticky top-24 space-y-8">
+          <div className="sticky top-24 space-y-8 max-h-[calc(100vh-6rem)] overflow-y-auto no-scrollbar pb-8">
             
             {/* COMMUNITY HUB: TRENDING TAGS */}
             <div className="w-full bg-gradient-to-br from-[#1a2e05] to-[#0a1401] rounded-[2.5rem] p-8 border border-white/5 shadow-2xl relative overflow-hidden text-left">
