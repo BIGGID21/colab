@@ -7,13 +7,14 @@ import {
   Loader2, Send, MapPin, Coffee, Image as ImageIcon, 
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
-  BadgeCheck
+  BadgeCheck, PartyPopper
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CommunityFeedPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
   
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -56,7 +57,6 @@ export default function CommunityFeedPage() {
         .single();
       setProfile(userProfile);
 
-      // ADDED is_verified to profiles selections for posts, comments, and reposts
       const { data: postData, error } = await supabase
         .from('posts')
         .select(`
@@ -152,7 +152,6 @@ export default function CommunityFeedPage() {
     const postContent = newPost.trim();
     const tempId = `temp-${Date.now()}`;
     
-    // Optimistic rendering includes the verified badge
     const optimisticPost = {
       id: tempId,
       user_id: user.id,
@@ -197,14 +196,12 @@ export default function CommunityFeedPage() {
     
     triggerHaptic([10, 20]);
     const previousPosts = [...posts]; 
-    
     setPosts(prev => prev.filter(p => p.id !== postId));
     
     try {
       const { error } = await supabase.from('posts').delete().eq('id', postId);
       if (error) throw error;
     } catch (err: any) {
-       console.error("Failed to delete post:", err.message || JSON.stringify(err));
        alert(`Failed to delete post: ${err.message || 'Database error'}`);
        setPosts(previousPosts); 
     }
@@ -235,7 +232,6 @@ export default function CommunityFeedPage() {
     };
 
     const previousPosts = [...posts];
-
     setPosts(prev => [
       optimisticPost, 
       ...prev.map(p => p.id === originalId ? { ...p, reposts_count: (p.reposts_count || 0) + 1 } : p)
@@ -249,7 +245,6 @@ export default function CommunityFeedPage() {
       }).select().single();
       
       if (insertError) throw insertError;
-
       if (insertedRepost) {
          setPosts(prev => prev.map(p => p.id === tempId ? { ...p, id: insertedRepost.id } : p));
       }
@@ -258,7 +253,6 @@ export default function CommunityFeedPage() {
       if (updateError) throw updateError;
 
     } catch (err: any) {
-      console.error("Error reposting:", err.message || JSON.stringify(err));
       alert(`Failed to repost: ${err.message || 'Check database permissions'}`);
       setPosts(previousPosts); 
     }
@@ -283,9 +277,6 @@ export default function CommunityFeedPage() {
         if (error) throw error;
       }
     } catch (err: any) {
-      console.error("Error liking:", err.message || JSON.stringify(err));
-      alert(`Could not ${hasLiked ? 'unlike' : 'like'} post: ${err.message || 'Database permissions blocked the action'}`);
-      
       setPosts(prev => prev.map(p => p.id === postId ? { 
         ...p, 
         likes_count: currentLikes, 
@@ -316,7 +307,6 @@ export default function CommunityFeedPage() {
         if (error) throw error;
       }
     } catch (err: any) {
-      console.error("Error liking comment:", err);
       setPosts(prev => prev.map(p => p.id === postId ? {
         ...p,
         comments: p.comments.map((c: any) => c.id === commentId ? {
@@ -362,7 +352,6 @@ export default function CommunityFeedPage() {
       }).select().single();
       
       if (error) throw error;
-      
       if (insertedComment) {
          setPosts(prev => prev.map(p => p.id === postId ? { 
            ...p, 
@@ -370,7 +359,6 @@ export default function CommunityFeedPage() {
          } : p));
       }
     } catch (err: any) {
-       console.error("Failed to post comment:", err);
        setPosts(prev => prev.map(p => p.id === postId ? {
          ...p, comments: p.comments.filter((c: any) => c.id !== tempId)
        } : p));
@@ -381,7 +369,7 @@ export default function CommunityFeedPage() {
 
   const renderComments = (postId: string, comments: any[], parentId: string | null = null, depth = 0) => {
     return comments.filter(c => c.parent_id === parentId).map(c => (
-      <div key={c.id} className={`flex gap-3 text-sm ${depth > 0 ? 'ml-8 mt-3' : 'mt-4'}`}>
+      <div key={c.id} className={`flex gap-3 text-sm ${depth > 0 ? 'ml-8 mt-3' : 'mt-4 text-left'}`}>
         <Link href={`/profile/${c.user_id}`} className="shrink-0">
           <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 dark:border-zinc-800 hover:opacity-80 transition-opacity">
             {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
@@ -389,7 +377,6 @@ export default function CommunityFeedPage() {
         </Link>
         <div className="flex-grow min-w-0">
           <div className="bg-zinc-100 dark:bg-zinc-900 p-2.5 rounded-xl rounded-tl-none inline-block max-w-full overflow-hidden">
-            {/* Display Badge for Commenter */}
             <Link href={`/profile/${c.user_id}`} className="hover:underline flex items-center gap-1 mb-0.5">
               <span className="font-bold block text-xs text-black dark:text-white truncate">{c.profiles?.full_name}</span>
               {c.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
@@ -407,7 +394,6 @@ export default function CommunityFeedPage() {
             </button>
             <span className="text-[10px] text-zinc-400 font-medium">{new Date(c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
           </div>
-
           {renderComments(postId, comments, c.id, depth + 1)}
         </div>
       </div>
@@ -417,8 +403,9 @@ export default function CommunityFeedPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#050505] transition-colors duration-300 pb-20">
+    <div className="min-h-screen bg-white dark:bg-[#050505] transition-colors duration-300 pb-24">
       
+      {/* Media Overlay */}
       {expandedMedia && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setExpandedMedia(null)}>
           <button className="absolute top-6 right-6 text-white p-2 hover:bg-white/10 rounded-full transition-colors"><X size={32} /></button>
@@ -426,9 +413,10 @@ export default function CommunityFeedPage() {
         </div>
       )}
 
+      {/* Desktop Header */}
       <header className="hidden sm:block bg-white dark:bg-[#0a0a0a] border-b border-zinc-200 dark:border-zinc-900 px-6 py-4 sticky top-0 z-40">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div>
+          <div className="text-left">
             <h1 className="text-xl font-bold text-black dark:text-white tracking-tight flex items-center gap-2">
               <Globe className="text-[#9cf822]" size={20} /> Community Feed
             </h1>
@@ -442,15 +430,18 @@ export default function CommunityFeedPage() {
 
       <div className="max-w-5xl mx-auto px-0 sm:px-6 pt-0 sm:pt-8 grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-8">
         
-        <div className="lg:col-span-8 space-y-0 sm:space-y-6">
+        {/* Main Feed Column */}
+        <div className="lg:col-span-8 space-y-0 sm:space-y-6 order-2 lg:order-1">
           
-          <div className="sm:hidden px-4 py-6 bg-white dark:bg-black border-b border-zinc-100 dark:border-zinc-900">
+          {/* Mobile Header */}
+          <div className="sm:hidden px-4 py-6 bg-white dark:bg-black border-b border-zinc-100 dark:border-zinc-900 text-left">
              <h1 className="text-xl font-bold text-black dark:text-white flex items-center gap-2">
                <Globe className="text-[#9cf822]" size={20} /> Community Feed
              </h1>
           </div>
 
-          <div className="bg-white dark:bg-[#0a0a0a] sm:rounded-[2rem] p-4 sm:p-6 border-b sm:border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          {/* Post Composer */}
+          <div className="bg-white dark:bg-[#0a0a0a] sm:rounded-[2rem] p-4 sm:p-6 border-b sm:border border-zinc-200 dark:border-zinc-800 shadow-sm text-left">
             <form onSubmit={handlePost}>
               <div className="flex gap-4">
                 <Link href={`/profile/${user?.id}`} className="shrink-0">
@@ -466,6 +457,7 @@ export default function CommunityFeedPage() {
                 </Link>
                 <div className="flex-grow">
                   <textarea 
+                    ref={textAreaRef}
                     value={newPost} onChange={(e) => setNewPost(e.target.value)}
                     placeholder="What are you building today?"
                     className="w-full bg-transparent resize-none text-black dark:text-white text-base sm:text-lg focus:outline-none min-h-[60px] sm:min-h-[80px]"
@@ -473,9 +465,9 @@ export default function CommunityFeedPage() {
                   {postMedia.length > 0 && (
                     <div className={`mt-2 grid gap-2 ${postMedia.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                       {postMedia.map((media, index) => (
-                        <div key={index} className="relative aspect-[4/5] w-full">
-                          {media.type === 'video' ? <video src={media.url} className="w-full h-full rounded-xl object-cover" /> : <img src={media.url} className="w-full h-full rounded-xl object-cover" />}
-                          <button type="button" onClick={() => removeMedia(index)} className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full"><X size={14} /></button>
+                        <div key={index} className="relative aspect-[4/5] w-full bg-black rounded-xl overflow-hidden">
+                          {media.type === 'video' ? <video src={media.url} className="w-full h-full object-cover" /> : <img src={media.url} className="w-full h-full object-cover" />}
+                          <button type="button" onClick={() => removeMedia(index)} className="absolute top-2 right-2 bg-black/60 backdrop-blur-md text-white p-1.5 rounded-full"><X size={14} /></button>
                         </div>
                       ))}
                     </div>
@@ -483,31 +475,30 @@ export default function CommunityFeedPage() {
                 </div>
               </div>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <input type="file" ref={fileInputRef} onChange={handleMediaUpload} accept="image/*,video/*" multiple className="hidden" />
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-[#9cf822]"><ImageIcon size={18} /></button>
-                  <button type="button" onClick={() => setNewPost(p => p + " 📍 ")} className="p-2 text-blue-500"><MapPin size={18} /></button>
-                  <button type="button" onClick={() => setNewPost(p => p + " ☕ ")} className="p-2 text-orange-500"><Coffee size={18} /></button>
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-[#9cf822] hover:bg-[#9cf822]/10 rounded-full transition-colors"><ImageIcon size={20} /></button>
+                  <button type="button" onClick={() => setNewPost(p => p + " 📍 ")} className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-full transition-colors"><MapPin size={20} /></button>
+                  <button type="button" onClick={() => setNewPost(p => p + " ☕ ")} className="p-2 text-orange-500 hover:bg-orange-500/10 rounded-full transition-colors"><Coffee size={20} /></button>
                 </div>
-                <button type="submit" disabled={isPosting || isUploadingImage} className="px-6 py-2 bg-black text-white dark:bg-white dark:text-black font-bold text-sm rounded-xl transition-opacity hover:opacity-80">
+                <button type="submit" disabled={isPosting || isUploadingImage} className="px-6 py-2 bg-[#9cf822] text-black font-black text-sm rounded-xl transition-all active:scale-95 disabled:opacity-50">
                   {isPosting ? <Loader2 size={16} className="animate-spin" /> : "Post"}
                 </button>
               </div>
             </form>
           </div>
 
+          {/* Posts List */}
           <div className="space-y-0 sm:space-y-4">
             {posts.map((post) => {
-              // Determine the correct user ID to link to based on if it's a repost or an original post
               const targetUserId = post.repost_id ? post.repost?.user_id : post.user_id;
 
               return (
-                <div key={post.id} className="bg-white dark:bg-[#0a0a0a] sm:rounded-[2rem] p-4 sm:p-6 border-b sm:border border-zinc-200 dark:border-zinc-800 transition-colors relative">
+                <div key={post.id} className="bg-white dark:bg-[#0a0a0a] sm:rounded-[2rem] p-4 sm:p-6 border-b sm:border border-zinc-200 dark:border-zinc-800 transition-colors text-left relative">
                   
                   {post.repost_id && (
                     <div className="flex items-center gap-2 text-zinc-500 text-xs font-bold mb-4 ml-1">
                       <Repeat size={14} className="text-[#9cf822]" /> 
-                      {/* Display Badge for the Reposter */}
                       <Link href={`/profile/${post.user_id}`} className="hover:underline flex items-center gap-1">
                         <span>{post.profiles?.full_name} reshared</span>
                         {post.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
@@ -516,7 +507,6 @@ export default function CommunityFeedPage() {
                   )}
 
                   <div className="flex items-start gap-3 sm:gap-4">
-                    
                     <Link href={`/profile/${targetUserId}`} className="shrink-0">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:opacity-80 transition-opacity">
                         <img src={post.repost_id ? post.repost?.profiles?.avatar_url : post.profiles?.avatar_url} className="w-full h-full object-cover" alt="" />
@@ -526,7 +516,6 @@ export default function CommunityFeedPage() {
                     <div className="flex-grow w-full overflow-hidden">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2 min-w-0">
-                          {/* Display Badge for the Main Author */}
                           <Link href={`/profile/${targetUserId}`} className="hover:underline truncate flex items-center gap-1">
                             <h4 className="font-bold text-black dark:text-white truncate text-sm sm:text-base">
                               {post.repost_id ? post.repost?.profiles?.full_name : (post.profiles?.full_name || 'Anonymous')}
@@ -542,7 +531,7 @@ export default function CommunityFeedPage() {
                         <div className="flex items-center gap-3 shrink-0 ml-2">
                           <span className="text-[10px] text-zinc-400">{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                           {user?.id === post.user_id && (
-                            <button onClick={() => handleDeletePost(post.id)} className="text-zinc-400 hover:text-red-500 transition-colors p-1" title="Delete Post">
+                            <button onClick={() => handleDeletePost(post.id)} className="text-zinc-400 hover:text-red-500 transition-colors p-1">
                               <Trash2 size={16} />
                             </button>
                           )}
@@ -588,25 +577,20 @@ export default function CommunityFeedPage() {
                           <Repeat size={18} />
                           <span className="text-xs font-bold">{post.reposts_count || 0}</span>
                         </button>
-                        <button className="flex items-center text-zinc-400 ml-auto hover:text-emerald-500" onClick={() => { navigator.clipboard.writeText(window.location.href); alert("Copied!"); }}>
+                        <button className="flex items-center text-zinc-400 ml-auto hover:text-emerald-500" onClick={() => { navigator.clipboard.writeText(window.location.href); alert("Link copied!"); }}>
                           <Share2 size={18} />
                         </button>
                       </div>
 
                       {activeCommentPost === post.id && (
                         <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900 animate-in slide-in-from-top-2">
-                          
-                          <div className="mb-6">
-                             {renderComments(post.id, post.comments, null, 0)}
-                          </div>
-                          
+                          <div className="mb-6">{renderComments(post.id, post.comments, null, 0)}</div>
                           {replyTo && (
                             <div className="flex items-center justify-between text-[11px] font-bold text-zinc-500 mb-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-900 rounded-lg inline-flex">
                               <span>Replying to <span className="text-black dark:text-white">{replyTo.userName}</span></span>
                               <button onClick={() => setReplyTo(null)} className="ml-3 hover:text-black dark:hover:text-white"><X size={12}/></button>
                             </div>
                           )}
-
                           <div className="flex gap-2 items-center">
                             <input 
                               type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
@@ -628,15 +612,59 @@ export default function CommunityFeedPage() {
           </div>
         </div>
 
-        <div className="hidden lg:block lg:col-span-4 space-y-6">
-          <div className="bg-gradient-to-br from-[#9cf822]/20 to-transparent border border-[#9cf822]/20 rounded-[2rem] p-6 sticky top-24">
-            <h3 className="font-bold text-black dark:text-white flex items-center gap-2 mb-2"><Sparkles size={18} /> Community Hub</h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Engaging increases visibility by 40%.</p>
-            <button onClick={() => document.querySelector('textarea')?.focus()} className="w-full py-2.5 bg-black text-white dark:bg-white dark:text-black font-bold rounded-xl text-sm transition-opacity hover:opacity-80">Share Update</button>
-            <div className="mt-8 space-y-4">
-               <h3 className="font-bold text-black dark:text-white flex items-center gap-2 mb-4"><TrendingUp size={18} /> Trending</h3>
-               <div className="flex items-center gap-3"><div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg"><Code size={16}/></div><div><p className="text-sm font-bold text-black dark:text-white">#BuildInPublic</p></div></div>
-               <div className="flex items-center gap-3"><div className="p-2 bg-orange-500/10 text-orange-500 rounded-lg"><Briefcase size={16}/></div><div><p className="text-sm font-bold text-black dark:text-white">#Hiring</p></div></div>
+        {/* Community Hub Column (First on Mobile, Right on Desktop) */}
+        <div className="lg:col-span-4 space-y-6 order-1 lg:order-2 px-4 sm:px-0 py-6 sm:py-0">
+          <div className="w-full bg-gradient-to-br from-[#1a2e05] to-[#0a1401] rounded-[2rem] p-8 border border-white/5 shadow-2xl overflow-hidden relative group transition-all hover:border-[#9cf822]/20 text-left">
+            {/* Background Glow */}
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-[#9cf822]/10 blur-[80px] rounded-full group-hover:bg-[#9cf822]/20 transition-all duration-700" />
+
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles size={18} className="text-[#9cf822]" />
+                <h3 className="font-bold text-white text-lg tracking-tight">Community Hub</h3>
+              </div>
+              <p className="text-zinc-400 text-sm mb-8 font-medium">Engaging increases visibility by <span className="text-[#9cf822] font-bold">40%.</span></p>
+
+              <button 
+                onClick={() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  textAreaRef.current?.focus();
+                }}
+                className="w-full py-4 bg-zinc-200 hover:bg-white text-black font-black rounded-2xl transition-all active:scale-95 shadow-lg mb-8 text-sm uppercase tracking-wider"
+              >
+                Share Update
+              </button>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-zinc-500 mb-4">
+                  <TrendingUp size={14} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Trending Now</span>
+                </div>
+                
+                <div className="flex flex-col gap-3">
+                  <button className="flex items-center gap-3 group/tag w-full text-left">
+                    <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400 transition-transform group-hover/tag:scale-110"><Code size={14} /></div>
+                    <span className="text-sm font-bold text-zinc-300 group-hover/tag:text-white">#BuildInPublic</span>
+                  </button>
+                  <button className="flex items-center gap-3 group/tag w-full text-left">
+                    <div className="p-2 rounded-xl bg-orange-500/20 text-orange-400 transition-transform group-hover/tag:scale-110"><Briefcase size={14} /></div>
+                    <span className="text-sm font-bold text-zinc-300 group-hover/tag:text-white">#HiringCreators</span>
+                  </button>
+                  <button className="flex items-center gap-3 group/tag w-full text-left">
+                    <div className="p-2 rounded-xl bg-[#9cf822]/20 text-[#9cf822] transition-transform group-hover/tag:scale-110"><PartyPopper size={14} /></div>
+                    <span className="text-sm font-bold text-zinc-300 group-hover/tag:text-white">#CoLabVerified</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Sidebar Info */}
+          <div className="hidden lg:block bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-6 text-left">
+            <h4 className="font-bold text-black dark:text-white mb-4 text-sm uppercase tracking-widest">Global Network</h4>
+            <div className="flex items-center gap-2 text-zinc-500 text-xs">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span>482 creators active online</span>
             </div>
           </div>
         </div>
