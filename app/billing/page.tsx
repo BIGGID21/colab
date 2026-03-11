@@ -1,92 +1,104 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Check, Sparkles, Building2, Zap, ArrowLeft, BadgeCheck, BarChart3, Pin, Link as LinkIcon } from 'lucide-react';
-import Link from 'next/link';
+import { Check, Sparkles, Building2, ArrowLeft, BadgeCheck, BarChart3, Pin, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr'; 
+import { createBrowserClient } from '@supabase/ssr';
 
 export default function BillingPage() {
   const router = useRouter();
   const [isAnnual, setIsAnnual] = useState(true);
+  const [loading, setLoading] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true); // NEW: Tracks if Supabase is loading
 
-  // Initialize Supabase correctly for Next.js App Router (No red lines!)
+  // 1. Initialize Supabase INSIDE the component (Next.js best practice)
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // 1. Fetch Session & Load Paystack Script on Mount
+  // 2. Ironclad User Detection with Loading State
   useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser(); 
-      setUser(user);
-      setIsCheckingAuth(false);
-    };
+    let mounted = true;
 
-    fetchUser();
-
-    // Inject Paystack Script for the popup
-    const script = document.createElement('script');
-    script.src = 'https://js.paystack.co/v1/inline.js';
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
+    const checkAuth = async () => {
+      try {
+        // getSession is much faster/more reliable for SSR cookies than getUser
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted && session?.user) {
+          setUser(session.user);
+          console.log("✅ Session found:", session.user.email);
+        }
+      } catch (error) {
+        console.error("Auth check failed:", error);
+      } finally {
+        if (mounted) setIsCheckingAuth(false); // Done checking!
       }
     };
-  }, [supabase.auth]);
+
+    checkAuth();
+
+    // Listener for real-time changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setUser(session?.user || null);
+        setIsCheckingAuth(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   const triggerHaptic = () => {
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(10);
   };
 
-  // 2. The Paystack Checkout Logic
-  const handleUpgrade = () => {
-    if (isCheckingAuth) return;
-
+  // 3. Payment logic
+  const handleUpgrade = async (planType: 'monthly' | 'annual') => {
     if (!user) {
-      alert("Please log in to upgrade to PRO.");
+      alert("You must be logged in to upgrade. Please sign in!");
       router.push('/login');
       return;
     }
 
-    setIsProcessing(true);
+    setLoading(planType);
+    triggerHaptic();
 
-    // Set prices in Naira: ₦5000 monthly or ₦48000 annually
-    const amountToCharge = isAnnual ? 48000 : 5000;
-    const amountInSubunits = amountToCharge * 100; // Paystack requires kobo
+    try {
+      const amountInDollars = planType === 'annual' ? 48 : 5;
 
-    // @ts-ignore
-    const handler = window.PaystackPop.setup({
-      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY, 
-      email: user.email,
-      amount: amountInSubunits,
-      currency: 'NGN', // <-- THE FIX: Changed to Naira to match your account
-      metadata: {
-        userId: user.id // Sends to your Webhook!
-      },
-      callback: function(response: any) {
-         setIsProcessing(false);
-         alert("Payment successful! Your badge will appear in a few seconds.");
-         router.push('/dashboard'); 
-      },
-      onClose: function() {
-         setIsProcessing(false);
+      const response = await fetch('/api/paystack/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          amount: amountInDollars,
+          userId: user.id, // Luggage tag attached!
+          planType: planType
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status && data.data?.authorization_url) {
+        window.location.href = data.data.authorization_url;
+      } else {
+        alert("Payment gateway failed to initialize.");
       }
-    });
-
-    handler.openIframe();
+    } catch (error) {
+      console.error("Upgrade error:", error);
+      alert("Connection error.");
+    } finally {
+      setLoading(null);
+    }
   };
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-24">
-      
       {/* HEADER NAV */}
       <header className="bg-white dark:bg-[#0a0a0a] border-b border-zinc-200 dark:border-zinc-900 px-4 sm:px-6 py-4 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -101,14 +113,12 @@ export default function BillingPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 md:pt-20">
-        
-        {/* TITLE & TOGGLE */}
         <div className="text-center max-w-2xl mx-auto mb-12 md:mb-20">
           <h1 className="text-3xl md:text-5xl font-black text-black dark:text-white tracking-tight mb-4">
             Level up your creative career.
           </h1>
           <p className="text-zinc-500 dark:text-zinc-400 text-base md:text-lg mb-8">
-            Join thousands of professionals standing out, landing clients, and growing their network on CoLab.
+            Join thousands of professionals standing out and landing clients on CoLab.
           </p>
 
           <div className="flex items-center justify-center gap-3">
@@ -125,31 +135,28 @@ export default function BillingPage() {
           </div>
         </div>
 
-        {/* PRICING CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          
-          {/* TIER 1: FREE */}
+          {/* FREE */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-200 dark:border-zinc-800 flex flex-col relative overflow-hidden">
             <div className="mb-6">
               <h3 className="text-xl font-bold text-black dark:text-white mb-2">Basic</h3>
               <p className="text-sm text-zinc-500 min-h-[40px]">Perfect for getting started and sharing your portfolio.</p>
             </div>
             <div className="mb-8">
-              <span className="text-4xl font-black text-black dark:text-white">₦0</span>
+              <span className="text-4xl font-black text-black dark:text-white">$0</span>
               <span className="text-zinc-500 font-medium">/forever</span>
             </div>
             <ul className="space-y-4 mb-8 flex-grow">
               <FeatureItem text="Standard Profile & Portfolio" />
               <FeatureItem text="Post to Community Feed" />
               <FeatureItem text="Upload up to 10 Projects" />
-              <FeatureItem text="Basic Engagement Analytics" />
             </ul>
-            <button className="w-full py-3.5 bg-zinc-100 dark:bg-zinc-900 text-black dark:text-white font-bold rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
+            <button className="w-full py-3.5 bg-zinc-100 dark:bg-zinc-900 text-black dark:text-white font-bold rounded-xl opacity-50 cursor-not-allowed">
               Current Plan
             </button>
           </div>
 
-          {/* TIER 2: PRO */}
+          {/* PRO */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border-2 border-[#9cf822] shadow-[0_0_40px_-15px_rgba(156,248,34,0.3)] flex flex-col relative transform md:-translate-y-4">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#9cf822] text-black text-xs font-black px-4 py-1 rounded-b-xl uppercase tracking-widest">
               Most Popular
@@ -161,29 +168,33 @@ export default function BillingPage() {
               <p className="text-sm text-zinc-500 min-h-[40px]">For serious creators who want to stand out and get hired.</p>
             </div>
             <div className="mb-8">
-              <span className="text-4xl font-black text-black dark:text-white">{isAnnual ? '₦4,000' : '₦5,000'}</span>
+              <span className="text-4xl font-black text-black dark:text-white">${isAnnual ? '4' : '5'}</span>
               <span className="text-zinc-500 font-medium">/month</span>
-              {isAnnual && <p className="text-xs text-zinc-400 mt-1">Billed ₦48,000 yearly</p>}
+              {isAnnual && <p className="text-xs text-zinc-400 mt-1">Billed $48 yearly</p>}
             </div>
             <ul className="space-y-4 mb-8 flex-grow">
               <FeatureItem text="Official PRO Verification Badge" icon={<BadgeCheck size={18} className="text-[#9cf822]" />} />
               <FeatureItem text='See "Who Viewed Your Profile"' icon={<BarChart3 size={18} className="text-[#9cf822]" />} />
               <FeatureItem text="Custom colab.com/name URL" icon={<LinkIcon size={18} className="text-[#9cf822]" />} />
-              <FeatureItem text="Pin top projects to your profile" icon={<Pin size={18} className="text-[#9cf822]" />} />
               <FeatureItem text="Unlimited High-Res Uploads" />
               <FeatureItem text="Priority visibility in Search" />
             </ul>
-            
             <button 
-              onClick={handleUpgrade}
-              disabled={isCheckingAuth || isProcessing}
-              className="w-full py-3.5 bg-[#9cf822] text-black font-black rounded-xl shadow-lg shadow-[#9cf822]/20 hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100"
+              onClick={() => handleUpgrade(isAnnual ? 'annual' : 'monthly')}
+              disabled={!!loading || isCheckingAuth} // NEW: Disabled while checking auth
+              className="w-full py-3.5 bg-[#9cf822] text-black font-black rounded-xl shadow-lg shadow-[#9cf822]/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-              {isCheckingAuth ? "Loading..." : isProcessing ? "Processing..." : "Upgrade to PRO"}
+              {isCheckingAuth ? ( // NEW: Shows loader while fetching user
+                <Loader2 size={18} className="animate-spin text-black/70" />
+              ) : loading === (isAnnual ? 'annual' : 'monthly') ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                "Upgrade to PRO"
+              )}
             </button>
           </div>
 
-          {/* TIER 3: TEAMS / AGENCY */}
+          {/* AGENCY */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-200 dark:border-zinc-800 flex flex-col relative overflow-hidden">
             <div className="mb-6">
               <h3 className="text-xl font-bold text-black dark:text-white flex items-center gap-2 mb-2">
@@ -192,22 +203,18 @@ export default function BillingPage() {
               <p className="text-sm text-zinc-500 min-h-[40px]">For recruiters and teams sourcing top creative talent.</p>
             </div>
             <div className="mb-8">
-              <span className="text-4xl font-black text-black dark:text-white">{isAnnual ? '₦39,000' : '₦49,000'}</span>
+              <span className="text-4xl font-black text-black dark:text-white">${isAnnual ? '39' : '49'}</span>
               <span className="text-zinc-500 font-medium">/month</span>
-              {isAnnual && <p className="text-xs text-zinc-400 mt-1">Billed ₦468,000 yearly</p>}
             </div>
             <ul className="space-y-4 mb-8 flex-grow">
               <FeatureItem text="Everything in PRO" />
               <FeatureItem text="Advanced Talent Search Filters" />
               <FeatureItem text="Unlimited Direct Messaging" />
-              <FeatureItem text="Export Portfolio PDFs" />
-              <FeatureItem text="Dedicated Account Manager" />
             </ul>
             <button className="w-full py-3.5 bg-black text-white dark:bg-white dark:text-black font-bold rounded-xl hover:opacity-80 transition-opacity">
               Contact Sales
             </button>
           </div>
-
         </div>
       </div>
     </div>
