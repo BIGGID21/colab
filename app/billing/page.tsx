@@ -1,18 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Check, Sparkles, Building2, ArrowLeft, BadgeCheck, BarChart3, Pin, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { Check, Sparkles, Building2, ArrowLeft, BadgeCheck, BarChart3, Link as LinkIcon, Loader2, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 
 export default function BillingPage() {
   const router = useRouter();
-  const [isAnnual, setIsAnnual] = useState(true);
-  const [loading, setLoading] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
   const [user, setUser] = useState<any>(null);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true); // NEW: Tracks if Supabase is loading
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // 1. Initialize Supabase INSIDE the component (Next.js best practice)
+  // 1. Initialize Supabase
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -24,7 +23,6 @@ export default function BillingPage() {
 
     const checkAuth = async () => {
       try {
-        // getSession is much faster/more reliable for SSR cookies than getUser
         const { data: { session } } = await supabase.auth.getSession();
         if (mounted && session?.user) {
           setUser(session.user);
@@ -33,13 +31,12 @@ export default function BillingPage() {
       } catch (error) {
         console.error("Auth check failed:", error);
       } finally {
-        if (mounted) setIsCheckingAuth(false); // Done checking!
+        if (mounted) setIsCheckingAuth(false);
       }
     };
 
     checkAuth();
 
-    // Listener for real-time changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (mounted) {
         setUser(session?.user || null);
@@ -57,28 +54,26 @@ export default function BillingPage() {
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(10);
   };
 
-  // 3. Payment logic
-  const handleUpgrade = async (planType: 'monthly' | 'annual') => {
+  // 3. Payment logic (Updated to ₦5,000 one-time)
+  const handleUpgrade = async () => {
     if (!user) {
       alert("You must be logged in to upgrade. Please sign in!");
       router.push('/login');
       return;
     }
 
-    setLoading(planType);
+    setLoading(true);
     triggerHaptic();
 
     try {
-      const amountInDollars = planType === 'annual' ? 48 : 5;
-
       const response = await fetch('/api/paystack/upgrade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: user.email,
-          amount: amountInDollars,
-          userId: user.id, // Luggage tag attached!
-          planType: planType
+          amount: 5000, // Naira
+          userId: user.id,
+          planType: 'lifetime' // Switched from monthly/annual to lifetime
         }),
       });
 
@@ -93,7 +88,7 @@ export default function BillingPage() {
       console.error("Upgrade error:", error);
       alert("Connection error.");
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   };
 
@@ -113,26 +108,13 @@ export default function BillingPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 md:pt-20">
-        <div className="text-center max-w-2xl mx-auto mb-12 md:mb-20">
+        <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
           <h1 className="text-3xl md:text-5xl font-black text-black dark:text-white tracking-tight mb-4">
             Level up your creative career.
           </h1>
           <p className="text-zinc-500 dark:text-zinc-400 text-base md:text-lg mb-8">
             Join thousands of professionals standing out and landing clients on CoLab.
           </p>
-
-          <div className="flex items-center justify-center gap-3">
-            <span className={`text-sm font-bold ${!isAnnual ? 'text-black dark:text-white' : 'text-zinc-400'}`}>Monthly</span>
-            <button 
-              onClick={() => { triggerHaptic(); setIsAnnual(!isAnnual); }}
-              className="w-14 h-8 bg-zinc-200 dark:bg-zinc-800 rounded-full relative p-1 transition-colors"
-            >
-              <div className={`w-6 h-6 bg-black dark:bg-white rounded-full shadow-md transition-transform duration-300 ${isAnnual ? 'translate-x-6' : 'translate-x-0'}`} />
-            </button>
-            <span className={`text-sm font-bold flex items-center gap-1.5 ${isAnnual ? 'text-black dark:text-white' : 'text-zinc-400'}`}>
-              Annually <span className="text-[10px] bg-[#9cf822]/20 text-[#65a30d] dark:text-[#9cf822] px-2 py-0.5 rounded uppercase tracking-wider">Save 20%</span>
-            </span>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
@@ -143,7 +125,7 @@ export default function BillingPage() {
               <p className="text-sm text-zinc-500 min-h-[40px]">Perfect for getting started and sharing your portfolio.</p>
             </div>
             <div className="mb-8">
-              <span className="text-4xl font-black text-black dark:text-white">$0</span>
+              <span className="text-4xl font-black text-black dark:text-white">₦0</span>
               <span className="text-zinc-500 font-medium">/forever</span>
             </div>
             <ul className="space-y-4 mb-8 flex-grow">
@@ -156,7 +138,7 @@ export default function BillingPage() {
             </button>
           </div>
 
-          {/* PRO */}
+          {/* PRO (Updated to ₦5000 One-time) */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border-2 border-[#9cf822] shadow-[0_0_40px_-15px_rgba(156,248,34,0.3)] flex flex-col relative transform md:-translate-y-4">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#9cf822] text-black text-xs font-black px-4 py-1 rounded-b-xl uppercase tracking-widest">
               Most Popular
@@ -168,9 +150,9 @@ export default function BillingPage() {
               <p className="text-sm text-zinc-500 min-h-[40px]">For serious creators who want to stand out and get hired.</p>
             </div>
             <div className="mb-8">
-              <span className="text-4xl font-black text-black dark:text-white">${isAnnual ? '4' : '5'}</span>
-              <span className="text-zinc-500 font-medium">/month</span>
-              {isAnnual && <p className="text-xs text-zinc-400 mt-1">Billed $48 yearly</p>}
+              <span className="text-4xl font-black text-black dark:text-white">₦5,000</span>
+              <span className="text-zinc-500 font-medium">/one-time</span>
+              <p className="text-xs text-zinc-400 mt-1">Lifetime access to all PRO features</p>
             </div>
             <ul className="space-y-4 mb-8 flex-grow">
               <FeatureItem text="Official PRO Verification Badge" icon={<BadgeCheck size={18} className="text-[#9cf822]" />} />
@@ -180,18 +162,21 @@ export default function BillingPage() {
               <FeatureItem text="Priority visibility in Search" />
             </ul>
             <button 
-              onClick={() => handleUpgrade(isAnnual ? 'annual' : 'monthly')}
-              disabled={!!loading || isCheckingAuth} // NEW: Disabled while checking auth
+              onClick={handleUpgrade}
+              disabled={loading || isCheckingAuth}
               className="w-full py-3.5 bg-[#9cf822] text-black font-black rounded-xl shadow-lg shadow-[#9cf822]/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-              {isCheckingAuth ? ( // NEW: Shows loader while fetching user
+              {isCheckingAuth ? (
                 <Loader2 size={18} className="animate-spin text-black/70" />
-              ) : loading === (isAnnual ? 'annual' : 'monthly') ? (
+              ) : loading ? (
                 <Loader2 size={18} className="animate-spin" />
               ) : (
-                "Upgrade to PRO"
+                "Pay with Paystack"
               )}
             </button>
+            <p className="text-center text-[10px] text-zinc-500 mt-4 uppercase tracking-widest font-bold flex items-center justify-center gap-1">
+              <ShieldCheck size={12} /> Secured by Paystack
+            </p>
           </div>
 
           {/* AGENCY */}
@@ -203,7 +188,7 @@ export default function BillingPage() {
               <p className="text-sm text-zinc-500 min-h-[40px]">For recruiters and teams sourcing top creative talent.</p>
             </div>
             <div className="mb-8">
-              <span className="text-4xl font-black text-black dark:text-white">${isAnnual ? '39' : '49'}</span>
+              <span className="text-4xl font-black text-black dark:text-white">₦50,000</span>
               <span className="text-zinc-500 font-medium">/month</span>
             </div>
             <ul className="space-y-4 mb-8 flex-grow">
