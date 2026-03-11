@@ -53,19 +53,19 @@ export default function BillingPage() {
         currency: 'NGN', 
         metadata: { userId: user.id },
         callback: function(response: any) {
-          // 1. Tell the backend to flip the switch (Internal API)
+          // 1. Tell the backend to flip the switch
           fetch('/api/upgrade-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: user.id }),
           })
           .then(() => {
-            // 2. HARD REDIRECT: Bypass the 404 by going to a known path
-            window.location.href = '/dashboard';
+            // 2. THE NUCLEAR REDIRECT: Bypass the router to kill the 404
+            window.location.replace('/dashboard?payment=success');
           })
           .catch(() => {
-            // Fallback if the fetch fails
-            window.location.href = '/dashboard';
+            // Fallback: take them home anyway
+            window.location.replace('/dashboard');
           });
         },
         onClose: () => setIsProcessing(false)
@@ -90,7 +90,7 @@ export default function BillingPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 md:pt-20 text-center">
-        <h1 className="text-3xl md:text-5xl font-black mb-4">Level up your creative career.</h1>
+        <h1 className="text-3xl md:text-5xl font-black mb-4 tracking-tight">Level up your creative career.</h1>
         
         <div className="flex items-center justify-center gap-3 mt-8 mb-12 md:mb-20">
           <span className={`text-sm font-bold ${!isAnnual ? 'text-black dark:text-white' : 'text-zinc-400'}`}>Monthly</span>
@@ -117,10 +117,10 @@ export default function BillingPage() {
           </div>
 
           {/* PRO */}
-          <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border-2 border-[#9cf822] shadow-[0_0_40px_-15px_rgba(156,248,34,0.3)] flex flex-col relative md:-translate-y-4">
+          <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border-2 border-[#9cf822] shadow-[0_0_40px_-15px_rgba(156,248,34,0.3)] flex flex-col relative md:-translate-y-4 transition-all">
              <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#9cf822] text-black text-[10px] font-black px-4 py-1 rounded-b-xl uppercase tracking-widest">Most Popular</div>
              <h3 className="text-xl font-bold mt-2 mb-2 flex items-center gap-2">CoLab PRO <Sparkles size={18} className="text-[#9cf822]" /></h3>
-             <div className="mb-8 font-black text-4xl">{isAnnual ? '₦4,000' : '₦5,000'}<span className="text-sm text-zinc-500 font-medium">/mo</span></div>
+             <div className="mb-8 font-black text-4xl">{isAnnual ? '₦4,000' : '₦5,000'}<span className="text-sm font-medium text-zinc-500">/mo</span></div>
              <ul className="space-y-4 mb-8 flex-grow">
                <FeatureItem text="Official PRO Verification Badge" icon={<BadgeCheck size={18} className="text-[#9cf822]" />} />
                <FeatureItem text='See "Who Viewed Your Profile"' icon={<BarChart3 size={18} className="text-[#9cf822]" />} />
@@ -144,7 +144,7 @@ export default function BillingPage() {
                <FeatureItem text="Unlimited Messaging" />
                <FeatureItem text="Portfolio PDF Exports" />
             </ul>
-            <button className="w-full py-3.5 bg-black text-white dark:bg-white dark:text-black font-bold rounded-xl">Contact Sales</button>
+            <button className="w-full py-3.5 bg-black text-white dark:bg-white dark:text-black font-bold rounded-xl hover:opacity-80 transition-opacity">Contact Sales</button>
           </div>
         </div>
       </div>
