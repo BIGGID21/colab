@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Check, Sparkles, Building2, ArrowLeft, BadgeCheck, BarChart3, Pin, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { Check, Sparkles, Building2, ArrowLeft, BadgeCheck, BarChart3, Pin, Link as LinkIcon, Loader2, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr'; 
 
@@ -52,25 +52,19 @@ export default function BillingPage() {
         amount: (isAnnual ? 48000 : 5000) * 100, 
         currency: 'NGN', 
         metadata: { userId: user.id },
-        // Standard function to avoid Paystack callback errors
         callback: function(response: any) {
-          // 1. Tell the backend to flip the switch
+          // 1. Tell the backend to flip the switch (Internal API)
           fetch('/api/upgrade-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: user.id }),
           })
-          .then((res) => {
-            if (res.ok) {
-              // 2. SUCCESS: Hard redirect to dashboard
-              window.location.href = '/dashboard?payment=success';
-            } else {
-              throw new Error("Update failed");
-            }
+          .then(() => {
+            // 2. HARD REDIRECT: Bypass the 404 by going to a known path
+            window.location.href = '/dashboard';
           })
-          .catch((err) => {
-            console.error(err);
-            // Fallback: take them home anyway, the badge might just be cached
+          .catch(() => {
+            // Fallback if the fetch fails
             window.location.href = '/dashboard';
           });
         },
@@ -98,7 +92,7 @@ export default function BillingPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 md:pt-20 text-center">
         <h1 className="text-3xl md:text-5xl font-black mb-4">Level up your creative career.</h1>
         
-        <div className="flex items-center justify-center gap-3 mt-8 mb-12">
+        <div className="flex items-center justify-center gap-3 mt-8 mb-12 md:mb-20">
           <span className={`text-sm font-bold ${!isAnnual ? 'text-black dark:text-white' : 'text-zinc-400'}`}>Monthly</span>
           <button onClick={() => setIsAnnual(!isAnnual)} className="w-14 h-8 bg-zinc-200 dark:bg-zinc-800 rounded-full relative p-1 transition-colors">
             <div className={`w-6 h-6 bg-black dark:bg-white rounded-full shadow-md transition-transform duration-300 ${isAnnual ? 'translate-x-6' : ''}`} />
@@ -137,6 +131,7 @@ export default function BillingPage() {
             <button onClick={handleUpgrade} disabled={isProcessing} className="w-full py-4 bg-[#9cf822] text-black font-black rounded-xl shadow-lg shadow-[#9cf822]/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2">
                {isProcessing ? <Loader2 size={18} className="animate-spin" /> : "Upgrade to PRO"}
             </button>
+            <div className="mt-4 flex items-center justify-center gap-1 text-[10px] font-bold text-zinc-500 uppercase tracking-widest"><ShieldCheck size={12} /> Secured by Paystack</div>
           </div>
 
           {/* AGENCY */}
