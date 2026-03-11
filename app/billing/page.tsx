@@ -25,7 +25,6 @@ export default function BillingPage() {
     };
     fetchUser();
 
-    // Inject Paystack script if it's not already there
     if (!document.querySelector('script[src="https://js.paystack.co/v1/inline.js"]')) {
       const script = document.createElement('script');
       script.src = 'https://js.paystack.co/v1/inline.js';
@@ -54,23 +53,20 @@ export default function BillingPage() {
         currency: 'NGN', 
         metadata: { userId: user.id },
         callback: function(response: any) {
-          // 1. Flip the switch in the background via our helper API
+          // 1. Trigger the background badge flip
           fetch('/api/upgrade-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: user.id }),
           })
           .then(() => {
-            // 2. THE FIX: Standardize the redirect to ensure it lands on My Projects
-            // window.top ensures we break out of the Paystack iframe
-            if (typeof window !== 'undefined') {
-               const targetWindow = window.top || window;
-               targetWindow.location.href = '/dashboard/my-projects?payment=success';
-            }
+            // 2. THE ABSOLUTE REDIRECT: Bypass all 404s by forcing a clean page load
+            // We use window.location.assign for the most reliable cross-browser redirect
+            window.location.assign('/dashboard');
           })
           .catch(() => {
-            // Fallback: Still take them to the dashboard
-            window.location.href = '/dashboard/my-projects';
+            // Fallback: take them home anyway
+            window.location.assign('/dashboard');
           });
         },
         onClose: () => setIsProcessing(false)
@@ -84,9 +80,9 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-24 font-sans text-black dark:text-white text-left">
-      <header className="bg-white dark:bg-[#0a0a0a] border-b border-zinc-200 dark:border-zinc-900 px-6 py-4 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto flex items-center justify-between text-left">
+    <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-24 font-sans text-black dark:text-white">
+      <header className="bg-white dark:bg-[#0a0a0a] border-b border-zinc-200 dark:border-zinc-900 px-6 py-4 sticky top-0 z-40 text-left">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <button onClick={() => router.back()} className="flex items-center gap-2 text-zinc-500 hover:text-black dark:hover:text-white transition-colors text-sm font-bold">
             <ArrowLeft size={16} /> Back
           </button>
@@ -95,11 +91,11 @@ export default function BillingPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 md:pt-20 text-center">
-        <h1 className="text-3xl md:text-5xl font-black mb-4 tracking-tight leading-tight">
+        <h1 className="text-3xl md:text-5xl font-black mb-4 tracking-tight leading-tight text-left">
           Level up your creative career.
         </h1>
         
-        <div className="flex items-center justify-center gap-3 mt-8 mb-12 md:mb-20">
+        <div className="flex items-center justify-start gap-3 mt-8 mb-12 md:mb-20">
           <span className={`text-sm font-bold ${!isAnnual ? 'text-black dark:text-white' : 'text-zinc-400'}`}>Monthly</span>
           <button onClick={() => setIsAnnual(!isAnnual)} className="w-14 h-8 bg-zinc-200 dark:bg-zinc-800 rounded-full relative p-1 transition-colors">
             <div className={`w-6 h-6 bg-black dark:bg-white rounded-full shadow-md transition-transform duration-300 ${isAnnual ? 'translate-x-6' : ''}`} />
@@ -134,7 +130,6 @@ export default function BillingPage() {
                <FeatureItem text="Custom colab.com/name URL" icon={<LinkIcon size={18} className="text-[#9cf822]" />} />
                <FeatureItem text="Pin top projects to profile" icon={<Pin size={18} className="text-[#9cf822]" />} />
                <FeatureItem text="Unlimited High-Res Uploads" />
-               <FeatureItem text="Priority visibility in Search" />
             </ul>
             <button onClick={handleUpgrade} disabled={isProcessing} className="w-full py-4 bg-[#9cf822] text-black font-black rounded-xl shadow-lg shadow-[#9cf822]/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2">
                {isProcessing ? <Loader2 size={18} className="animate-spin" /> : "Upgrade to PRO"}
@@ -151,11 +146,10 @@ export default function BillingPage() {
             <ul className="space-y-4 mb-8 flex-grow">
                <FeatureItem text="Everything in PRO" />
                <FeatureItem text="Advanced Talent Search" />
-               <FeatureItem text="Unlimited Direct Messaging" />
-               <FeatureItem text="Export Portfolio PDFs" />
-               <FeatureItem text="Dedicated Account Manager" />
+               <FeatureItem text="Unlimited Messaging" />
+               <FeatureItem text="Portfolio PDF Exports" />
             </ul>
-            <button className="w-full py-3.5 bg-black text-white dark:bg-white dark:text-black font-bold rounded-xl hover:opacity-80 transition-opacity">Contact Sales</button>
+            <button className="w-full py-3.5 bg-black text-white dark:bg-white dark:text-black font-bold rounded-xl">Contact Sales</button>
           </div>
         </div>
       </div>
