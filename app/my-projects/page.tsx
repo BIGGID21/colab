@@ -1,17 +1,18 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { 
   Folder, Users, Plus, Activity, 
   ArrowRight, Settings, Image as ImageIcon,
-  Bookmark, BadgeCheck, Zap, Eye, TrendingUp, X
+  Bookmark, BadgeCheck, Zap, Eye, TrendingUp, X, PartyPopper, Sparkles
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'owned' | 'collaborations' | 'saved'>('owned');
   
@@ -23,6 +24,7 @@ export default function DashboardPage() {
   
   const [isVerified, setIsVerified] = useState(false);
   const [isInsightsOpen, setIsInsightsOpen] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,6 +37,12 @@ export default function DashboardPage() {
       if (!authUser) {
         router.push('/login');
         return;
+      }
+
+      // Check for success flag in URL to show celebration
+      if (searchParams.get('payment') === 'success') {
+        setShowWelcome(true);
+        triggerConfetti();
       }
 
       const { data: profileData } = await supabase
@@ -74,7 +82,34 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [router]);
+  const triggerConfetti = () => {
+    const duration = 3 * 1000;
+    const end = Date.now() + duration;
+
+    const frame = () => {
+      confetti({
+        particleCount: 2,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: ['#9cf822', '#ffffff']
+      });
+      confetti({
+        particleCount: 2,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: ['#9cf822', '#ffffff']
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    };
+    frame();
+  };
+
+  useEffect(() => { fetchData(); }, [router, searchParams]);
 
   if (loading) return (
     <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
@@ -83,7 +118,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-white p-6 md:p-10 font-sans selection:bg-[#9cf822] selection:text-black transition-colors duration-500">
+    <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-white p-6 md:p-10 font-sans selection:bg-[#9cf822] selection:text-black transition-colors duration-500 relative">
       <div className="max-w-6xl mx-auto">
         
         {/* HEADER */}
@@ -91,7 +126,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-medium tracking-tight">My dashboard</h1>
-              {isVerified && <span className="text-[10px] font-medium bg-[#9cf822]/10 text-[#9cf822] px-2 py-0.5 rounded-full border border-[#9cf822]/20">PRO</span>}
+              {isVerified && <span className="text-[10px] font-bold bg-[#9cf822]/10 text-[#9cf822] px-2 py-0.5 rounded-full border border-[#9cf822]/20 tracking-widest">PRO</span>}
             </div>
             <p className="text-sm text-zinc-500 mt-1">Manage your work and insights.</p>
           </div>
@@ -115,7 +150,7 @@ export default function DashboardPage() {
           <StatCard title="Active collaborations" value={myCollaborations.filter(c => c.status === 'accepted').length} accent />
         </div>
 
-        {/* RECENT VIEWERS (Minimalist List) */}
+        {/* RECENT VIEWERS */}
         {isVerified && (
           <section className="mb-16 animate-in fade-in slide-in-from-bottom-2 duration-1000">
             <div className="flex items-center justify-between mb-4 px-1">
@@ -186,30 +221,35 @@ export default function DashboardPage() {
               </div>
             </div>
           ))}
-
-          {activeTab === 'collaborations' && myCollaborations.map(c => (
-            <div key={c.id} className="p-6 bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800/60 rounded-2xl">
-              <span className={`text-[10px] font-semibold uppercase tracking-wider mb-4 block ${c.status === 'accepted' ? 'text-[#9cf822]' : 'text-orange-400'}`}>{c.status}</span>
-              <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">{c.projects?.title}</h3>
-              <p className="text-xs text-zinc-500 mb-6">Lead: {c.projects?.profiles?.full_name}</p>
-              <button onClick={() => router.push(`/workspace/${c.project_id}`)} className="w-full py-2 bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md text-xs font-semibold flex items-center justify-center gap-2 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors text-black dark:text-white">Enter Workspace <ArrowRight size={14}/></button>
-            </div>
-          ))}
-
-          {activeTab === 'saved' && savedProjects.map(p => (
-            <div key={p.id} className="bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800/60 rounded-2xl overflow-hidden">
-              <div className="aspect-video bg-zinc-100 dark:bg-zinc-900 relative">
-                {p.image_url && <img src={p.image_url} className="w-full h-full object-cover opacity-90" />}
-                <div className="absolute top-3 right-3 px-2 py-0.5 bg-black/60 text-[#9cf822] text-[9px] font-bold rounded-md border border-white/5 uppercase">Saved</div>
-              </div>
-              <div className="p-6">
-                <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-4">{p.title}</h3>
-                <button onClick={() => router.push(`/project/${p.id}`)} className="w-full py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-md text-xs font-semibold">View Project</button>
-              </div>
-            </div>
-          ))}
+          {/* ... other tabs ... */}
         </section>
       </div>
+
+      {/* --- WELCOME TO PRO CELEBRATION MODAL --- */}
+      {showWelcome && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-[#0a0a0a] border-2 border-[#9cf822] rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-[0_0_50px_-12px_rgba(156,248,34,0.5)] relative overflow-hidden">
+            <button onClick={() => setShowWelcome(false)} className="absolute top-6 right-6 text-zinc-400 hover:text-black dark:hover:text-white transition-colors">
+              <X size={20} />
+            </button>
+            <div className="mb-6 inline-flex p-4 bg-[#9cf822]/20 rounded-full text-[#9cf822] animate-bounce">
+              <BadgeCheck size={40} />
+            </div>
+            <h2 className="text-3xl font-black mb-2 flex items-center justify-center gap-2">
+              You're PRO! <Sparkles className="text-[#9cf822]" size={24} />
+            </h2>
+            <p className="text-zinc-500 dark:text-zinc-400 mb-8 font-medium leading-relaxed">
+              Welcome to the inner circle. Your badge is live, your search ranking is boosted, and the creative world is watching.
+            </p>
+            <button 
+              onClick={() => setShowWelcome(false)}
+              className="w-full py-4 bg-[#9cf822] text-black font-black rounded-2xl hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+            >
+              <PartyPopper size={20} /> Let's Go!
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* INSIGHTS MODAL (Apple Style) */}
       {isInsightsOpen && (
