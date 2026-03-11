@@ -25,12 +25,12 @@ export default function BillingPage() {
     };
     fetchUser();
 
-    const script = document.createElement('script');
-    script.src = 'https://js.paystack.co/v1/inline.js';
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => { if (document.body.contains(script)) document.body.removeChild(script); };
+    if (!document.querySelector('script[src="https://js.paystack.co/v1/inline.js"]')) {
+      const script = document.createElement('script');
+      script.src = 'https://js.paystack.co/v1/inline.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
   }, [supabase.auth]);
 
   const handleUpgrade = () => {
@@ -52,21 +52,24 @@ export default function BillingPage() {
         amount: (isAnnual ? 48000 : 5000) * 100, 
         currency: 'NGN', 
         metadata: { userId: user.id },
+        // Standard function to satisfy Paystack's legacy inline script
         callback: function(response: any) {
-          // 1. Tell the backend to flip the switch (Internal API)
+          // 1. Flip the switch in the background via our helper API
           fetch('/api/upgrade-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: user.id }),
           })
           .then(() => {
-            // 2. THE ABSOLUTE FIX: window.top ensures the WHOLE page redirects
-            // bypassing the "Venture path lost" iframe error.
-            window.top.location.href = '/dashboard?payment=success';
+            // 2. THE ABSOLUTE FIX: Safely using window.top to kill the 404
+            if (typeof window !== 'undefined') {
+               const target = window.top || window;
+               target.location.href = '/dashboard?payment=success';
+            }
           })
           .catch(() => {
-            // Fallback redirect
-            window.top.location.href = '/dashboard';
+            // Fallback: take them to dashboard regardless
+            window.location.href = '/dashboard';
           });
         },
         onClose: () => setIsProcessing(false)
@@ -91,7 +94,9 @@ export default function BillingPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 md:pt-20 text-center">
-        <h1 className="text-3xl md:text-5xl font-black mb-4 tracking-tight">Level up your creative career.</h1>
+        <h1 className="text-3xl md:text-5xl font-black mb-4 tracking-tight leading-tight">
+          Level up your creative career.
+        </h1>
         
         <div className="flex items-center justify-center gap-3 mt-8 mb-12 md:mb-20">
           <span className={`text-sm font-bold ${!isAnnual ? 'text-black dark:text-white' : 'text-zinc-400'}`}>Monthly</span>
@@ -104,46 +109,50 @@ export default function BillingPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto text-left">
-          {/* BASIC */}
+          {/* BASIC TIER */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-200 dark:border-zinc-800 flex flex-col">
-            <h3 className="text-xl font-bold mb-2 text-black dark:text-white">Basic</h3>
-            <div className="mb-8 font-black text-4xl text-black dark:text-white">₦0</div>
+            <h3 className="text-xl font-bold mb-2">Basic</h3>
+            <div className="mb-8 font-black text-4xl">₦0</div>
             <ul className="space-y-4 mb-8 flex-grow">
               <FeatureItem text="Standard Profile & Portfolio" />
               <FeatureItem text="Post to Community Feed" />
-              <FeatureItem text="10 Projects Max" />
-              <FeatureItem text="Engagement Analytics" />
+              <FeatureItem text="Upload up to 10 Projects" />
+              <FeatureItem text="Basic Engagement Analytics" />
             </ul>
             <button disabled className="w-full py-3.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-400 font-bold rounded-xl cursor-not-allowed">Current Plan</button>
           </div>
 
-          {/* PRO */}
+          {/* PRO TIER */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border-2 border-[#9cf822] shadow-[0_0_40px_-15px_rgba(156,248,34,0.3)] flex flex-col relative md:-translate-y-4 transition-all">
              <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#9cf822] text-black text-[10px] font-black px-4 py-1 rounded-b-xl uppercase tracking-widest">Most Popular</div>
-             <h3 className="text-xl font-bold mt-2 mb-2 flex items-center gap-2 text-black dark:text-white">CoLab PRO <Sparkles size={18} className="text-[#9cf822]" /></h3>
-             <div className="mb-8 font-black text-4xl text-black dark:text-white">{isAnnual ? '₦4,000' : '₦5,000'}<span className="text-sm text-zinc-500 font-medium">/mo</span></div>
+             <h3 className="text-xl font-bold mt-2 mb-2 flex items-center gap-2">CoLab PRO <Sparkles size={18} className="text-[#9cf822]" /></h3>
+             <div className="mb-8 font-black text-4xl">{isAnnual ? '₦4,000' : '₦5,000'}<span className="text-sm text-zinc-500 font-medium">/mo</span></div>
              <ul className="space-y-4 mb-8 flex-grow">
                <FeatureItem text="Official PRO Verification Badge" icon={<BadgeCheck size={18} className="text-[#9cf822]" />} />
                <FeatureItem text='See "Who Viewed Your Profile"' icon={<BarChart3 size={18} className="text-[#9cf822]" />} />
                <FeatureItem text="Custom colab.com/name URL" icon={<LinkIcon size={18} className="text-[#9cf822]" />} />
                <FeatureItem text="Pin top projects to profile" icon={<Pin size={18} className="text-[#9cf822]" />} />
                <FeatureItem text="Unlimited High-Res Uploads" />
+               <FeatureItem text="Priority visibility in Search" />
             </ul>
             <button onClick={handleUpgrade} disabled={isProcessing} className="w-full py-4 bg-[#9cf822] text-black font-black rounded-xl shadow-lg shadow-[#9cf822]/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2">
                {isProcessing ? <Loader2 size={18} className="animate-spin" /> : "Upgrade to PRO"}
             </button>
-            <div className="mt-4 flex items-center justify-center gap-1 text-[10px] font-bold text-zinc-500 uppercase tracking-widest"><ShieldCheck size={12} /> Secured by Paystack</div>
+            <div className="mt-4 flex items-center justify-center gap-1 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+              <ShieldCheck size={12} /> Secured by Paystack
+            </div>
           </div>
 
-          {/* AGENCY */}
+          {/* AGENCY TIER */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-200 dark:border-zinc-800 flex flex-col">
-            <h3 className="text-xl font-bold mb-2 text-black dark:text-white">Agency</h3>
-            <div className="mb-8 font-black text-4xl text-black dark:text-white">{isAnnual ? '₦39,000' : '₦49,000'}</div>
+            <h3 className="text-xl font-bold mb-2">Agency</h3>
+            <div className="mb-8 font-black text-4xl">{isAnnual ? '₦39,000' : '₦49,000'}</div>
             <ul className="space-y-4 mb-8 flex-grow">
                <FeatureItem text="Everything in PRO" />
                <FeatureItem text="Advanced Talent Search" />
-               <FeatureItem text="Unlimited Messaging" />
-               <FeatureItem text="Portfolio PDF Exports" />
+               <FeatureItem text="Unlimited Direct Messaging" />
+               <FeatureItem text="Export Portfolio PDFs" />
+               <FeatureItem text="Dedicated Account Manager" />
             </ul>
             <button className="w-full py-3.5 bg-black text-white dark:bg-white dark:text-black font-bold rounded-xl hover:opacity-80 transition-opacity">Contact Sales</button>
           </div>
