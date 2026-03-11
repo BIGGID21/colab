@@ -25,6 +25,7 @@ export default function BillingPage() {
     };
     fetchUser();
 
+    // Inject Paystack script if it's not already there
     if (!document.querySelector('script[src="https://js.paystack.co/v1/inline.js"]')) {
       const script = document.createElement('script');
       script.src = 'https://js.paystack.co/v1/inline.js';
@@ -52,7 +53,6 @@ export default function BillingPage() {
         amount: (isAnnual ? 48000 : 5000) * 100, 
         currency: 'NGN', 
         metadata: { userId: user.id },
-        // Standard function to satisfy Paystack's legacy inline script
         callback: function(response: any) {
           // 1. Flip the switch in the background via our helper API
           fetch('/api/upgrade-user', {
@@ -61,15 +61,16 @@ export default function BillingPage() {
             body: JSON.stringify({ userId: user.id }),
           })
           .then(() => {
-            // 2. THE ABSOLUTE FIX: Safely using window.top to kill the 404
+            // 2. THE FIX: Standardize the redirect to ensure it lands on My Projects
+            // window.top ensures we break out of the Paystack iframe
             if (typeof window !== 'undefined') {
-               const target = window.top || window;
-               target.location.href = '/dashboard?payment=success';
+               const targetWindow = window.top || window;
+               targetWindow.location.href = '/dashboard/my-projects?payment=success';
             }
           })
           .catch(() => {
-            // Fallback: take them to dashboard regardless
-            window.location.href = '/dashboard';
+            // Fallback: Still take them to the dashboard
+            window.location.href = '/dashboard/my-projects';
           });
         },
         onClose: () => setIsProcessing(false)
@@ -83,9 +84,9 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-24 font-sans text-black dark:text-white">
+    <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-24 font-sans text-black dark:text-white text-left">
       <header className="bg-white dark:bg-[#0a0a0a] border-b border-zinc-200 dark:border-zinc-900 px-6 py-4 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="max-w-6xl mx-auto flex items-center justify-between text-left">
           <button onClick={() => router.back()} className="flex items-center gap-2 text-zinc-500 hover:text-black dark:hover:text-white transition-colors text-sm font-bold">
             <ArrowLeft size={16} /> Back
           </button>
@@ -109,7 +110,7 @@ export default function BillingPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto text-left">
-          {/* BASIC TIER */}
+          {/* BASIC */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-200 dark:border-zinc-800 flex flex-col">
             <h3 className="text-xl font-bold mb-2">Basic</h3>
             <div className="mb-8 font-black text-4xl">₦0</div>
@@ -122,7 +123,7 @@ export default function BillingPage() {
             <button disabled className="w-full py-3.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-400 font-bold rounded-xl cursor-not-allowed">Current Plan</button>
           </div>
 
-          {/* PRO TIER */}
+          {/* PRO */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border-2 border-[#9cf822] shadow-[0_0_40px_-15px_rgba(156,248,34,0.3)] flex flex-col relative md:-translate-y-4 transition-all">
              <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#9cf822] text-black text-[10px] font-black px-4 py-1 rounded-b-xl uppercase tracking-widest">Most Popular</div>
              <h3 className="text-xl font-bold mt-2 mb-2 flex items-center gap-2">CoLab PRO <Sparkles size={18} className="text-[#9cf822]" /></h3>
@@ -143,7 +144,7 @@ export default function BillingPage() {
             </div>
           </div>
 
-          {/* AGENCY TIER */}
+          {/* AGENCY */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-200 dark:border-zinc-800 flex flex-col">
             <h3 className="text-xl font-bold mb-2">Agency</h3>
             <div className="mb-8 font-black text-4xl">{isAnnual ? '₦39,000' : '₦49,000'}</div>
