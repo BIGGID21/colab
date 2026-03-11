@@ -266,20 +266,30 @@ export default function CommunityFeedPage() {
                     placeholder="What are you building today?"
                     className="w-full bg-transparent resize-none text-black dark:text-white text-lg focus:outline-none min-h-[80px]"
                   />
+                  
+                  {/* COMPOSER MEDIA - TWITTER STYLE DIMENSIONS */}
                   {postMedia.length > 0 && (
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      {postMedia.map((m, idx) => (
-                        <div key={idx} className="relative aspect-video rounded-2xl overflow-hidden bg-black">
-                          {m.type === 'video' ? (
-                            <video src={m.url} className="w-full h-full object-cover" controls />
-                          ) : (
-                            <img src={m.url} className="w-full h-full object-cover" />
-                          )}
-                          <button onClick={() => removeMedia(idx)} className="absolute top-2 right-2 p-1 bg-black/60 rounded-full text-white"><X size={14}/></button>
-                        </div>
-                      ))}
+                    <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${postMedia.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
+                      {postMedia.map((m, idx) => {
+                        const isVideo = m.type === 'video' || m.url.includes('.mp4');
+                        const itemClass = postMedia.length === 1 ? (isVideo ? 'aspect-video' : 'aspect-video sm:aspect-[16/9]') : 'aspect-square sm:aspect-[4/3]';
+                        
+                        return (
+                          <div key={idx} className={`relative bg-black ${itemClass}`}>
+                            {isVideo ? (
+                              <video src={m.url} className="w-full h-full object-cover" controls playsInline />
+                            ) : (
+                              <img src={m.url} className="w-full h-full object-cover" />
+                            )}
+                            <button type="button" onClick={() => removeMedia(idx)} className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 backdrop-blur-sm rounded-full text-white transition-colors z-10">
+                              <X size={14}/>
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
+
                 </div>
               </div>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900">
@@ -338,18 +348,24 @@ export default function CommunityFeedPage() {
                       </div>
                       <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap text-[15px] leading-relaxed mt-2">{post.content}</p>
                       
+                      {/* POST MEDIA - TWITTER STYLE DIMENSIONS */}
                       {post.media?.length > 0 && (
-                         <div className={`mt-4 grid gap-2 ${post.media.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                            {post.media.map((m: any, i: number) => (
-                              <div key={i} className="relative aspect-video rounded-2xl overflow-hidden bg-black cursor-pointer" onClick={() => m.type !== 'video' && setExpandedMedia(m.url)}>
-                                {m.type === 'video' || m.url.includes('.mp4') ? (
+                        <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${post.media.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
+                          {post.media.map((m: any, i: number) => {
+                            const isVideo = m.type === 'video' || m.url.includes('.mp4');
+                            const itemClass = post.media.length === 1 ? (isVideo ? 'aspect-video' : 'aspect-video sm:aspect-[16/9]') : 'aspect-square sm:aspect-[4/3]';
+                            
+                            return (
+                              <div key={i} className={`relative bg-black cursor-pointer ${itemClass}`} onClick={() => !isVideo && setExpandedMedia(m.url)}>
+                                {isVideo ? (
                                   <video src={m.url} className="w-full h-full object-cover" controls playsInline />
                                 ) : (
-                                  <img src={m.url} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+                                  <img src={m.url} className="w-full h-full object-cover hover:opacity-90 transition-opacity" />
                                 )}
                               </div>
-                            ))}
-                         </div>
+                            );
+                          })}
+                        </div>
                       )}
 
                       <div className="flex items-center gap-8 mt-6">
