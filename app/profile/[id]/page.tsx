@@ -40,6 +40,32 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(pattern);
   };
 
+  // 1. RECORD PROFILE VIEW (Passive Tracking)
+  useEffect(() => {
+    const recordProfileView = async () => {
+      // Get the person who is currently viewing
+      const { data: { user: viewer } } = await supabase.auth.getUser();
+      
+      // LOGIC: 
+      // - Don't record if viewer is not logged in
+      // - Don't record if the user is looking at their own profile
+      if (!viewer || viewer.id === userId) return;
+
+      try {
+        await supabase.from('profile_views').insert({
+          profile_id: userId, // The person being visited
+          viewer_id: viewer.id // The person doing the viewing
+        });
+      } catch (err) {
+        // Silently fail if recording views hits an issue (doesn't break the UI)
+        console.error("View tracking failed:", err);
+      }
+    };
+
+    if (userId) recordProfileView();
+  }, [userId, supabase]);
+
+  // 2. FETCH ALL PROFILE DATA
   const fetchProfileData = async () => {
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -69,7 +95,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       setProjects(userProjects || []);
       setProjectCount(pCount || 0);
 
-      // Fetch Feed (Posts & Reshares) WITH is_verified INCLUDED
+      // Fetch Feed
       const { data: feedData } = await supabase
         .from('posts')
         .select(`
@@ -146,14 +172,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-20">
       
-      {/* FULL BLEED BANNER - Uses negative margins to bypass layout padding */}
+      {/* BANNER */}
       <div className="-mx-4 md:-mx-10 -mt-20 md:-mt-10 h-48 md:h-80 bg-zinc-100 dark:bg-zinc-900 relative overflow-hidden border-b border-zinc-200 dark:border-zinc-900">
         {profile?.header_url ? (
           <img 
             src={profile.header_url} 
             className="w-full h-full object-cover" 
             style={{ 
-              objectPosition: `center ${profile.header_y !== undefined && profile.header_y !== null ? profile.header_y : 50}%`,
+              objectPosition: `center ${profile.header_y ?? 50}%`,
               transform: `scale(${profile.header_zoom || 1})`
             }}
             alt="Banner" 
@@ -163,7 +189,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         )}
       </div>
 
-      {/* CONSTRAINED CONTENT AREA */}
       <div className="max-w-5xl mx-auto px-0 md:px-8">
         
         {/* Profile Info */}
@@ -191,6 +216,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           <div className="space-y-2 text-left">
             <div className="flex items-center gap-2 mt-1">
               <h1 className="text-2xl md:text-4xl font-bold text-black dark:text-white tracking-tight">{profile?.full_name || 'Creator'}</h1>
+              {/* THE PRO BADGE */}
               {profile?.is_verified && (
                 <BadgeCheck size={28} fill="#9cf822" className="text-white dark:text-black shrink-0" />
               )}
@@ -201,30 +227,15 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               {profile?.address && <div className="flex items-center gap-1.5"><MapPin size={16} /> {profile.address}</div>}
             </div>
 
-            {/* Social Links Restoration */}
+            {/* Social Links */}
             <div className="flex flex-wrap items-center gap-3 pt-4">
               {profile?.linkedin_url && (
-                <Link href={profile.linkedin_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-blue-600 transition-colors">
+                <Link href={profile.linkedin_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-blue-600 transition-colors">
                   <Linkedin size={18} />
                 </Link>
               )}
-              {profile?.twitter_url && (
-                <Link href={profile.twitter_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-sky-500 transition-colors">
-                  <Twitter size={18} />
-                </Link>
-              )}
-              {profile?.instagram_url && (
-                <Link href={profile.instagram_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-rose-500 transition-colors">
-                  <Instagram size={18} />
-                </Link>
-              )}
-              {profile?.facebook_url && (
-                <Link href={profile.facebook_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-blue-700 transition-colors">
-                  <Facebook size={18} />
-                </Link>
-              )}
               {profile?.website_url && (
-                <Link href={profile.website_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-[#9cf822] transition-colors">
+                <Link href={profile.website_url} target="_blank" className="p-2.5 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:text-[#9cf822] transition-colors">
                   <ExternalLink size={18} />
                 </Link>
               )}
@@ -233,9 +244,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         </div>
 
         {/* Stats Bar */}
-        <div className="grid grid-cols-2 md:flex items-center gap-8 md:gap-20 py-8 border-b md:border-y border-zinc-200 dark:border-zinc-900 mb-0 px-6 md:px-10">
-          <div><p className="text-[#5a9a00] dark:text-[#9cf822] text-3xl md:text-4xl font-bold">{projectCount}</p><p className="text-zinc-500 text-xs md:text-sm font-bold title case ">Projects</p></div>
-          <div><p className="text-black dark:text-white text-3xl md:text-4xl font-bold">{collabCount}</p><p className="text-zinc-500 text-xs md:text-sm font-bold title case ">Collaborations</p></div>
+        <div className="grid grid-cols-2 md:flex items-center gap-8 md:gap-20 py-8 border-b md:border-y border-zinc-200 dark:border-zinc-900 px-6 md:px-10">
+          <div><p className="text-[#5a9a00] dark:text-[#9cf822] text-3xl md:text-4xl font-bold">{projectCount}</p><p className="text-zinc-500 text-xs md:text-sm font-bold uppercase">Projects</p></div>
+          <div><p className="text-black dark:text-white text-3xl md:text-4xl font-bold">{collabCount}</p><p className="text-zinc-500 text-xs md:text-sm font-bold uppercase">Collaborations</p></div>
         </div>
 
         {/* TABS SYSTEM */}
@@ -297,22 +308,16 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     </div>
                     <div className="flex-grow min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-black dark:text-white text-sm sm:text-base flex items-center gap-1">
+                        <span className="font-bold text-black dark:text-white text-sm flex items-center gap-1">
                           {post.repost_id ? post.repost?.profiles?.full_name : post.profiles?.full_name}
                           {(post.repost_id ? post.repost?.profiles?.is_verified : post.profiles?.is_verified) && (
                             <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black shrink-0" />
                           )}
                         </span>
-                        <span className="text-zinc-500 text-xs">· {new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                        <span className="text-zinc-500 text-xs">· {new Date(post.created_at).toLocaleDateString()}</span>
                       </div>
-                      <p className="text-zinc-800 dark:text-zinc-200 text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap">{post.repost_id ? post.repost?.content : post.content}</p>
+                      <p className="text-zinc-800 dark:text-zinc-200 text-sm leading-relaxed whitespace-pre-wrap">{post.repost_id ? post.repost?.content : post.content}</p>
                       
-                      {((post.repost_id ? post.repost?.media : post.media) || []).length > 0 && (
-                        <div className="mt-4 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
-                           <img src={(post.repost_id ? post.repost?.media[0]?.url : post.media[0]?.url)} className="w-full h-auto object-cover max-h-96" alt="" />
-                        </div>
-                      )}
-
                       <div className="flex items-center gap-8 mt-5 text-zinc-500">
                         <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-1.5 transition-colors ${post._hasLiked ? 'text-rose-500' : 'hover:text-rose-500'}`}>
                           <Heart size={18} fill={post._hasLiked ? 'currentColor' : 'none'} />
@@ -322,7 +327,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                           <MessageSquare size={18} />
                           <span className="text-xs font-bold">{post.comments_count}</span>
                         </Link>
-                        <button className="flex items-center gap-1.5 hover:text-[#9cf822]"><Repeat size={18} /><span className="text-xs font-bold">{post.reposts_count || 0}</span></button>
                       </div>
                     </div>
                   </div>
@@ -338,9 +342,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   <img src={m.url} className="w-full h-full object-cover" alt="" />
                 </div>
               ))}
-              {posts.flatMap(p => p.repost_id ? (p.repost?.media || []) : (p.media || [])).length === 0 && (
-                <div className="col-span-3"><NoDataMessage title="No Media" subtitle="Images and videos from posts appear here." /></div>
-              )}
             </div>
           )}
         </div>
@@ -357,7 +358,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   );
 }
 
-// Helper Components
 function NoDataMessage({ title, subtitle }: { title: string, subtitle: string }) {
   return (
     <div className="mx-6 md:mx-0 py-24 border-2 border-dashed border-zinc-200 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/20 rounded-[2rem] flex flex-col items-center justify-center text-zinc-500">
