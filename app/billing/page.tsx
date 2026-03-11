@@ -53,19 +53,20 @@ export default function BillingPage() {
         currency: 'NGN', 
         metadata: { userId: user.id },
         callback: function(response: any) {
-          // 1. Tell the backend to flip the switch
+          // 1. Tell the backend to flip the switch (Internal API)
           fetch('/api/upgrade-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: user.id }),
           })
           .then(() => {
-            // 2. THE NUCLEAR REDIRECT: Bypass the router to kill the 404
-            window.location.replace('/dashboard?payment=success');
+            // 2. THE ABSOLUTE FIX: window.top ensures the WHOLE page redirects
+            // bypassing the "Venture path lost" iframe error.
+            window.top.location.href = '/dashboard?payment=success';
           })
           .catch(() => {
-            // Fallback: take them home anyway
-            window.location.replace('/dashboard');
+            // Fallback redirect
+            window.top.location.href = '/dashboard';
           });
         },
         onClose: () => setIsProcessing(false)
@@ -105,8 +106,8 @@ export default function BillingPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto text-left">
           {/* BASIC */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-200 dark:border-zinc-800 flex flex-col">
-            <h3 className="text-xl font-bold mb-2">Basic</h3>
-            <div className="mb-8 font-black text-4xl">₦0</div>
+            <h3 className="text-xl font-bold mb-2 text-black dark:text-white">Basic</h3>
+            <div className="mb-8 font-black text-4xl text-black dark:text-white">₦0</div>
             <ul className="space-y-4 mb-8 flex-grow">
               <FeatureItem text="Standard Profile & Portfolio" />
               <FeatureItem text="Post to Community Feed" />
@@ -119,8 +120,8 @@ export default function BillingPage() {
           {/* PRO */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border-2 border-[#9cf822] shadow-[0_0_40px_-15px_rgba(156,248,34,0.3)] flex flex-col relative md:-translate-y-4 transition-all">
              <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#9cf822] text-black text-[10px] font-black px-4 py-1 rounded-b-xl uppercase tracking-widest">Most Popular</div>
-             <h3 className="text-xl font-bold mt-2 mb-2 flex items-center gap-2">CoLab PRO <Sparkles size={18} className="text-[#9cf822]" /></h3>
-             <div className="mb-8 font-black text-4xl">{isAnnual ? '₦4,000' : '₦5,000'}<span className="text-sm font-medium text-zinc-500">/mo</span></div>
+             <h3 className="text-xl font-bold mt-2 mb-2 flex items-center gap-2 text-black dark:text-white">CoLab PRO <Sparkles size={18} className="text-[#9cf822]" /></h3>
+             <div className="mb-8 font-black text-4xl text-black dark:text-white">{isAnnual ? '₦4,000' : '₦5,000'}<span className="text-sm text-zinc-500 font-medium">/mo</span></div>
              <ul className="space-y-4 mb-8 flex-grow">
                <FeatureItem text="Official PRO Verification Badge" icon={<BadgeCheck size={18} className="text-[#9cf822]" />} />
                <FeatureItem text='See "Who Viewed Your Profile"' icon={<BarChart3 size={18} className="text-[#9cf822]" />} />
@@ -136,8 +137,8 @@ export default function BillingPage() {
 
           {/* AGENCY */}
           <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-200 dark:border-zinc-800 flex flex-col">
-            <h3 className="text-xl font-bold mb-2">Agency</h3>
-            <div className="mb-8 font-black text-4xl">{isAnnual ? '₦39,000' : '₦49,000'}</div>
+            <h3 className="text-xl font-bold mb-2 text-black dark:text-white">Agency</h3>
+            <div className="mb-8 font-black text-4xl text-black dark:text-white">{isAnnual ? '₦39,000' : '₦49,000'}</div>
             <ul className="space-y-4 mb-8 flex-grow">
                <FeatureItem text="Everything in PRO" />
                <FeatureItem text="Advanced Talent Search" />
