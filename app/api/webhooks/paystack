@@ -2,14 +2,14 @@ export const dynamic = 'force-dynamic';
 
 import { createClient } from '@supabase/supabase-js';
 
-// GET: Allows us to test if the URL is reachable in a browser
+// GET: This is what you just saw in your screenshot!
 export async function GET() {
-  return new Response("WEBHOOK IS LIVE AND REACHABLE!", { status: 200 });
+  return new Response("✅ VERIFY ROUTE IS ONLINE", { status: 200 });
 }
 
-// POST: Where Paystack sends the actual payment receipts
+// POST: This is what Paystack hits when a payment is made
 export async function POST(req) {
-  // Initialize Supabase with the Master Key to bypass security rules
+  // Master client to bypass security rules
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY 
@@ -17,36 +17,39 @@ export async function POST(req) {
 
   try {
     const body = await req.json();
-    console.log("🔔 WEBHOOK EVENT RECEIVED:", body.event);
+    console.log("🔔 Webhook Event:", body.event);
 
     if (body.event === 'charge.success') {
-      // Safe check to find the user ID we attached earlier
       const userId = body.data?.metadata?.userId;
       
-      console.log("👤 USER ID FROM PAYSTACK:", userId);
+      console.log("👤 Processing payment for User ID:", userId);
 
       if (userId) {
-        // Find the user in Supabase and flip the verified switch
-        const { error } = await supabase
+        // The update command
+        const { data, error } = await supabase
           .from('profiles')
           .update({ is_verified: true })
-          .eq('id', userId);
+          .eq('id', userId)
+          .select();
 
         if (error) {
-          console.error("❌ DATABASE UPDATE ERROR:", error.message);
-          return new Response('Database Error', { status: 500 });
+          console.error("❌ Database Error:", error.message);
+          return new Response('DB Error', { status: 500 });
         }
-        
-        console.log("✅ SUCCESS: User", userId, "is now Verified!");
-      } else {
-        console.warn("⚠️ WARNING: No userId found in the payment metadata.");
+
+        if (data && data.length > 0) {
+          console.log("🏆 SUCCESS: Profile updated to PRO!");
+          return new Response('Verified', { status: 200 });
+        } else {
+          console.warn("⚠️ User ID not found in database.");
+          return new Response('User Not Found', { status: 404 });
+        }
       }
     }
 
-    // Always tell Paystack "OK" so they don't keep retrying
-    return new Response('Webhook Received', { status: 200 });
+    return new Response('Acknowledged', { status: 200 });
   } catch (err) {
-    console.error("💀 WEBHOOK CRASHED:", err.message);
-    return new Response('Internal Error', { status: 500 });
+    console.error("💀 Webhook Crash:", err.message);
+    return new Response('Error', { status: 500 });
   }
 }
