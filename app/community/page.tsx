@@ -213,7 +213,7 @@ export default function CommunityFeedPage() {
         </div>
       )}
 
-      {/* MOBILE LIVE PULSE TICKER: Twitter style what's happening for mobile */}
+      {/* MOBILE LIVE PULSE TICKER */}
       <div className="sm:hidden w-full bg-white dark:bg-black border-b border-zinc-100 dark:border-zinc-900 py-3 overflow-hidden">
         <div className="px-4 flex items-center gap-2 mb-2">
           <Zap size={14} className="text-[#9cf822] fill-[#9cf822]" />
@@ -270,7 +270,11 @@ export default function CommunityFeedPage() {
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       {postMedia.map((m, idx) => (
                         <div key={idx} className="relative aspect-video rounded-2xl overflow-hidden bg-black">
-                          <img src={m.url} className="w-full h-full object-cover" />
+                          {m.type === 'video' ? (
+                            <video src={m.url} className="w-full h-full object-cover" controls />
+                          ) : (
+                            <img src={m.url} className="w-full h-full object-cover" />
+                          )}
                           <button onClick={() => removeMedia(idx)} className="absolute top-2 right-2 p-1 bg-black/60 rounded-full text-white"><X size={14}/></button>
                         </div>
                       ))}
@@ -280,7 +284,7 @@ export default function CommunityFeedPage() {
               </div>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900">
                 <div className="flex items-center gap-2">
-                  <input type="file" ref={fileInputRef} onChange={handleMediaUpload} className="hidden" />
+                  <input type="file" ref={fileInputRef} onChange={handleMediaUpload} accept="image/*,video/*" className="hidden" />
                   <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-[#9cf822] hover:bg-[#9cf822]/10 rounded-full transition-colors"><ImageIcon size={20} /></button>
                 </div>
                 <button type="submit" disabled={isPosting || (!newPost.trim() && postMedia.length === 0)} className="px-8 py-3 bg-[#9cf822] text-black font-black text-xs rounded-2xl transition-all active:scale-95 shadow-lg shadow-[#9cf822]/20 uppercase tracking-widest">
@@ -292,67 +296,94 @@ export default function CommunityFeedPage() {
 
           {/* Posts List */}
           <div className="space-y-0 sm:space-y-6">
-            {posts.map((post) => (
-              <div key={post.id} className="bg-white dark:bg-[#0a0a0a] sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border border-zinc-200 dark:border-zinc-800 transition-colors text-left">
-                <div className="flex items-start gap-4">
-                  <Link href={`/profile/${post.user_id}`} className="shrink-0">
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 border-transparent hover:border-[#9cf822] transition-colors">
-                      <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
-                    </div>
-                  </Link>
-                  <div className="flex-grow min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2 truncate">
-                        <Link href={`/profile/${post.user_id}`} className="font-black text-black dark:text-white hover:underline truncate flex items-center gap-1.5">
-                          {post.profiles?.full_name}
-                          {post.profiles?.is_verified && <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black" />}
-                        </Link>
-                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+            {posts.map((post) => {
+              const isOfficial = post.profiles?.role === 'official';
+              
+              return (
+                <div 
+                  key={post.id} 
+                  className={`sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border transition-all text-left relative overflow-hidden ${
+                    isOfficial 
+                      ? 'bg-zinc-50 dark:bg-[#9cf822]/[0.02] border-[#9cf822] dark:border-[#9cf822]/40 shadow-[0_0_20px_rgba(156,248,34,0.05)]' 
+                      : 'bg-white dark:bg-[#0a0a0a] border-zinc-200 dark:border-zinc-800 shadow-sm'
+                  }`}
+                >
+                  {/* Official Top Accent Line */}
+                  {isOfficial && <div className="absolute top-0 left-0 w-full h-1.5 bg-[#9cf822]"></div>}
+
+                  <div className="flex items-start gap-4">
+                    <Link href={`/profile/${post.user_id}`} className="shrink-0 mt-1">
+                      <div className={`w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 transition-colors ${isOfficial ? 'border-[#9cf822]' : 'border-transparent hover:border-[#9cf822]'}`}>
+                        <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
                       </div>
-                    </div>
-                    <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap text-[15px] leading-relaxed mt-2">{post.content}</p>
-                    
-                    {post.media?.length > 0 && (
-                       <div className={`mt-4 grid gap-2 ${post.media.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                          {post.media.map((m: any, i: number) => (
-                            <div key={i} className="relative aspect-[4/5] rounded-2xl overflow-hidden bg-black cursor-pointer" onClick={() => setExpandedMedia(m.url)}>
-                              <img src={m.url} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
-                            </div>
-                          ))}
-                       </div>
-                    )}
+                    </Link>
+                    <div className="flex-grow min-w-0">
+                      
+                      {/* Official Update Badge */}
+                      {isOfficial && (
+                        <div className="flex items-center gap-1.5 mb-2 text-[#65a315] dark:text-[#9cf822] bg-[#9cf822]/10 dark:bg-[#9cf822]/20 w-fit px-3 py-1 rounded-full border border-[#9cf822]/30">
+                          <PartyPopper size={12} />
+                          <span className="text-[9px] font-black uppercase tracking-widest">CoLab Official Update</span>
+                        </div>
+                      )}
 
-                    <div className="flex items-center gap-8 mt-6">
-                      <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-2 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
-                         <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} />
-                         <span className="text-xs font-bold">{post.likes_count}</span>
-                      </button>
-                      <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className="flex items-center gap-2 text-zinc-400">
-                         <MessageSquare size={20} />
-                         <span className="text-xs font-bold">{post.comments?.length || 0}</span>
-                      </button>
-                    </div>
-
-                    {activeCommentPost === post.id && (
-                      <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-900 animate-in slide-in-from-top-2">
-                        <div className="mb-4">{renderComments(post.id, post.comments)}</div>
-                        <div className="flex gap-2 items-center">
-                          <input 
-                            type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
-                            placeholder="Write a comment..." 
-                            className="flex-grow bg-zinc-100 dark:bg-zinc-900 rounded-full px-4 py-2.5 text-sm outline-none border border-transparent focus:border-[#9cf822] text-black dark:text-white"
-                          />
-                          <button onClick={() => submitComment(post.id)} disabled={!commentText.trim()} className="text-[#9cf822] p-2">
-                            <Send size={18} />
-                          </button>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2 truncate">
+                          <Link href={`/profile/${post.user_id}`} className="font-black text-black dark:text-white hover:underline truncate flex items-center gap-1.5">
+                            {post.profiles?.full_name}
+                            {post.profiles?.is_verified && <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black" />}
+                          </Link>
+                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                         </div>
                       </div>
-                    )}
+                      <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap text-[15px] leading-relaxed mt-2">{post.content}</p>
+                      
+                      {post.media?.length > 0 && (
+                         <div className={`mt-4 grid gap-2 ${post.media.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            {post.media.map((m: any, i: number) => (
+                              <div key={i} className="relative aspect-video rounded-2xl overflow-hidden bg-black cursor-pointer" onClick={() => m.type !== 'video' && setExpandedMedia(m.url)}>
+                                {m.type === 'video' || m.url.includes('.mp4') ? (
+                                  <video src={m.url} className="w-full h-full object-cover" controls playsInline />
+                                ) : (
+                                  <img src={m.url} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+                                )}
+                              </div>
+                            ))}
+                         </div>
+                      )}
+
+                      <div className="flex items-center gap-8 mt-6">
+                        <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-2 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
+                           <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} />
+                           <span className="text-xs font-bold">{post.likes_count}</span>
+                        </button>
+                        <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className="flex items-center gap-2 text-zinc-400">
+                           <MessageSquare size={20} />
+                           <span className="text-xs font-bold">{post.comments?.length || 0}</span>
+                        </button>
+                      </div>
+
+                      {activeCommentPost === post.id && (
+                        <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-900 animate-in slide-in-from-top-2">
+                          <div className="mb-4">{renderComments(post.id, post.comments)}</div>
+                          <div className="flex gap-2 items-center">
+                            <input 
+                              type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
+                              placeholder="Write a comment..." 
+                              className="flex-grow bg-zinc-100 dark:bg-zinc-900 rounded-full px-4 py-2.5 text-sm outline-none border border-transparent focus:border-[#9cf822] text-black dark:text-white"
+                            />
+                            <button onClick={() => submitComment(post.id)} disabled={!commentText.trim()} className="text-[#9cf822] p-2">
+                              <Send size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
