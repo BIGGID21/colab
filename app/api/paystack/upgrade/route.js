@@ -1,3 +1,5 @@
+import { NextResponse } from 'next/server';
+
 export async function POST(req) {
   try {
     const { email, amount, userId } = await req.json();
@@ -10,24 +12,16 @@ export async function POST(req) {
       },
       body: JSON.stringify({
         email,
-        amount: amount * 100, // Paystack counts in kobo/cents
-        metadata: {
-          userId: userId, // This "tags" the payment with your Supabase User ID
-        },
-        callback_url: `${process.env.NEXT_PUBLIC_BASE_URL}/billing?success=true`,
+        amount: amount * 100,
+        metadata: { userId },
+        // Use window.location.origin in your billing page to send this:
+        callback_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/paystack/callback`,
       }),
     });
 
     const data = await response.json();
-
-    if (!data.status) {
-      console.error("Paystack Init Error:", data.message);
-      return new Response(JSON.stringify({ error: data.message }), { status: 400 });
-    }
-
-    return new Response(JSON.stringify(data), { status: 200 });
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("Internal Server Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
