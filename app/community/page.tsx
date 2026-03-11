@@ -7,7 +7,7 @@ import {
   Loader2, Send, MapPin, Coffee, Image as ImageIcon, 
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
-  BadgeCheck, PartyPopper, Zap, Clock
+  BadgeCheck, PartyPopper, Zap, Clock, Edit
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -32,6 +32,10 @@ export default function CommunityFeedPage() {
   
   const [isPosting, setIsPosting] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Edit States
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
 
   // Comment States
   const [activeCommentPost, setActiveCommentPost] = useState<string | null>(null);
@@ -153,6 +157,26 @@ export default function CommunityFeedPage() {
     setIsPosting(false);
   };
 
+  const handleDeletePost = async (postId: string) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    triggerHaptic([10, 20]);
+    // Optimistic UI update
+    setPosts(prev => prev.filter(p => p.id !== postId));
+    setRecentActivity(prev => prev.filter(p => p.id !== postId));
+    // Database deletion
+    await supabase.from('posts').delete().match({ id: postId, user_id: user.id });
+  };
+
+  const handleSaveEdit = async (postId: string) => {
+    if (!editContent.trim()) return;
+    triggerHaptic(10);
+    // Optimistic UI update
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, content: editContent } : p));
+    setEditingPostId(null);
+    // Database update
+    await supabase.from('posts').update({ content: editContent }).match({ id: postId, user_id: user.id });
+  };
+
   const handleLike = async (postId: string, currentLikes: number, hasLiked: boolean) => {
     triggerHaptic(10);
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: hasLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1, _hasLiked: !hasLiked } : p));
@@ -267,7 +291,7 @@ export default function CommunityFeedPage() {
                     className="w-full bg-transparent resize-none text-black dark:text-white text-lg focus:outline-none min-h-[80px]"
                   />
                   
-                  {/* COMPOSER MEDIA - INSTAGRAM PORTRAIT & NATURAL VIDEO */}
+                  {/* COMPOSER MEDIA - INSTAGRAM PORTRAIT & NATURAL VIDEO WITH AUTOPLAY */}
                   {postMedia.length > 0 && (
                     <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${postMedia.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
                       {postMedia.map((m, idx) => {
@@ -279,7 +303,7 @@ export default function CommunityFeedPage() {
                             className={`relative bg-black w-full flex justify-center items-center ${isVideo ? 'h-auto max-h-[800px]' : 'aspect-[4/5]'}`} 
                           >
                             {isVideo ? (
-                              <video src={m.url} className="w-full h-auto max-h-[800px] object-contain" controls playsInline />
+                              <video src={m.url} className="w-full h-auto max-h-[800px] object-contain" controls autoPlay muted loop playsInline />
                             ) : (
                               <img src={m.url} className="w-full h-full object-cover" />
                             )}
@@ -309,35 +333,18 @@ export default function CommunityFeedPage() {
           {/* Posts List */}
           <div className="space-y-0 sm:space-y-6">
             {posts.map((post) => {
-              const isOfficial = post.profiles?.role === 'official';
-              
               return (
                 <div 
                   key={post.id} 
-                  className={`sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border transition-all text-left relative overflow-hidden ${
-                    isOfficial 
-                      ? 'bg-zinc-50 dark:bg-[#9cf822]/[0.02] border-[#9cf822] dark:border-[#9cf822]/40 shadow-[0_0_20px_rgba(156,248,34,0.05)]' 
-                      : 'bg-white dark:bg-[#0a0a0a] border-zinc-200 dark:border-zinc-800 shadow-sm'
-                  }`}
+                  className="bg-white dark:bg-[#0a0a0a] sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all text-left relative overflow-hidden"
                 >
-                  {/* Official Top Accent Line */}
-                  {isOfficial && <div className="absolute top-0 left-0 w-full h-1.5 bg-[#9cf822]"></div>}
-
                   <div className="flex items-start gap-4">
                     <Link href={`/profile/${post.user_id}`} className="shrink-0 mt-1">
-                      <div className={`w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 transition-colors ${isOfficial ? 'border-[#9cf822]' : 'border-transparent hover:border-[#9cf822]'}`}>
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 border-transparent hover:border-[#9cf822] transition-colors">
                         <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
                       </div>
                     </Link>
                     <div className="flex-grow min-w-0">
-                      
-                      {/* Official Update Badge */}
-                      {isOfficial && (
-                        <div className="flex items-center gap-1.5 mb-2 text-[#65a315] dark:text-[#9cf822] bg-[#9cf822]/10 dark:bg-[#9cf822]/20 w-fit px-3 py-1 rounded-full border border-[#9cf822]/30">
-                          <PartyPopper size={12} />
-                          <span className="text-[9px] font-black uppercase tracking-widest">CoLab Official Update</span>
-                        </div>
-                      )}
 
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2 truncate">
@@ -347,10 +354,49 @@ export default function CommunityFeedPage() {
                           </Link>
                           <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                         </div>
+                        
+                        {/* POST ACTIONS: Edit / Delete */}
+                        {user?.id === post.user_id && (
+                          <div className="flex items-center gap-3 shrink-0 ml-2">
+                            {profile?.role?.toLowerCase() === 'pro' && (
+                              <button 
+                                onClick={() => { setEditingPostId(post.id); setEditContent(post.content); }} 
+                                className="text-zinc-400 hover:text-[#9cf822] transition-colors" 
+                                title="Edit Post"
+                              >
+                                <Edit size={14} />
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => handleDeletePost(post.id)} 
+                              className="text-zinc-400 hover:text-red-500 transition-colors" 
+                              title="Delete Post"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap text-[15px] leading-relaxed mt-2">{post.content}</p>
+
+                      {/* POST CONTENT / EDIT MODE */}
+                      {editingPostId === post.id ? (
+                        <div className="mt-2 mb-3">
+                          <textarea 
+                            value={editContent} 
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-xl p-3 text-sm text-black dark:text-white focus:outline-none border border-transparent focus:border-[#9cf822] resize-none"
+                            rows={3}
+                          />
+                          <div className="flex items-center gap-2 mt-2">
+                            <button onClick={() => handleSaveEdit(post.id)} className="px-4 py-1.5 bg-[#9cf822] text-black text-xs font-bold rounded-lg hover:scale-95 transition-transform">Save</button>
+                            <button onClick={() => setEditingPostId(null)} className="px-4 py-1.5 bg-zinc-200 dark:bg-zinc-800 text-black dark:text-white text-xs font-bold rounded-lg hover:opacity-80 transition-opacity">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap text-[15px] leading-relaxed mt-2">{post.content}</p>
+                      )}
                       
-                      {/* POST MEDIA - INSTAGRAM PORTRAIT & NATURAL VIDEO */}
+                      {/* POST MEDIA - INSTAGRAM PORTRAIT & NATURAL VIDEO WITH AUTOPLAY */}
                       {post.media?.length > 0 && (
                         <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${post.media.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
                           {post.media.map((m: any, i: number) => {
@@ -363,7 +409,7 @@ export default function CommunityFeedPage() {
                                 onClick={() => !isVideo && setExpandedMedia(m.url)}
                               >
                                 {isVideo ? (
-                                  <video src={m.url} className="w-full h-auto max-h-[800px] object-contain" controls playsInline />
+                                  <video src={m.url} className="w-full h-auto max-h-[800px] object-contain" controls autoPlay muted loop playsInline />
                                 ) : (
                                   <img src={m.url} className="w-full h-full object-cover hover:opacity-90 transition-opacity" />
                                 )}
