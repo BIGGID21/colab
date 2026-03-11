@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -5,332 +6,251 @@ import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { 
   Folder, Users, Plus, Activity, 
-  Clock, ArrowRight, Settings, Image as ImageIcon,
-  Bookmark // Added Bookmark icon for the new empty state
+  ArrowRight, Settings, Image as ImageIcon,
+  Bookmark, BadgeCheck, Zap, Eye, TrendingUp, X
 } from 'lucide-react';
 
-export default function MyProjectsPage() {
+export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'owned' | 'collaborations' | 'saved'>('owned'); // Added 'saved' tab
+  const [activeTab, setActiveTab] = useState<'owned' | 'collaborations' | 'saved'>('owned');
   
   const [myProjects, setMyProjects] = useState<any[]>([]);
   const [myCollaborations, setMyCollaborations] = useState<any[]>([]);
-  const [savedProjects, setSavedProjects] = useState<any[]>([]); // New state for saved projects
-  const [user, setUser] = useState<any>(null);
+  const [savedProjects, setSavedProjects] = useState<any[]>([]);
+  const [viewers, setViewers] = useState<any[]>([]); 
+  const [totalViews, setTotalViews] = useState(0);
+  
+  const [isVerified, setIsVerified] = useState(false);
+  const [isInsightsOpen, setIsInsightsOpen] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (!authUser) {
-          router.push('/login');
-          return;
-        }
-        setUser(authUser);
-
-        // Fetch projects the user owns
-        const { data: projectsData } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .order('created_at', { ascending: false });
-
-        setMyProjects(projectsData || []);
-
-        // Fetch projects the user is collaborating on
-        const { data: collabsData } = await supabase
-          .from('collaborations')
-          .select('*, projects(*, profiles(*))')
-          .eq('user_id', authUser.id)
-          .order('created_at', { ascending: false });
-
-        setMyCollaborations(collabsData || []);
-
-        // Fetch saved projects based on LocalStorage IDs synced from Discover/Details
-        if (typeof window !== 'undefined') {
-          const savedIds = JSON.parse(localStorage.getItem('savedProjects') || '[]');
-          
-          if (savedIds.length > 0) {
-            const { data: savedData } = await supabase
-              .from('projects')
-              .select('*, profiles:user_id(full_name, avatar_url)')
-              .in('id', savedIds)
-              .order('created_at', { ascending: false });
-              
-            setSavedProjects(savedData || []);
-          } else {
-            setSavedProjects([]);
-          }
-        }
-
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setLoading(false);
+  const fetchData = async () => {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        router.push('/login');
+        return;
       }
-    };
 
-    fetchDashboardData();
-  }, [router, supabase]);
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('is_verified')
+        .eq('id', authUser.id)
+        .single();
+      
+      setIsVerified(profileData?.is_verified || false);
 
-  // Calculate some basic stats
-  const pendingCollabs = myCollaborations.filter(c => c.status === 'pending').length;
-  const activeCollabs = myCollaborations.filter(c => c.status === 'accepted').length;
+      const { data: viewerData, count } = await supabase
+          .from('profile_views')
+          .select('*, viewer:viewer_id(id, full_name, avatar_url, role)', { count: 'exact' })
+          .eq('profile_id', authUser.id)
+          .order('viewed_at', { ascending: false });
+      
+      setTotalViews(count || 0);
+      setViewers(viewerData || []);
+
+      const { data: projectsData } = await supabase.from('projects').select('*').eq('user_id', authUser.id).order('created_at', { ascending: false });
+      setMyProjects(projectsData || []);
+
+      const { data: collabsData } = await supabase.from('collaborations').select('*, projects(*, profiles(*))').eq('user_id', authUser.id);
+      setMyCollaborations(collabsData || []);
+
+      if (typeof window !== 'undefined') {
+        const savedIds = JSON.parse(localStorage.getItem('savedProjects') || '[]');
+        if (savedIds.length > 0) {
+          const { data: savedData } = await supabase.from('projects').select('*, profiles:user_id(full_name, avatar_url)').in('id', savedIds);
+          setSavedProjects(savedData || []);
+        }
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, [router]);
+
+  if (loading) return (
+    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
+      <div className="w-5 h-5 border-2 border-[#9cf822] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300">
-      <div className="max-w-[1200px] mx-auto p-4 md:p-8 animate-in fade-in duration-700">
+    <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-white p-6 md:p-10 font-sans selection:bg-[#9cf822] selection:text-black transition-colors duration-500">
+      <div className="max-w-6xl mx-auto">
         
         {/* HEADER */}
-        <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <header className="mb-10 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-medium text-black dark:text-white">My dashboard</h1>
-            <div className="flex items-center gap-3 mt-2">
-              <div className="w-8 h-[2px] bg-[#9cf822]" />
-              <p className="text-sm text-zinc-500">Manage your projects and collaborations</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-medium tracking-tight">My dashboard</h1>
+              {isVerified && <span className="text-[10px] font-medium bg-[#9cf822]/10 text-[#9cf822] px-2 py-0.5 rounded-full border border-[#9cf822]/20">PRO</span>}
             </div>
+            <p className="text-sm text-zinc-500 mt-1">Manage your work and insights.</p>
           </div>
-          
           <button 
             onClick={() => router.push('/create')}
-            className="flex items-center gap-2 px-4 py-2 bg-[#9cf822] text-black rounded-lg hover:bg-[#84cc0e] transition-all shadow-sm shrink-0"
+            className="flex items-center gap-2 px-4 py-2 bg-[#9cf822] text-black rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
           >
-            <Plus size={16} />
-            <span className="text-sm font-medium">New project</span>
+            <Plus size={16}/> <span className="hidden sm:inline">New project</span>
           </button>
         </header>
 
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-6 h-6 border-2 border-[#9cf822] border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : (
-          <>
-            {/* STATS OVERVIEW CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-              <div className="p-5 bg-zinc-50 border border-zinc-200/80 rounded-2xl dark:bg-[#1D2226] dark:border-zinc-800">
-                <div className="flex items-center gap-3 mb-2 text-zinc-500 dark:text-zinc-400">
-                  <Folder size={16} />
-                  <h3 className="text-sm font-medium">Total projects</h3>
-                </div>
-                <p className="text-3xl font-medium text-black dark:text-white">{myProjects.length}</p>
-              </div>
+        {/* STATS */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+          <StatCard title="Total projects" value={myProjects.length} />
+          <StatCard 
+            title="Profile views" 
+            value={isVerified ? totalViews : '—'} 
+            isPro={isVerified}
+            icon={isVerified ? <TrendingUp size={14} className="text-[#9cf822]"/> : null}
+          />
+          <StatCard title="Active collaborations" value={myCollaborations.filter(c => c.status === 'accepted').length} accent />
+        </div>
 
-              <div className="p-5 bg-zinc-50 border border-zinc-200/80 rounded-2xl dark:bg-[#1D2226] dark:border-zinc-800">
-                <div className="flex items-center gap-3 mb-2 text-zinc-500 dark:text-zinc-400">
-                  <Activity size={16} />
-                  <h3 className="text-sm font-medium">Active collaborations</h3>
-                </div>
-                <p className="text-3xl font-medium text-[#5a9a00] dark:text-[#9cf822]">{activeCollabs}</p>
-              </div>
-
-              <div className="p-5 bg-zinc-50 border border-zinc-200/80 rounded-2xl dark:bg-[#1D2226] dark:border-zinc-800">
-                <div className="flex items-center gap-3 mb-2 text-zinc-500 dark:text-zinc-400">
-                  <Clock size={16} />
-                  <h3 className="text-sm font-medium">Pending requests</h3>
-                </div>
-                <p className="text-3xl font-medium text-orange-500">{pendingCollabs}</p>
-              </div>
+        {/* RECENT VIEWERS (Minimalist List) */}
+        {isVerified && (
+          <section className="mb-16 animate-in fade-in slide-in-from-bottom-2 duration-1000">
+            <div className="flex items-center justify-between mb-4 px-1">
+              <h2 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+                Recent Viewers <Zap size={14} className="text-[#9cf822] fill-[#9cf822]"/>
+              </h2>
+              <button onClick={() => setIsInsightsOpen(true)} className="text-[11px] font-semibold text-[#9cf822] hover:underline">View All Insights</button>
             </div>
-
-            {/* TAB NAVIGATION */}
-            <div className="flex items-center gap-6 border-b border-zinc-200 dark:border-zinc-800 mb-8 overflow-x-auto hide-scrollbar">
-              <button 
-                onClick={() => setActiveTab('owned')}
-                className={`pb-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${activeTab === 'owned' ? 'border-black text-black dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:text-black dark:hover:text-white'}`}
-              >
-                My projects
-              </button>
-              <button 
-                onClick={() => setActiveTab('collaborations')}
-                className={`pb-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${activeTab === 'collaborations' ? 'border-black text-black dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:text-black dark:hover:text-white'}`}
-              >
-                Collaborations
-              </button>
-              <button 
-                onClick={() => setActiveTab('saved')}
-                className={`pb-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${activeTab === 'saved' ? 'border-black text-black dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:text-black dark:hover:text-white'}`}
-              >
-                Saved projects
-              </button>
+            <div className="bg-zinc-50/50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800/50 rounded-2xl overflow-hidden">
+              {viewers.length > 0 ? (
+                <div className="divide-y divide-zinc-200 dark:divide-zinc-800/50">
+                  {viewers.slice(0, 3).map((v, i) => (
+                    <div 
+                      key={i} 
+                      onClick={() => router.push(`/profile/${v.viewer?.id}`)}
+                      className="flex items-center justify-between p-4 hover:bg-zinc-100 dark:hover:bg-zinc-800/30 transition-colors cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <img src={v.viewer?.avatar_url || `https://ui-avatars.com/api/?name=${v.viewer?.full_name}`} className="w-10 h-10 rounded-full object-cover border border-zinc-200 dark:border-zinc-800" />
+                        <div>
+                          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 group-hover:text-[#9cf822] transition-colors">{v.viewer?.full_name}</p>
+                          <p className="text-xs text-zinc-500">{v.viewer?.role || 'Creator'}</p>
+                        </div>
+                      </div>
+                      <ArrowRight size={16} className="text-zinc-300 dark:text-zinc-700 group-hover:text-zinc-400 transition-all transform group-hover:translate-x-0.5" />
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="p-10 text-center text-xs text-zinc-400">No recent activity.</div>}
             </div>
-
-            {/* TAB CONTENT: OWNED PROJECTS */}
-            {activeTab === 'owned' && (
-              myProjects.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {myProjects.map((project) => (
-                    <div key={project.id} className="group flex flex-col bg-zinc-50 border border-zinc-200/80 rounded-2xl overflow-hidden hover:shadow-md transition-all dark:bg-[#1D2226] dark:border-zinc-800 dark:shadow-none">
-                      <div className="aspect-video bg-zinc-200/50 border-b border-zinc-200/80 relative overflow-hidden flex items-center justify-center dark:bg-zinc-900 dark:border-zinc-800">
-                        {project.image_url || project.cover_url ? (
-                          <>
-                            <span className="absolute text-sm font-medium text-zinc-400">Image unavailable</span>
-                            <img 
-                              src={project.image_url || project.cover_url} 
-                              alt="" 
-                              className="absolute inset-0 w-full h-full object-cover z-10" 
-                              onError={(e) => (e.currentTarget.style.opacity = '0')}
-                            />
-                          </>
-                        ) : (
-                          <ImageIcon size={24} className="text-zinc-400" />
-                        )}
-                      </div>
-                      
-                      <div className="p-5 flex flex-col flex-grow">
-                        <h3 className="text-lg font-medium text-black mb-1 truncate dark:text-white">{project.title}</h3>
-                        <p className="text-sm text-zinc-500 line-clamp-2 mb-6 dark:text-zinc-400">{project.description}</p>
-                        
-                        <div className="mt-auto flex items-center gap-2 pt-4 border-t border-zinc-200/80 dark:border-zinc-800/50">
-                          <button 
-                            onClick={() => router.push(`/studio/${project.id}`)}
-                            className="flex-1 py-2 bg-white border border-zinc-200 text-black text-sm font-medium rounded-lg hover:bg-zinc-50 transition-colors dark:bg-black dark:border-zinc-700 dark:text-white dark:hover:bg-zinc-900"
-                          >
-                            Manage
-                          </button>
-                          <button className="p-2 border border-zinc-200 rounded-lg text-zinc-500 hover:text-black hover:bg-zinc-50 transition-colors dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-900">
-                            <Settings size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-24 border border-dashed border-zinc-300 rounded-2xl flex flex-col items-center justify-center text-zinc-500 bg-zinc-50/50 dark:border-zinc-800 dark:bg-[#1D2226]/50">
-                  <Folder size={32} className="mb-4 text-zinc-400" />
-                  <p className="text-sm font-medium text-black dark:text-white mb-1">No project deployed yet</p>
-                  <p className="text-sm mb-6 text-center max-w-sm">Initialize your first project to start recruiting collaborators and tracking equity.</p>
-                  <button onClick={() => router.push('/create')} className="px-5 py-2.5 bg-[#9cf822] text-black text-sm font-medium rounded-lg hover:bg-[#84cc0e] transition-all shadow-sm">
-                    Deploy project
-                  </button>
-                </div>
-              )
-            )}
-
-            {/* TAB CONTENT: COLLABORATIONS */}
-            {activeTab === 'collaborations' && (
-              myCollaborations.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {myCollaborations.map((collab) => (
-                    <div key={collab.id} className="group flex flex-col bg-zinc-50 border border-zinc-200/80 rounded-2xl overflow-hidden hover:shadow-md transition-all dark:bg-[#1D2226] dark:border-zinc-800 dark:shadow-none">
-                      <div className="p-5 flex flex-col flex-grow">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className={`px-2.5 py-1 rounded-md text-xs font-medium ${
-                            collab.status === 'accepted' ? 'bg-[#5a9a00]/10 text-[#5a9a00] dark:bg-[#9cf822]/10 dark:text-[#9cf822]' : 
-                            collab.status === 'pending' ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400' : 
-                            'bg-red-500/10 text-red-600 dark:text-red-400'
-                          }`}>
-                            {collab.status.charAt(0).toUpperCase() + collab.status.slice(1)}
-                          </div>
-                          <span className="text-xs text-zinc-500">{new Date(collab.created_at).toLocaleDateString()}</span>
-                        </div>
-
-                        <h3 className="text-lg font-medium text-black mb-1 truncate dark:text-white">{collab.projects?.title || 'Unknown Project'}</h3>
-                        <p className="text-sm text-zinc-500 mb-6 dark:text-zinc-400">Lead by {collab.projects?.profiles?.full_name || 'Unknown User'}</p>
-                        
-                        <div className="mt-auto pt-4 border-t border-zinc-200/80 dark:border-zinc-800/50">
-                          <button 
-                            onClick={() => router.push(collab.status === 'accepted' ? `/workspace/${collab.project_id}` : `/project/${collab.project_id}`)} 
-                            className="w-full flex items-center justify-center gap-2 py-2 bg-white border border-zinc-200 text-black text-sm font-medium rounded-lg hover:bg-zinc-50 transition-colors dark:bg-black dark:border-zinc-700 dark:text-white dark:hover:bg-zinc-900"
-                          >
-                            {collab.status === 'accepted' ? 'Enter workspace' : 'View details'} <ArrowRight size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-24 border border-dashed border-zinc-300 rounded-2xl flex flex-col items-center justify-center text-zinc-500 bg-zinc-50/50 dark:border-zinc-800 dark:bg-[#1D2226]/50">
-                  <Users size={32} className="mb-4 text-zinc-400" />
-                  <p className="text-sm font-medium text-black dark:text-white mb-1">No active collaborations</p>
-                  <p className="text-sm mb-6 text-center max-w-sm">Head over to the Discover page to find ventures looking for your skills.</p>
-                  <button onClick={() => router.push('/discover')} className="px-5 py-2.5 bg-white border border-zinc-200 text-black text-sm font-medium rounded-lg hover:bg-zinc-50 transition-all shadow-sm dark:bg-zinc-900 dark:border-zinc-700 dark:text-white dark:hover:bg-zinc-800">
-                    Explore Discover
-                  </button>
-                </div>
-              )
-            )}
-
-            {/* TAB CONTENT: SAVED PROJECTS */}
-            {activeTab === 'saved' && (
-              savedProjects.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {savedProjects.map((project) => (
-                    <div key={project.id} className="group flex flex-col bg-zinc-50 border border-zinc-200/80 rounded-2xl overflow-hidden hover:shadow-md transition-all dark:bg-[#1D2226] dark:border-zinc-800 dark:shadow-none">
-                      <div className="aspect-video bg-zinc-200/50 border-b border-zinc-200/80 relative overflow-hidden flex items-center justify-center dark:bg-zinc-900 dark:border-zinc-800">
-                        {project.image_url || project.cover_url ? (
-                          <>
-                            <span className="absolute text-sm font-medium text-zinc-400">Image unavailable</span>
-                            <img 
-                              src={project.image_url || project.cover_url} 
-                              alt="" 
-                              className="absolute inset-0 w-full h-full object-cover z-10" 
-                              onError={(e) => (e.currentTarget.style.opacity = '0')}
-                            />
-                          </>
-                        ) : (
-                          <ImageIcon size={24} className="text-zinc-400" />
-                        )}
-                        {/* Status Overlay */}
-                        <div className="absolute top-3 right-3 z-20">
-                          <span className="px-2 py-1 bg-black/60 backdrop-blur-md text-white rounded-md text-[10px] font-medium tracking-wide border border-white/10">
-                            Saved
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="p-5 flex flex-col flex-grow">
-                        <h3 className="text-lg font-medium text-black mb-1 truncate dark:text-white">{project.title}</h3>
-                        <p className="text-sm text-zinc-500 line-clamp-2 mb-3 dark:text-zinc-400">{project.description}</p>
-                        
-                        <div className="flex items-center gap-2 mb-6">
-                           <div className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0">
-                             {project.profiles?.avatar_url ? (
-                               <img src={project.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
-                             ) : (
-                               <Users size={10} className="m-auto mt-1 text-zinc-400" />
-                             )}
-                           </div>
-                           <span className="text-xs font-medium text-zinc-500 truncate dark:text-zinc-400">
-                             {project.profiles?.full_name || 'Project Lead'}
-                           </span>
-                        </div>
-                        
-                        <div className="mt-auto pt-4 border-t border-zinc-200/80 dark:border-zinc-800/50">
-                          <button 
-                            onClick={() => router.push(`/project/${project.id}`)}
-                            className="w-full flex items-center justify-center gap-2 py-2 bg-white border border-zinc-200 text-black text-sm font-medium rounded-lg hover:bg-zinc-50 transition-colors dark:bg-black dark:border-zinc-700 dark:text-white dark:hover:bg-zinc-900"
-                          >
-                            View details <ArrowRight size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-24 border border-dashed border-zinc-300 rounded-2xl flex flex-col items-center justify-center text-zinc-500 bg-zinc-50/50 dark:border-zinc-800 dark:bg-[#1D2226]/50">
-                  <Bookmark size={32} className="mb-4 text-zinc-400" />
-                  <p className="text-sm font-medium text-black dark:text-white mb-1">No saved project</p>
-                  <p className="text-sm mb-6 text-center max-w-sm">You haven't bookmarked any projects yet. Discover exciting new ventures to follow and collaborate on.</p>
-                  <button onClick={() => router.push('/discover')} className="px-5 py-2.5 bg-white border border-zinc-200 text-black text-sm font-medium rounded-lg hover:bg-zinc-50 transition-all shadow-sm dark:bg-zinc-900 dark:border-zinc-700 dark:text-white dark:hover:bg-zinc-800">
-                    Explore Discover
-                  </button>
-                </div>
-              )
-            )}
-
-          </>
+          </section>
         )}
+
+        {/* TABS NAVIGATION */}
+        <nav className="flex items-center gap-8 border-b border-zinc-200 dark:border-zinc-900 mb-10">
+          {[
+            { id: 'owned', label: 'My projects' },
+            { id: 'collaborations', label: 'Collaborations' },
+            { id: 'saved', label: 'Saved projects' }
+          ].map((tab) => (
+            <button 
+              key={tab.id} 
+              onClick={() => setActiveTab(tab.id as any)} 
+              className={`pb-4 text-sm font-medium transition-all relative ${activeTab === tab.id ? 'text-black dark:text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              {tab.label}
+              {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#9cf822] rounded-full" />}
+            </button>
+          ))}
+        </nav>
+
+        {/* CONTENT GRID */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+          {activeTab === 'owned' && myProjects.map(p => (
+            <div key={p.id} className="group bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800/60 rounded-2xl overflow-hidden hover:border-zinc-300 dark:hover:border-zinc-700 transition-all flex flex-col">
+              <div className="aspect-[16/10] bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
+                {p.image_url ? (
+                  <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                ) : <ImageIcon size={24} className="text-zinc-300 dark:text-zinc-800" />}
+              </div>
+              <div className="p-6">
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">{p.title}</h3>
+                <p className="text-xs text-zinc-500 line-clamp-1 mb-6 font-normal">{p.description}</p>
+                <div className="flex items-center gap-2 pt-4 border-t border-zinc-200 dark:border-zinc-800/50">
+                  <button onClick={() => router.push(`/studio/${p.id}`)} className="flex-1 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black text-xs font-semibold rounded-md hover:opacity-90 transition-opacity">Manage</button>
+                  <button className="p-2 text-zinc-400 hover:text-black dark:hover:text-white transition-colors"><Settings size={16}/></button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {activeTab === 'collaborations' && myCollaborations.map(c => (
+            <div key={c.id} className="p-6 bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800/60 rounded-2xl">
+              <span className={`text-[10px] font-semibold uppercase tracking-wider mb-4 block ${c.status === 'accepted' ? 'text-[#9cf822]' : 'text-orange-400'}`}>{c.status}</span>
+              <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">{c.projects?.title}</h3>
+              <p className="text-xs text-zinc-500 mb-6">Lead: {c.projects?.profiles?.full_name}</p>
+              <button onClick={() => router.push(`/workspace/${c.project_id}`)} className="w-full py-2 bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md text-xs font-semibold flex items-center justify-center gap-2 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors text-black dark:text-white">Enter Workspace <ArrowRight size={14}/></button>
+            </div>
+          ))}
+
+          {activeTab === 'saved' && savedProjects.map(p => (
+            <div key={p.id} className="bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800/60 rounded-2xl overflow-hidden">
+              <div className="aspect-video bg-zinc-100 dark:bg-zinc-900 relative">
+                {p.image_url && <img src={p.image_url} className="w-full h-full object-cover opacity-90" />}
+                <div className="absolute top-3 right-3 px-2 py-0.5 bg-black/60 text-[#9cf822] text-[9px] font-bold rounded-md border border-white/5 uppercase">Saved</div>
+              </div>
+              <div className="p-6">
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-4">{p.title}</h3>
+                <button onClick={() => router.push(`/project/${p.id}`)} className="w-full py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-md text-xs font-semibold">View Project</button>
+              </div>
+            </div>
+          ))}
+        </section>
       </div>
+
+      {/* INSIGHTS MODAL (Apple Style) */}
+      {isInsightsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+              <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Analytics</h3>
+              <button onClick={() => setIsInsightsOpen(false)} className="text-zinc-400 hover:text-black dark:hover:text-white transition-colors"><X size={18} /></button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+              <div className="p-5 bg-[#9cf822]/5 rounded-2xl border border-[#9cf822]/10 mb-4">
+                <p className="text-[10px] font-semibold text-[#9cf822] uppercase tracking-wider mb-1">Total Profile Views</p>
+                <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100">{totalViews}</p>
+              </div>
+              <div className="space-y-3">
+                {viewers.map((v, i) => (
+                  <div key={i} className="flex items-center gap-3 p-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-colors">
+                    <img src={v.viewer?.avatar_url || `https://ui-avatars.com/api/?name=${v.viewer?.full_name}`} className="w-9 h-9 rounded-full border border-zinc-100 dark:border-zinc-800" />
+                    <div className="flex-grow">
+                      <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{v.viewer?.full_name}</p>
+                      <p className="text-[10px] text-zinc-500 font-medium lowercase tracking-tight">{v.viewer?.role || 'Creator'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ title, value, accent, isPro, icon }: any) {
+  return (
+    <div className={`p-6 bg-zinc-50/50 dark:bg-zinc-900/40 border rounded-2xl transition-all ${accent ? 'border-[#9cf822]/20' : 'border-zinc-200 dark:border-zinc-800/50'}`}>
+      <div className="flex justify-between items-start mb-1">
+        <p className="text-zinc-400 text-[11px] font-semibold uppercase tracking-wider">{title}</p>
+        {icon}
+      </div>
+      <p className={`text-3xl font-semibold ${accent ? 'text-[#9cf822]' : 'text-zinc-900 dark:text-zinc-100'}`}>{value}</p>
     </div>
   );
 }
