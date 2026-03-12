@@ -220,6 +220,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const isAuthPage = pathname === '/login' || pathname === '/signup';
   const showSidebar = !isAuthPage && pathname !== '/';
 
+  // LOGIC: Only trigger scroll-hide effect on the Community Feed
+  const isCommunityFeed = pathname === '/community';
+
   const navItems = [
     { name: 'Search', icon: Search, onClick: () => setActiveModal('search'), showOnMobileBar: false },
     { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true }, 
@@ -242,10 +245,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           {showSidebar && !isAppLoading && (
             <>
-              {/* MOBILE TOP BAR (Slides UP on scroll down) */}
+              {/* MOBILE TOP BAR (Slides UP on scroll down ONLY on community) */}
               <div 
                 className={`md:hidden flex items-center justify-between p-4 h-16 backdrop-blur-md border-b fixed top-0 w-full z-[100] bg-white/90 dark:bg-black/90 border-zinc-200 dark:border-zinc-900 transition-transform duration-300 ease-in-out ${
-                  isMobileNavVisible ? 'translate-y-0' : '-translate-y-full'
+                  (isCommunityFeed && !isMobileNavVisible) ? '-translate-y-full' : 'translate-y-0'
                 }`}
               >
                 <BrandLogo isMobile />
@@ -302,7 +305,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </Link>
                     ) : (
                       <button key={item.name} onClick={item.onClick}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-zinc-600 dark:text-zinc-500 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
                         <div className="w-9 flex items-center justify-center shrink-0">
                           <item.icon size={18} />
                         </div>
@@ -365,9 +368,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </aside>
 
-              {/* MOBILE BOTTOM NAV (Slides DOWN on scroll down) */}
+              {/* MOBILE BOTTOM NAV (Slides DOWN on community ONLY) */}
               <nav className={`md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))] transition-transform duration-300 ease-in-out ${
-                  isMobileNavVisible ? 'translate-y-0' : 'translate-y-full'
+                  (isCommunityFeed && !isMobileNavVisible) ? 'translate-y-full' : 'translate-y-0'
                 }`}>
                 {navItems.filter(item => item.showOnMobileBar).map((item) => (
                   <Link key={item.name} href={item.href!} className="flex flex-col items-center justify-center w-full py-1">
