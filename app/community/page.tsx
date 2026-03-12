@@ -173,7 +173,10 @@ export default function CommunityFeedPage() {
         if (tags) tags.forEach((t: string) => tagMap[t] = (tagMap[t] || 0) + 1);
       });
       setTrendingTags(Object.entries(tagMap).map(([tag, count]) => ({tag, count})).sort((a,b) => b.count - a.count).slice(0,3));
-      setRecentActivity(formattedPosts.slice(0, 5));
+      
+      // Update recent activity with posts that actually have content to avoid empty lines
+      const recentPostsWithContent = formattedPosts.filter(p => p.content?.trim().length > 0).slice(0, 5);
+      setRecentActivity(recentPostsWithContent);
       
       setLoading(false);
     }
@@ -217,7 +220,6 @@ export default function CommunityFeedPage() {
 
     if (!error) {
       const formattedInserted = { ...insertedPost, likes_count: 0, comments: [], _hasLiked: false };
-      // Maintain Official Pinned State: keep official posts at the top even after a new post
       setPosts(prev => {
         const updated = [formattedInserted, ...prev];
         return updated.sort((a, b) => {
@@ -227,7 +229,12 @@ export default function CommunityFeedPage() {
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
       });
-      setRecentActivity(prev => [formattedInserted, ...prev.slice(0, 4)]);
+      
+      // Only update recent activity if the post actually has text content
+      if (formattedInserted.content?.trim().length > 0) {
+          setRecentActivity(prev => [formattedInserted, ...prev.slice(0, 4)]);
+      }
+      
       setNewPost('');
       setPostMedia([]); 
     }
@@ -266,6 +273,10 @@ export default function CommunityFeedPage() {
     if (!editContent.trim()) return;
     triggerHaptic(10);
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, content: editContent } : p));
+    
+    // Update the recent activity sidebar if the edited post is in it
+    setRecentActivity(prev => prev.map(p => p.id === postId ? { ...p, content: editContent } : p));
+    
     setEditingPostId(null);
     await supabase.from('posts').update({ content: editContent }).match({ id: postId, user_id: user.id });
   };
@@ -358,7 +369,7 @@ export default function CommunityFeedPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-bold text-black dark:text-white truncate">{activity.profiles?.full_name}</p>
-                <p className="text-[9px] text-zinc-500 truncate line-clamp-1">{activity.content}</p>
+                <p className="text-[9px] text-zinc-500 truncate line-clamp-1">{activity.content}</p> {/* DYNAMIC CONTENT INJECTED HERE */}
               </div>
             </div>
           ))}
@@ -605,7 +616,7 @@ export default function CommunityFeedPage() {
                       <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 group-hover:border-[#9cf822] transition-colors"><img src={activity.profiles?.avatar_url} className="w-full h-full object-cover" /></div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1"><p className="text-sm font-black text-black dark:text-white truncate group-hover:text-[#9cf822]">{activity.profiles?.full_name}</p>{activity.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white shrink-0" />}</div>
-                        <p className="text-[11px] text-zinc-500 line-clamp-1">New member</p>
+                        <p className="text-[11px] text-zinc-500 line-clamp-1">{activity.content}</p> {/* DYNAMIC CONTENT INJECTED HERE */}
                       </div>
                     </div>
                   ))}
