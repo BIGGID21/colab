@@ -120,7 +120,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   
-  // Mobile Top Bar Scroll State
+  // Mobile Top & Bottom Bar Scroll State
   const [isMobileNavVisible, setIsMobileNavVisible] = useState(true);
   const lastScrollY = useRef(0);
   
@@ -191,21 +191,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     };
   }, [supabase, user?.id]);
 
-  // Scroll Listener for Mobile Top Bar
+  // Combined Scroll Listener for Mobile UI
   useEffect(() => {
     const handleScroll = () => {
       if (typeof window === 'undefined') return;
       
       const currentScrollY = window.scrollY;
       
-      // Prevent hiding on the "elastic bounce" at the very top of iOS Safari
       if (currentScrollY < 60) {
         setIsMobileNavVisible(true);
-      } else if (currentScrollY > lastScrollY.current) {
-        // Scrolling down -> Hide Navbar
+      } else if (currentScrollY > lastScrollY.current + 5) {
+        // Scrolling down -> Hide
         setIsMobileNavVisible(false);
-      } else {
-        // Scrolling up -> Show Navbar
+      } else if (currentScrollY < lastScrollY.current - 5) {
+        // Scrolling up -> Show
         setIsMobileNavVisible(true);
       }
       
@@ -243,7 +242,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           {showSidebar && !isAppLoading && (
             <>
-              {/* MOBILE TOP BAR (Fixed + Hide on Scroll) */}
+              {/* MOBILE TOP BAR (Slides UP on scroll down) */}
               <div 
                 className={`md:hidden flex items-center justify-between p-4 h-16 backdrop-blur-md border-b fixed top-0 w-full z-[100] bg-white/90 dark:bg-black/90 border-zinc-200 dark:border-zinc-900 transition-transform duration-300 ease-in-out ${
                   isMobileNavVisible ? 'translate-y-0' : '-translate-y-full'
@@ -251,8 +250,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               >
                 <BrandLogo isMobile />
                 <div className="flex items-center gap-4 text-zinc-500 dark:text-zinc-400">
-                    <button onClick={() => setActiveModal('search')}><Search size={20} /></button>
-                    <button onClick={() => setIsMobileMenuOpen(true)}><Menu size={24} /></button>
+                    <button onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
+                    <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu"><Menu size={24} /></button>
                 </div>
               </div>
 
@@ -309,7 +308,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         </div>
                         {(!isCollapsed || isMobileMenuOpen) && <span className="text-sm font-medium">{item.name}</span>}
                       </button>
-                    )
+                    );
                   })}
                 </nav>
 
@@ -366,8 +365,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </aside>
 
-              {/* MOBILE BOTTOM NAV */}
-              <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))]">
+              {/* MOBILE BOTTOM NAV (Slides DOWN on scroll down) */}
+              <nav className={`md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))] transition-transform duration-300 ease-in-out ${
+                  isMobileNavVisible ? 'translate-y-0' : 'translate-y-full'
+                }`}>
                 {navItems.filter(item => item.showOnMobileBar).map((item) => (
                   <Link key={item.name} href={item.href!} className="flex flex-col items-center justify-center w-full py-1">
                     <div className={`relative flex items-center justify-center ${item.highlight ? '-mt-6' : ''}`}>
