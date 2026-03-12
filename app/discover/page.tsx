@@ -5,7 +5,8 @@ import { createBrowserClient } from '@supabase/ssr';
 import { 
   Loader2, Grid, Search, User, 
   Heart, Share2, ArrowUpRight, Bookmark,
-  Percent, Banknote, Sparkles, Filter
+  Sparkles, SlidersHorizontal, Flame, Clock,
+  ChevronDown
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -19,10 +20,17 @@ const getCurrencySymbol = (currency: string) => {
   }
 };
 
+const CATEGORIES = ['All', 'Tech', 'Design', 'Marketing', 'AI', 'Web3', 'Mobile'];
+
 export default function DiscoverPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // New Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [sortBy, setSortBy] = useState<'newest' | 'popular'>('newest');
+  const [isSortOpen, setIsSortOpen] = useState(false);
   
   const [likedProjects, setLikedProjects] = useState<string[]>([]);
   const [savedProjects, setSavedProjects] = useState<string[]>([]);
@@ -99,141 +107,236 @@ export default function DiscoverPage() {
     alert("Link copied!");
   };
 
-  const filteredProjects = projects.filter(p => 
-    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Advanced Filtering & Sorting Logic
+  const filteredProjects = projects
+    .filter(p => {
+      const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // Rudimentary category check (scans title/desc since we don't have a tags column yet)
+      const matchesCategory = activeCategory === 'All' || 
+        (p.title + ' ' + (p.description || '')).toLowerCase().includes(activeCategory.toLowerCase());
+        
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'popular') return (b.like_count || 0) - (a.like_count || 0);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    // UPDATED: Changed bg-zinc-50 to bg-white and dark:bg-[#050505] to dark:bg-black
-    <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-24">
+    <div className="min-h-screen bg-white dark:bg-[#050505] transition-colors duration-300 pb-24 relative overflow-hidden">
       
-      {/* Search Header */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-10 pt-8 sm:pt-16 mb-8 sm:mb-12">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-1">
-            <h1 className="text-3xl md:text-5xl font-bold text-black dark:text-white tracking-tight flex items-center gap-3">
-              Discover <Sparkles className="text-[#9cf822]" size={28} />
+      {/* Subtle Background Glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#9cf822]/5 dark:bg-[#9cf822]/10 blur-[120px] rounded-full pointer-events-none" />
+
+      {/* Header & Controls Area */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-10 pt-8 sm:pt-16 mb-8 relative z-10">
+        
+        {/* Title */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl md:text-6xl font-black text-black dark:text-white tracking-tighter flex items-center gap-3">
+              Discover <Sparkles className="text-[#9cf822]" size={36} />
             </h1>
-            <p className="text-zinc-500 text-sm md:text-base max-w-md">Browse high-impact projects looking for early collaborators.</p>
+            <p className="text-zinc-500 text-sm md:text-base max-w-md font-medium">
+              Explore high-impact projects. Find your next great collaboration.
+            </p>
           </div>
+        </div>
+
+        {/* Search, Filter, and Sort Bar */}
+        <div className="flex flex-col lg:flex-row gap-4 mb-6">
           
-          <div className="relative w-full max-w-md">
+          {/* Main Search */}
+          <div className="relative flex-grow">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
             <input 
               type="text"
               placeholder="Search by title, role, or lead..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 sm:py-4 bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20 transition-all shadow-sm"
+              className="w-full pl-12 pr-4 py-3.5 bg-zinc-50/80 dark:bg-zinc-900/50 backdrop-blur-xl border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm font-medium text-black dark:text-white focus:outline-none focus:border-[#9cf822] focus:ring-1 focus:ring-[#9cf822] transition-all shadow-sm"
             />
           </div>
+
+          {/* Sort Dropdown */}
+          <div className="relative shrink-0 z-20">
+            <button 
+              onClick={() => setIsSortOpen(!isSortOpen)}
+              className="w-full lg:w-48 flex items-center justify-between px-5 py-3.5 bg-zinc-50/80 dark:bg-zinc-900/50 backdrop-blur-xl border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm font-bold text-black dark:text-white hover:border-[#9cf822] transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                {sortBy === 'newest' ? <Clock size={16} className="text-[#9cf822]" /> : <Flame size={16} className="text-rose-500" />}
+                {sortBy === 'newest' ? 'Newest First' : 'Most Popular'}
+              </div>
+              <ChevronDown size={16} className={`transition-transform duration-300 ${isSortOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isSortOpen && (
+              <div className="absolute top-full right-0 mt-2 w-full bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+                <button 
+                  onClick={() => { setSortBy('newest'); setIsSortOpen(false); }}
+                  className={`w-full text-left px-5 py-3 text-sm font-bold transition-colors flex items-center gap-2 ${sortBy === 'newest' ? 'bg-zinc-50 dark:bg-zinc-900 text-[#9cf822]' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-black dark:hover:text-white'}`}
+                >
+                  <Clock size={16} /> Newest First
+                </button>
+                <button 
+                  onClick={() => { setSortBy('popular'); setIsSortOpen(false); }}
+                  className={`w-full text-left px-5 py-3 text-sm font-bold transition-colors flex items-center gap-2 ${sortBy === 'popular' ? 'bg-zinc-50 dark:bg-zinc-900 text-rose-500' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-black dark:hover:text-white'}`}
+                >
+                  <Flame size={16} /> Most Popular
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Category Pills (Scrollable) */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mask-linear-fade">
+          <div className="flex items-center gap-2 px-1 text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 pr-4 mr-2 shrink-0">
+             <SlidersHorizontal size={16} />
+             <span className="text-xs font-bold uppercase tracking-widest">Filter</span>
+          </div>
+          {CATEGORIES.map((category) => (
+            <button
+              key={category}
+              onClick={() => setActiveCategory(category)}
+              className={`shrink-0 px-5 py-2 rounded-full text-xs font-bold transition-all duration-300 ${
+                activeCategory === category 
+                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-md' 
+                  : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {category}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Grid */}
-      <div className="max-w-7xl mx-auto px-0 sm:px-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0 sm:gap-8 lg:gap-10">
-          {filteredProjects.map((project) => {
-            const isLiked = likedProjects.includes(project.id);
-            const isSaved = savedProjects.includes(project.id);
+      {/* Main Grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-10 relative z-10">
+        
+        {filteredProjects.length === 0 ? (
+          /* Empty State */
+          <div className="w-full py-24 flex flex-col items-center justify-center text-center bg-zinc-50 dark:bg-zinc-900/20 rounded-[3rem] border border-dashed border-zinc-200 dark:border-zinc-800">
+            <div className="w-20 h-20 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-6">
+              <Search className="text-zinc-400" size={32} />
+            </div>
+            <h3 className="text-2xl font-black text-black dark:text-white mb-2 tracking-tight">No projects found</h3>
+            <p className="text-zinc-500 max-w-sm font-medium mb-6">We couldn't find any projects matching your current filters or search query.</p>
+            <button 
+              onClick={() => { setSearchQuery(''); setActiveCategory('All'); }}
+              className="px-6 py-3 bg-black dark:bg-white text-white dark:text-black rounded-full text-sm font-bold hover:scale-105 transition-transform"
+            >
+              Clear all filters
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            {filteredProjects.map((project) => {
+              const isLiked = likedProjects.includes(project.id);
+              const isSaved = savedProjects.includes(project.id);
 
-            return (
-              <div 
-                key={project.id} 
-                className="group bg-white dark:bg-[#0a0a0a] sm:rounded-[2.5rem] border-b sm:border border-zinc-200 dark:border-zinc-900 overflow-hidden flex flex-col transition-all duration-500 sm:hover:shadow-2xl sm:hover:-translate-y-1"
-              >
-                {/* Visual Area */}
-                <div className="aspect-[16/10] sm:aspect-[4/3] relative overflow-hidden sm:m-4 sm:rounded-[1.8rem] z-10">
-                  <Link href={`/project/${project.id}`} className="absolute inset-0 z-20" />
-                  {project.image_url ? (
-                    <img src={project.image_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={project.title} />
-                  ) : (
-                    <div className="w-full h-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-300"><Grid size={48} strokeWidth={1} /></div>
-                  )}
-                  
-                  {/* Glassmorphism Badge */}
-                  <div className="absolute top-4 left-4 z-30 px-3 py-1.5 backdrop-blur-md bg-black/40 border border-white/10 rounded-full flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#9cf822] animate-pulse" />
-                    <span className="text-[10px] font-bold text-white uppercase tracking-widest">Active</span>
-                  </div>
-                </div>
-
-                <div className="px-5 sm:px-8 pb-8 pt-4 sm:pt-2 space-y-6">
-                  {/* Title & Description */}
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-black dark:text-white tracking-tight line-clamp-1 group-hover:text-[#5a9a00] dark:group-hover:text-[#9cf822] transition-colors">
-                      {project.title}
-                    </h3>
-                    <p className="text-sm text-zinc-500 line-clamp-2 leading-relaxed">
-                      {project.description || "Looking for strategic partners to scale development and market reach."}
-                    </p>
-                  </div>
-
-                  {/* Budget/Share Info */}
-                  <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-100 dark:border-zinc-800/50">
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight">Budget Range</span>
-                      <p className="text-base font-bold text-black dark:text-white">
-                        {getCurrencySymbol(project.currency)}{project.valuation?.toLocaleString() || '0'}
-                      </p>
-                    </div>
-                    <div className="h-8 w-px bg-zinc-200 dark:bg-zinc-800" />
-                    <div className="space-y-0.5 text-right">
-                      <span className="text-[10px] font-bold text-[#5a9a00] dark:text-[#9cf822] uppercase tracking-tight">Equity/Share</span>
-                      <p className="text-base font-bold text-black dark:text-white">
-                        {project.available_share || 45}%
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* User Profile Info */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden border border-zinc-200 dark:border-zinc-800 shrink-0">
-                        {project.profiles?.avatar_url ? (
-                          <img src={project.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
-                        ) : (
-                          <User size={16} className="m-auto mt-2 text-zinc-400" />
-                        )}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-black dark:text-white leading-none">
-                          {project.profiles?.full_name || 'Lead'}
-                        </span>
-                        <span className="text-[11px] text-zinc-500 font-medium">
-                          {project.profiles?.role || 'Founder'}
-                        </span>
-                      </div>
-                    </div>
+              return (
+                <div 
+                  key={project.id} 
+                  className="group bg-white dark:bg-[#0a0a0a] rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col transition-all duration-500 hover:shadow-2xl hover:shadow-[#9cf822]/5 hover:-translate-y-1 hover:border-zinc-300 dark:hover:border-zinc-700"
+                >
+                  {/* Visual Area */}
+                  <div className="aspect-[4/3] relative overflow-hidden m-2 sm:m-3 rounded-[2rem] z-10 bg-zinc-100 dark:bg-zinc-900">
+                    <Link href={`/project/${project.id}`} className="absolute inset-0 z-20" />
                     
-                    <div className="flex items-center gap-1">
-                      <button onClick={(e) => toggleLike(e, project)} className={`p-2 transition-all ${isLiked ? 'text-rose-500' : 'text-zinc-400 hover:scale-110'}`}>
-                        <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
-                      </button>
-                      <button onClick={(e) => toggleSave(e, project)} className={`p-2 transition-all ${isSaved ? 'text-[#9cf822]' : 'text-zinc-400 hover:scale-110'}`}>
-                        <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
-                      </button>
-                      <button onClick={(e) => handleShare(e, project)} className="p-2 text-zinc-400 hover:text-black dark:hover:text-white transition-all">
-                        <Share2 size={20} />
-                      </button>
+                    {/* Image Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10 z-10 opacity-60 group-hover:opacity-40 transition-opacity" />
+
+                    {project.image_url ? (
+                      <img src={project.image_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={project.title} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-300 dark:text-zinc-700">
+                        <Grid size={48} strokeWidth={1} />
+                      </div>
+                    )}
+                    
+                    {/* Live Badge */}
+                    <div className="absolute top-4 left-4 z-30 px-3 py-1.5 backdrop-blur-md bg-black/40 border border-white/10 rounded-full flex items-center gap-2 shadow-lg">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#9cf822] animate-pulse shadow-[0_0_8px_#9cf822]" />
+                      <span className="text-[9px] font-black text-white uppercase tracking-widest">Active</span>
                     </div>
+
+                    {/* Quick Like Overlay */}
+                    <button 
+                      onClick={(e) => toggleLike(e, project)} 
+                      className="absolute top-4 right-4 z-30 p-2.5 backdrop-blur-md bg-black/40 border border-white/10 rounded-full text-white hover:bg-black/60 transition-colors shadow-lg"
+                    >
+                      <Heart size={16} fill={isLiked ? "#f43f5e" : "none"} className={isLiked ? "text-rose-500" : ""} />
+                    </button>
                   </div>
 
-                  {/* CTA */}
-                  <Link 
-                    href={`/project/${project.id}`}
-                    className="flex items-center justify-center gap-2 w-full py-4 bg-black text-white dark:bg-white dark:text-black rounded-2xl text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all shadow-lg shadow-black/10 dark:shadow-white/5"
-                  >
-                    View Details <ArrowUpRight size={18} />
-                  </Link>
+                  <div className="px-6 pb-6 pt-2 flex flex-col flex-grow">
+                    {/* Title & Description */}
+                    <div className="space-y-1.5 mb-6 flex-grow">
+                      <h3 className="text-xl font-black text-black dark:text-white tracking-tight line-clamp-1 group-hover:text-[#5a9a00] dark:group-hover:text-[#9cf822] transition-colors">
+                        {project.title}
+                      </h3>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed font-medium">
+                        {project.description || "Looking for strategic partners to scale development and market reach."}
+                      </p>
+                    </div>
+
+                    {/* Metric Dashboard */}
+                    <div className="grid grid-cols-2 gap-2 mb-6">
+                      <div className="bg-zinc-50 dark:bg-zinc-900/80 rounded-2xl p-3 border border-zinc-100 dark:border-zinc-800">
+                        <span className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Budget</span>
+                        <span className="block text-sm font-black text-black dark:text-white truncate">
+                          {getCurrencySymbol(project.currency)}{project.valuation?.toLocaleString() || '0'}
+                        </span>
+                      </div>
+                      <div className="bg-zinc-50 dark:bg-[#9cf822]/5 rounded-2xl p-3 border border-zinc-100 dark:border-[#9cf822]/20">
+                        <span className="block text-[10px] font-black text-[#5a9a00] dark:text-[#9cf822] uppercase tracking-widest mb-1">Equity/Share</span>
+                        <span className="block text-sm font-black text-black dark:text-white">
+                          {project.available_share || 45}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Footer / User Profile Info */}
+                    <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800/50">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0">
+                          {project.profiles?.avatar_url ? (
+                            <img src={project.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <User size={16} className="m-auto mt-2.5 text-zinc-400" />
+                          )}
+                        </div>
+                        <div className="flex flex-col truncate pr-2">
+                          <span className="text-xs font-black text-black dark:text-white truncate">
+                            {project.profiles?.full_name || 'Project Lead'}
+                          </span>
+                          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">
+                            {project.profiles?.role || 'Founder'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={(e) => toggleSave(e, project)} className={`p-2 rounded-full transition-all ${isSaved ? 'text-[#9cf822] bg-[#9cf822]/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900'}`}>
+                          <Bookmark size={16} fill={isSaved ? "currentColor" : "none"} />
+                        </button>
+                        <button onClick={(e) => handleShare(e, project)} className="p-2 rounded-full text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-black dark:hover:text-white transition-all">
+                          <Share2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
