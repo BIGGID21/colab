@@ -93,9 +93,9 @@ export default function LandingPage() {
           
           <div className="lg:col-span-6 space-y-8">
             <h1 className="text-5xl lg:text-7xl font-medium leading-[1.1]">
-              Now you can take <br/>
+              Now you can  <br/>
               <span className="text-black inline-flex items-center gap-4">
-                more jos. <Sparkles className="text-[#9cf822] fill-[#9cf822]" size={40} />
+                take More Jobs. <Sparkles className="text-[#9cf822] fill-[#9cf822]" size={40} />
               </span>
             </h1>
             <p className="text-lg text-zinc-600 max-w-md font-medium leading-relaxed">
