@@ -6,7 +6,7 @@ import {
   Loader2, Grid, Search, User, 
   Heart, Share2, ArrowUpRight, Bookmark,
   Sparkles, SlidersHorizontal, Flame, Clock,
-  ChevronDown
+  ChevronDown, Code, Palette, Megaphone, Bot, Boxes, Smartphone
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -20,7 +20,16 @@ const getCurrencySymbol = (currency: string) => {
   }
 };
 
-const CATEGORIES = ['All', 'Tech', 'Design', 'Marketing', 'AI', 'Web3', 'Mobile'];
+// Updated Categories with related icons
+const CATEGORIES = [
+  { name: 'All', icon: Grid },
+  { name: 'Tech', icon: Code },
+  { name: 'Design', icon: Palette },
+  { name: 'Marketing', icon: Megaphone },
+  { name: 'AI', icon: Bot },
+  { name: 'Web3', icon: Boxes },
+  { name: 'Mobile', icon: Smartphone }
+];
 
 export default function DiscoverPage() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -126,11 +135,8 @@ export default function DiscoverPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#050505] transition-colors duration-300 pb-24 relative overflow-hidden">
+    <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-24 relative overflow-hidden">
       
-      {/* Subtle Background Glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#9cf822]/5 dark:bg-[#9cf822]/10 blur-[120px] rounded-full pointer-events-none" />
-
       {/* Header & Controls Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-10 pt-8 sm:pt-16 mb-8 relative z-10">
         
@@ -199,19 +205,23 @@ export default function DiscoverPage() {
              <SlidersHorizontal size={16} />
              <span className="text-xs font-bold uppercase tracking-widest">Filter</span>
           </div>
-          {CATEGORIES.map((category) => (
-            <button
-              key={category}
-              onClick={() => setActiveCategory(category)}
-              className={`shrink-0 px-5 py-2 rounded-full text-xs font-bold transition-all duration-300 ${
-                activeCategory === category 
-                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-md' 
-                  : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
-              }`}
-            >
-              {category}
-            </button>
-          ))}
+          {CATEGORIES.map((cat) => {
+            const Icon = cat.icon;
+            return (
+              <button
+                key={cat.name}
+                onClick={() => setActiveCategory(cat.name)}
+                className={`shrink-0 flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all duration-300 ${
+                  activeCategory === cat.name 
+                    ? 'bg-black text-white dark:bg-white dark:text-black shadow-md' 
+                    : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <Icon size={14} className={activeCategory === cat.name ? '' : 'text-zinc-500'} />
+                {cat.name}
+              </button>
+            );
+          })}
         </div>
       </div>
 
