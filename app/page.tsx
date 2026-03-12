@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowRight, Sparkles, Star, Zap, 
   ArrowUpRight, Users, Code, Share2, 
@@ -16,7 +16,7 @@ const Navbar = () => (
       <span className="text-xl font-medium text-white">CoLab</span>
     </Link>
     
-    <Link href="/login" className="text-sm font-medium text-black bg-[#9cf822] hover:bg-[#8be01d] transition-colors px-6 py-2 rounded-full">
+    <Link href="/community" className="text-sm font-medium text-black bg-[#9cf822] hover:bg-[#8be01d] transition-colors px-6 py-2 rounded-full">
       Enter app
     </Link>
   </nav>
@@ -24,6 +24,23 @@ const Navbar = () => (
 
 export default function LandingPage() {
   const [activeService, setActiveService] = useState(0);
+  const [currentHeroImg, setCurrentHeroImg] = useState(0);
+
+  // Rotating images for the hero section (Designer, developer, content creator; diverse)
+  const heroImages = [
+    "https://images.unsplash.com/photo-1531384441138-2736e62e0919?q=80&w=2800&auto=format&fit=crop", // Black team collaborating
+    "https://images.unsplash.com/photo-1573164713988-8665fc963095?q=80&w=2800&auto=format&fit=crop", // White female developer/creator
+    "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2800&auto=format&fit=crop", // Diverse guys working
+    "https://images.unsplash.com/photo-1600880292089-90a7e086ee0c?q=80&w=2800&auto=format&fit=crop"  // Startup content creators
+  ];
+
+  // Effect to handle the hero image rotation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentHeroImg((prev) => (prev + 1) % heroImages.length);
+    }, 4000); // Rotates every 4 seconds
+    return () => clearInterval(interval);
+  }, [heroImages.length]);
 
   const ecosystemItems = [
     { 
@@ -76,9 +93,9 @@ export default function LandingPage() {
           
           <div className="lg:col-span-6 space-y-8">
             <h1 className="text-5xl lg:text-7xl font-medium leading-[1.1]">
-              Vision meets <br/>
+              Now you can take <br/>
               <span className="text-black inline-flex items-center gap-4">
-                execution. <Sparkles className="text-[#9cf822] fill-[#9cf822]" size={40} />
+                more jos. <Sparkles className="text-[#9cf822] fill-[#9cf822]" size={40} />
               </span>
             </h1>
             <p className="text-lg text-zinc-600 max-w-md font-medium leading-relaxed">
@@ -95,16 +112,21 @@ export default function LandingPage() {
           </div>
 
           <div className="lg:col-span-6 relative flex justify-center lg:justify-end">
-             {/* Hero Image Container */}
-             <div className="relative w-full max-w-md aspect-[4/5] rounded-[2rem] overflow-hidden bg-zinc-200">
-               <img 
-                 src="https://images.unsplash.com/photo-1531384441138-2736e62e0919?q=80&w=2800&auto=format&fit=crop" 
-                 alt="Creative Collaboration" 
-                 className="w-full h-full object-cover"
-               />
+             {/* Hero Image Container with Crossfade Images */}
+             <div className="relative w-full max-w-md aspect-[4/5] rounded-[2rem] overflow-hidden bg-zinc-200 shadow-2xl">
+               {heroImages.map((src, idx) => (
+                 <img 
+                   key={src}
+                   src={src} 
+                   alt={`Collaborator ${idx + 1}`} 
+                   className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${
+                     currentHeroImg === idx ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                   }`}
+                 />
+               ))}
                
                {/* Floating Badge */}
-               <div className="absolute bottom-8 -left-8 bg-white p-4 rounded-2xl shadow-2xl border border-zinc-100 flex flex-col gap-1 hidden md:flex">
+               <div className="absolute bottom-8 -left-8 bg-white p-4 rounded-2xl shadow-2xl border border-zinc-100 flex flex-col gap-1 hidden md:flex z-20">
                  <div className="flex gap-1 text-[#9cf822]">
                    <Star size={16} fill="currentColor" />
                    <Star size={16} fill="currentColor" />
@@ -215,7 +237,7 @@ export default function LandingPage() {
                   {/* Floating Green Card */}
                   <div className="absolute bottom-8 right-8 bg-[#9cf822] text-black p-6 rounded-3xl max-w-[240px] shadow-2xl">
                     <p className="font-medium text-sm mb-4 leading-tight">{ecosystemItems[activeService].desc}</p>
-                    <Link href="/discover" className="flex items-center gap-2 text-xs font-medium hover:opacity-70 transition-opacity">
+                    <Link href="/community" className="flex items-center gap-2 text-xs font-medium hover:opacity-70 transition-opacity">
                       See how we work <ArrowUpRight size={16} />
                     </Link>
                   </div>
@@ -252,7 +274,7 @@ export default function LandingPage() {
              <p className="text-black/70 font-medium mb-8 max-w-sm">
                Join thousands of verified creators who have stopped dreaming and started shipping. Get in touch today.
              </p>
-             <Link href="/signup" className="inline-flex items-center gap-3 bg-[#9cf822] text-black px-8 py-4 rounded-full font-medium text-sm hover:scale-105 transition-transform">
+             <Link href="/community" className="inline-flex items-center gap-3 bg-[#9cf822] text-black px-8 py-4 rounded-full font-medium text-sm hover:scale-105 transition-transform">
                 Enter app <ArrowRight size={18} />
              </Link>
           </div>
@@ -269,7 +291,7 @@ export default function LandingPage() {
       <footer className="bg-black py-12 border-t border-zinc-900 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <Link href="/" className="flex items-center gap-2 group">
-            <Sparkles size={20} className="text-[#9cf822]" />
+            <img src="/white.png" alt="CoLab Logo" className="w-6 h-6 object-contain group-hover:rotate-12 transition-transform" />
             <span className="text-xl font-medium text-white">CoLab</span>
           </Link>
           <div className="text-xs font-medium text-zinc-500">CoLab 2026, all rights reserved</div>
