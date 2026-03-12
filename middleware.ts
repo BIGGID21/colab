@@ -4,14 +4,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone()
 
-  // 1. THE WEBHOOK BYPASS (The Fix!)
-  // If the request is going to any /api route, we skip the auth checks entirely.
-  // This prevents the middleware from interfering with Paystack's POST request.
+  // 1. THE WEBHOOK BYPASS
   if (url.pathname.startsWith('/api')) {
     return NextResponse.next()
   }
 
-  // 2. Initialize the response for standard pages
+  // 2. Initialize the response early
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -28,21 +26,13 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
+          // Instead of re-assigning response = NextResponse.next(), 
+          // we just update the existing objects.
           request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
           response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
           request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
           response.cookies.set({ name, value: '', ...options })
         },
       },
@@ -50,28 +40,26 @@ export async function middleware(request: NextRequest) {
   )
 
   // 4. Refresh session
+  // IMPORTANT: Use getUser() as it's more secure than getSession()
   const { data: { user } } = await supabase.auth.getUser()
 
   // 5. Route Guard Logic
   const isAuthPage = url.pathname === '/login' || url.pathname === '/signup'
   
-  const isProtectedRoute = [
-    '/notifications', 
-    '/manage', 
-    '/create', 
-    '/my-projects', 
-    '/dashboard'
-  ].some(path => url.pathname.startsWith(path))
+  const protectedRoutes = ['/notifications', '/manage', '/create', '/my-projects', '/dashboard', '/community-feed'] // Added community-feed just in case
+  const isProtectedRoute = protectedRoutes.some(path => url.pathname.startsWith(path))
 
   if (!user && isProtectedRoute) {
-    url.pathname = '/login'
-    url.searchParams.set('next', request.nextUrl.pathname) 
-    return NextResponse.redirect(url)
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/login'
+    redirectUrl.searchParams.set('next', request.nextUrl.pathname) 
+    return NextResponse.redirect(redirectUrl)
   }
 
   if (user && isAuthPage) {
-    url.pathname = '/discover'
-    return NextResponse.redirect(url)
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/dashboard' // or /discover
+    return NextResponse.redirect(redirectUrl)
   }
 
   return response
