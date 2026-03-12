@@ -475,7 +475,7 @@ export default function CommunityFeedPage() {
                               {post.profiles?.is_verified && <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black" />}
                             </Link>
                           )}
-                          <span className="text-[10px] text-zinc-400 font-normal tracking-tight">New member</span>
+                          <span className="text-[10px] text-zinc-400 font-normal tracking-tight"></span>
                         </div>
                         
                         {user?.id === post.user_id && (
