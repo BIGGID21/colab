@@ -227,7 +227,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { name: 'Search', icon: Search, onClick: () => setActiveModal('search'), showOnMobileBar: false },
     { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true }, 
     { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true },
-    { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true, highlight: true },
+    { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true },
     { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true },
     { name: 'Notifications', icon: Bell, href: '/notifications', count: unreadCount, showOnMobileBar: true },
     { name: 'Manage', icon: Settings, href: '/manage', showOnMobileBar: false },
@@ -368,15 +368,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </aside>
 
-              {/* MOBILE BOTTOM NAV (Slides DOWN on community ONLY) */}
+              {/* MOBILE BOTTOM NAV */}
               <nav className={`md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))] transition-transform duration-300 ease-in-out ${
                   (isCommunityFeed && !isMobileNavVisible) ? 'translate-y-full' : 'translate-y-0'
                 }`}>
                 {navItems.filter(item => item.showOnMobileBar).map((item) => (
                   <Link key={item.name} href={item.href!} className="flex flex-col items-center justify-center w-full py-1">
-                    <div className={`relative flex items-center justify-center ${item.highlight ? '-mt-6' : ''}`}>
-                      <div className={`${item.highlight ? 'bg-[#ffffff] text-black rounded-full p-3 shadow-lg' : pathname === item.href ? 'text-black dark:text-white' : 'text-zinc-500'}`}>
-                        <item.icon size={item.highlight ? 24 : 22} strokeWidth={pathname === item.href || item.highlight ? 2.5 : 2} />
+                    <div className="relative flex items-center justify-center">
+                      <div className={`${pathname === item.href ? 'text-black dark:text-white' : 'text-zinc-500'}`}>
+                        <item.icon size={22} strokeWidth={pathname === item.href ? 2.5 : 2} />
                       </div>
                       {(item.count !== undefined && item.count > 0) && (
                         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center bg-red-500 text-[9px] font-black text-white rounded-full border-2 border-white dark:border-[#0a0a0a]">
@@ -386,6 +386,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </div>
                   </Link>
                 ))}
+                {/* Profile Avatar on Far Right */}
+                <Link href={`/profile/${user?.id}`} className="flex flex-col items-center justify-center w-full py-1">
+                  <div className={`w-6 h-6 rounded-full overflow-hidden border-2 ${pathname.includes('/profile/') ? 'border-[#9cf822]' : 'border-transparent'}`}>
+                    {avatarUrl ? (
+                      <img src={avatarUrl} className="w-full h-full object-cover" alt="Profile" />
+                    ) : (
+                      <div className="w-full h-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                        <User size={12} />
+                      </div>
+                    )}
+                  </div>
+                </Link>
               </nav>
 
               {isMobileMenuOpen && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] md:hidden" onClick={() => setIsMobileMenuOpen(false)} />}
