@@ -17,7 +17,7 @@ const Navbar = () => (
     </Link>
     
     <Link href="/community" className="text-sm font-medium text-black bg-[#9cf822] hover:bg-[#8be01d] transition-colors px-6 py-2 rounded-full">
-      Enter app
+      Enter App
     </Link>
   </nav>
 );
