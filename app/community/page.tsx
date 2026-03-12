@@ -75,7 +75,7 @@ export default function CommunityFeedPage() {
   const [isPosting, setIsPosting] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Nav Visibility States
+  // Nav Visibility States (Kept for the FAB button logic)
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
@@ -98,7 +98,7 @@ export default function CommunityFeedPage() {
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(pattern);
   };
 
-  // Scroll logic for hiding/showing navbar
+  // Scroll logic for hiding/showing the Floating Action Button
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -348,20 +348,6 @@ export default function CommunityFeedPage() {
         </div>
       </div>
 
-      <header className="hidden sm:block bg-white dark:bg-[#0a0a0a] border-b border-zinc-200 dark:border-zinc-900 px-6 py-4 sticky top-0 z-40 text-left">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-black dark:text-white tracking-tight flex items-center gap-2">
-              <Globe className="text-[#9cf822]" size={20} /> Community Feed
-            </h1>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Global Activity</p>
-          </div>
-          <Link href="/dashboard" className="px-4 py-2 bg-zinc-100 dark:bg-zinc-900 text-sm font-bold rounded-xl text-black dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
-            Dashboard
-          </Link>
-        </div>
-      </header>
-
       <div className="max-w-5xl mx-auto px-0 sm:px-6 pt-0 sm:pt-8 grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
         
         {/* Main Feed Column */}
@@ -604,18 +590,6 @@ export default function CommunityFeedPage() {
       >
         <Plus size={24} strokeWidth={3} />
       </button>
-
-      {/* MOBILE BOTTOM NAVIGATION */}
-      <div className={`sm:hidden fixed bottom-0 left-0 w-full bg-white/90 dark:bg-[#0a0a0a]/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-900 z-50 pb-safe flex justify-around items-center h-[72px] px-2 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] transition-transform duration-300 ease-in-out ${
-        isNavVisible ? 'translate-y-0' : 'translate-y-full'
-      }`}>
-        <Link href="/community-feed" className="flex items-center justify-center w-full h-full text-[#9cf822]"><Home size={24} strokeWidth={2.5} /></Link>
-        <Link href="/discover" className="flex items-center justify-center w-full h-full text-zinc-400"><Search size={24} /></Link>
-        {/* Placeholder to keep spacing where the old button was */}
-        <div className="w-full h-full" />
-        <Link href="/notifications" className="flex items-center justify-center w-full h-full text-zinc-400"><Bell size={24} /></Link>
-        <Link href={`/profile/${user?.id}`} className="flex items-center justify-center w-full h-full text-zinc-400"><User size={24} /></Link>
-      </div>
 
     </div>
   );
