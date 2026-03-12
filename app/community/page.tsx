@@ -593,18 +593,26 @@ export default function CommunityFeedPage() {
             </div>
           </div>
         </div>
-
       </div>
 
-      {/* MOBILE BOTTOM NAVIGATION - TWITTER STYLE HIDE-ON-SCROLL */}
+      {/* TWITTER-STYLE FLOATING ACTION BUTTON */}
+      <button 
+        onClick={() => { window.scrollTo({top: 0, behavior: 'smooth'}); textAreaRef.current?.focus(); }}
+        className={`sm:hidden fixed right-6 bottom-24 bg-[#9cf822] text-black p-4 rounded-full shadow-[0_8px_30px_rgba(156,248,34,0.4)] z-50 transition-all duration-300 active:scale-90 ${
+          isNavVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'
+        }`}
+      >
+        <Plus size={24} strokeWidth={3} />
+      </button>
+
+      {/* MOBILE BOTTOM NAVIGATION */}
       <div className={`sm:hidden fixed bottom-0 left-0 w-full bg-white/90 dark:bg-[#0a0a0a]/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-900 z-50 pb-safe flex justify-around items-center h-[72px] px-2 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] transition-transform duration-300 ease-in-out ${
         isNavVisible ? 'translate-y-0' : 'translate-y-full'
       }`}>
         <Link href="/community-feed" className="flex items-center justify-center w-full h-full text-[#9cf822]"><Home size={24} strokeWidth={2.5} /></Link>
         <Link href="/discover" className="flex items-center justify-center w-full h-full text-zinc-400"><Search size={24} /></Link>
-        <div className="flex items-center justify-center w-full h-full">
-           <button onClick={() => { window.scrollTo({top: 0, behavior: 'smooth'}); textAreaRef.current?.focus(); }} className="bg-[#9cf822] text-black p-3.5 rounded-full -mt-8 shadow-[0_8px_30px_rgba(156,248,34,0.4)] border-[6px] border-white dark:border-[#050505] active:scale-90 transition-transform"><Plus size={22} strokeWidth={3} /></button>
-        </div>
+        {/* Placeholder to keep spacing where the old button was */}
+        <div className="w-full h-full" />
         <Link href="/notifications" className="flex items-center justify-center w-full h-full text-zinc-400"><Bell size={24} /></Link>
         <Link href={`/profile/${user?.id}`} className="flex items-center justify-center w-full h-full text-zinc-400"><User size={24} /></Link>
       </div>
