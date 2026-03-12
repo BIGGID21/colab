@@ -157,7 +157,15 @@ export default function CommunityFeedPage() {
         })).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       }));
 
-      setPosts(formattedPosts);
+      // Sort: Official posts first, then by date
+      const sortedPosts = formattedPosts.sort((a, b) => {
+        const aOfficial = a.profiles?.role === 'official' ? 1 : 0;
+        const bOfficial = b.profiles?.role === 'official' ? 1 : 0;
+        if (aOfficial !== bOfficial) return bOfficial - aOfficial;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      setPosts(sortedPosts);
       
       const tagMap: Record<string, number> = {};
       formattedPosts.forEach(p => {
@@ -209,7 +217,16 @@ export default function CommunityFeedPage() {
 
     if (!error) {
       const formattedInserted = { ...insertedPost, likes_count: 0, comments: [], _hasLiked: false };
-      setPosts(prev => [formattedInserted, ...prev]);
+      // Maintain Official Pinned State: keep official posts at the top even after a new post
+      setPosts(prev => {
+        const updated = [formattedInserted, ...prev];
+        return updated.sort((a, b) => {
+          const aOfficial = a.profiles?.role === 'official' ? 1 : 0;
+          const bOfficial = b.profiles?.role === 'official' ? 1 : 0;
+          if (aOfficial !== bOfficial) return bOfficial - aOfficial;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+      });
       setRecentActivity(prev => [formattedInserted, ...prev.slice(0, 4)]);
       setNewPost('');
       setPostMedia([]); 
@@ -311,7 +328,7 @@ export default function CommunityFeedPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#050505] transition-colors duration-300 pb-28 sm:pb-24">
+    <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-28 sm:pb-24">
       
       {/* Media Overlay */}
       {expandedMedia && (
@@ -331,7 +348,7 @@ export default function CommunityFeedPage() {
       <div className="sm:hidden w-full bg-white dark:bg-black border-b border-zinc-100 dark:border-zinc-900 py-3 overflow-hidden">
         <div className="px-4 flex items-center gap-2 mb-2">
           <Zap size={14} className="text-[#9cf822] fill-[#9cf822]" />
-          <span className="text-xs font-black text-zinc-500 uppercase tracking-tighter">What Is Happening</span>
+          <span className="text-xs font-normal text-zinc-500 tracking-tight">What is happening</span>
         </div>
         <div className="flex gap-4 overflow-x-auto px-4 no-scrollbar pb-1">
           {recentActivity.map((activity, i) => (
@@ -353,7 +370,7 @@ export default function CommunityFeedPage() {
         {/* Main Feed Column */}
         <div className="lg:col-span-8 space-y-0 sm:space-y-6 order-2 lg:order-1">
           {/* Post Composer */}
-          <div className="bg-white dark:bg-[#0a0a0a] sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border border-zinc-200 dark:border-zinc-800 shadow-sm text-left">
+          <div className="bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border border-zinc-200 dark:border-zinc-800 shadow-sm text-left">
             <form onSubmit={handlePost}>
               <div className="flex gap-4">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 dark:border-zinc-800">
@@ -397,8 +414,8 @@ export default function CommunityFeedPage() {
                   <input type="file" ref={fileInputRef} onChange={handleMediaUpload} accept="image/*,video/*" className="hidden" />
                   <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-[#9cf822] hover:bg-[#9cf822]/10 rounded-full transition-colors"><ImageIcon size={20} /></button>
                 </div>
-                <button type="submit" disabled={isPosting || (!newPost.trim() && postMedia.length === 0)} className="px-8 py-3 bg-[#9cf822] text-black font-black text-xs rounded-2xl transition-all active:scale-95 shadow-lg shadow-[#9cf822]/20 uppercase tracking-widest">
-                  Post Update
+                <button type="submit" disabled={isPosting || (!newPost.trim() && postMedia.length === 0)} className="px-8 py-3 bg-[#9cf822] text-black font-normal text-xs rounded-2xl transition-all active:scale-95 shadow-lg shadow-[#9cf822]/20 tracking-tight">
+                  Post update
                 </button>
               </div>
             </form>
@@ -416,32 +433,49 @@ export default function CommunityFeedPage() {
                   className={`sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border transition-all text-left relative overflow-hidden ${
                     isOfficial 
                       ? 'bg-zinc-50 dark:bg-[#9cf822]/[0.02] border-[#9cf822] dark:border-[#9cf822]/40 shadow-[0_0_20px_rgba(156,248,34,0.05)]' 
-                      : 'bg-white dark:bg-[#0a0a0a] border-zinc-200 dark:border-zinc-800 shadow-sm'
+                      : 'bg-white dark:bg-black border-zinc-200 dark:border-zinc-800 shadow-sm'
                   }`}
                 >
                   {isOfficial && <div className="absolute top-0 left-0 w-full h-1.5 bg-[#9cf822]"></div>}
 
                   {/* REPOST HEADER */}
                   {isRepost && (
-                    <div className="flex items-center gap-2 mb-3 text-zinc-400 font-bold text-[10px] uppercase tracking-widest ml-12">
-                      <Repeat size={12} strokeWidth={3} /> {post.profiles?.full_name} Reshared
+                    <div className="flex items-center gap-2 mb-3 text-zinc-400 font-normal text-[10px] tracking-tight ml-12">
+                      <Repeat size={12} strokeWidth={2} /> New member reshared
                     </div>
                   )}
 
                   <div className="flex items-start gap-4">
-                    <Link href={`/profile/${post.user_id}`} className="shrink-0 mt-1">
-                      <div className={`w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 transition-colors ${isOfficial ? 'border-[#9cf822]' : 'border-transparent hover:border-[#9cf822]'}`}>
-                        <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
+                    {/* User Avatar: Locked if Official */}
+                    {isOfficial ? (
+                      <div className="shrink-0 mt-1">
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 border-[#9cf822]">
+                          <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
+                        </div>
                       </div>
-                    </Link>
+                    ) : (
+                      <Link href={`/profile/${post.user_id}`} className="shrink-0 mt-1">
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 border-transparent hover:border-[#9cf822] transition-colors">
+                          <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
+                        </div>
+                      </Link>
+                    )}
+
                     <div className="flex-grow min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2 truncate">
-                          <Link href={`/profile/${post.user_id}`} className="font-black text-black dark:text-white hover:underline truncate flex items-center gap-1.5">
-                            {post.profiles?.full_name}
-                            {post.profiles?.is_verified && <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black" />}
-                          </Link>
-                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                          {isOfficial ? (
+                            <div className="font-black text-black dark:text-white truncate flex items-center gap-1.5 cursor-default">
+                              {post.profiles?.full_name}
+                              {post.profiles?.is_verified && <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black" />}
+                            </div>
+                          ) : (
+                            <Link href={`/profile/${post.user_id}`} className="font-black text-black dark:text-white hover:underline truncate flex items-center gap-1.5">
+                              {post.profiles?.full_name}
+                              {post.profiles?.is_verified && <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black" />}
+                            </Link>
+                          )}
+                          <span className="text-[10px] text-zinc-400 font-normal tracking-tight">New member</span>
                         </div>
                         
                         {user?.id === post.user_id && (
@@ -511,7 +545,7 @@ export default function CommunityFeedPage() {
                         </button>
                         <button onClick={() => handleRepost(post.id)} className="flex items-center gap-2 text-zinc-400 hover:text-[#9cf822] transition-colors">
                            <Repeat size={20} />
-                           <span className="text-xs font-bold">Reshare</span>
+                           <span className="text-xs font-normal">Reshare</span>
                         </button>
                       </div>
 
@@ -563,15 +597,15 @@ export default function CommunityFeedPage() {
                 ))}
               </div>
             </div>
-            <div className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-sm">
-               <h4 className="text-[10px] font-black text-[#9cf822] uppercase tracking-[0.2em] mb-6 flex items-center gap-2"><Clock size={12} /> What's Happening</h4>
+            <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-sm">
+               <h4 className="text-[10px] font-normal text-[#9cf822] tracking-tight mb-6 flex items-center gap-2"><Clock size={12} /> What is happening</h4>
                <div className="space-y-6">
                   {recentActivity.slice(0, 4).map((activity, i) => (
-                    <div key={i} className="flex items-start gap-4 group cursor-pointer" onClick={() => router.push(`/profile/${activity.user_id}`)}>
+                    <div key={i} className="flex items-start gap-4 group cursor-pointer" onClick={() => activity.profiles?.role !== 'official' && router.push(`/profile/${activity.user_id}`)}>
                       <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 group-hover:border-[#9cf822] transition-colors"><img src={activity.profiles?.avatar_url} className="w-full h-full object-cover" /></div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1"><p className="text-sm font-black text-black dark:text-white truncate group-hover:text-[#9cf822]">{activity.profiles?.full_name}</p>{activity.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white shrink-0" />}</div>
-                        <p className="text-[11px] text-zinc-500 line-clamp-1">{activity.content}</p>
+                        <p className="text-[11px] text-zinc-500 line-clamp-1">New member</p>
                       </div>
                     </div>
                   ))}
