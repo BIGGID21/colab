@@ -11,6 +11,48 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
+// Custom component to handle video play states and the "Watch Again" overlay
+function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
+  const [isEnded, setIsEnded] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  return (
+    <div 
+      className="relative bg-black w-full flex justify-center items-center h-auto max-h-[800px] cursor-pointer rounded-2xl overflow-hidden group"
+      onClick={onExpand}
+    >
+      <video 
+        ref={videoRef}
+        src={url} 
+        className="w-full h-auto max-h-[800px] object-contain rounded-2xl" 
+        autoPlay muted playsInline
+        onEnded={() => setIsEnded(true)}
+        onPlay={() => setIsEnded(false)}
+      />
+      
+      {/* WATCH AGAIN OVERLAY */}
+      {isEnded && (
+        <div 
+          className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center transition-all z-10"
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent opening the modal
+            setIsEnded(false);
+            if (videoRef.current) {
+              videoRef.current.currentTime = 0;
+              videoRef.current.play();
+            }
+          }}
+        >
+           <div className="p-4 bg-white/10 rounded-full backdrop-blur-md mb-3 group-hover:bg-[#9cf822] group-hover:text-black transition-colors text-white">
+             <Repeat size={32} />
+           </div>
+           <span className="text-sm font-black text-white uppercase tracking-widest group-hover:text-[#9cf822] transition-colors">Watch Again</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CommunityFeedPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -28,7 +70,7 @@ export default function CommunityFeedPage() {
   // Media States
   const [postMedia, setPostMedia] = useState<{url: string, type: string}[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [expandedMedia, setExpandedMedia] = useState<string | null>(null);
+  const [expandedMedia, setExpandedMedia] = useState<{url: string, type: string} | null>(null);
   
   const [isPosting, setIsPosting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -160,20 +202,16 @@ export default function CommunityFeedPage() {
   const handleDeletePost = async (postId: string) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
     triggerHaptic([10, 20]);
-    // Optimistic UI update
     setPosts(prev => prev.filter(p => p.id !== postId));
     setRecentActivity(prev => prev.filter(p => p.id !== postId));
-    // Database deletion
     await supabase.from('posts').delete().match({ id: postId, user_id: user.id });
   };
 
   const handleSaveEdit = async (postId: string) => {
     if (!editContent.trim()) return;
     triggerHaptic(10);
-    // Optimistic UI update
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, content: editContent } : p));
     setEditingPostId(null);
-    // Database update
     await supabase.from('posts').update({ content: editContent }).match({ id: postId, user_id: user.id });
   };
 
@@ -215,7 +253,16 @@ export default function CommunityFeedPage() {
             <span className="text-zinc-800 dark:text-zinc-300 break-words">{c.content}</span>
           </div>
           <div className="flex items-center gap-4 mt-1.5 ml-1 text-xs font-bold text-zinc-500">
-            <button onClick={() => setReplyTo({ commentId: c.id, userName: c.profiles?.full_name })} className="hover:text-black dark:hover:text-white transition-colors">Reply</button>
+            <button 
+              onClick={() => {
+                setReplyTo({ commentId: c.id, userName: c.profiles?.full_name });
+                // Automatically focus the correct input box when reply is clicked
+                document.getElementById(`comment-input-${postId}`)?.focus();
+              }} 
+              className="hover:text-black dark:hover:text-white transition-colors"
+            >
+              Reply
+            </button>
             <span className="text-[10px] text-zinc-400 font-medium">{new Date(c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
           </div>
           {renderComments(postId, comments, c.id, depth + 1)}
@@ -232,8 +279,14 @@ export default function CommunityFeedPage() {
       {/* Media Overlay */}
       {expandedMedia && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4" onClick={() => setExpandedMedia(null)}>
-          <button className="absolute top-6 right-6 text-white p-2 hover:bg-white/10 rounded-full transition-colors"><X size={32} /></button>
-          <img src={expandedMedia} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" alt="Enlarged" />
+          <button className="absolute top-6 right-6 text-white p-2 hover:bg-white/10 rounded-full transition-colors z-50">
+            <X size={32} />
+          </button>
+          {expandedMedia.type === 'video' ? (
+             <video src={expandedMedia.url} className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" controls autoPlay playsInline onClick={(e) => e.stopPropagation()} />
+          ) : (
+             <img src={expandedMedia.url} className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" alt="Enlarged" onClick={(e) => e.stopPropagation()} />
+          )}
         </div>
       )}
 
@@ -291,7 +344,7 @@ export default function CommunityFeedPage() {
                     className="w-full bg-transparent resize-none text-black dark:text-white text-lg focus:outline-none min-h-[80px]"
                   />
                   
-                  {/* COMPOSER MEDIA - INSTAGRAM PORTRAIT & NATURAL VIDEO WITH AUTOPLAY */}
+                  {/* COMPOSER MEDIA PREVIEW */}
                   {postMedia.length > 0 && (
                     <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${postMedia.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
                       {postMedia.map((m, idx) => {
@@ -300,10 +353,10 @@ export default function CommunityFeedPage() {
                         return (
                           <div 
                             key={idx} 
-                            className={`relative bg-black w-full flex justify-center items-center ${isVideo ? 'h-auto max-h-[800px]' : 'aspect-[4/5]'}`} 
+                            className={`relative bg-black w-full flex justify-center items-center rounded-2xl overflow-hidden ${isVideo ? 'h-auto max-h-[800px]' : 'aspect-[4/5]'}`} 
                           >
                             {isVideo ? (
-                              <video src={m.url} className="w-full h-auto max-h-[800px] object-contain" controls autoPlay muted loop playsInline />
+                              <video src={m.url} className="w-full h-auto max-h-[800px] object-contain rounded-2xl" autoPlay muted loop playsInline />
                             ) : (
                               <img src={m.url} className="w-full h-full object-cover" />
                             )}
@@ -405,23 +458,25 @@ export default function CommunityFeedPage() {
                         <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap text-[15px] leading-relaxed mt-2">{post.content}</p>
                       )}
                       
-                      {/* POST MEDIA - INSTAGRAM PORTRAIT & NATURAL VIDEO WITH AUTOPLAY */}
+                      {/* POST MEDIA - PORTRAIT IMAGES & INTERACTIVE VIDEOS */}
                       {post.media?.length > 0 && (
                         <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${post.media.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
                           {post.media.map((m: any, i: number) => {
                             const isVideo = m.type === 'video' || m.url.includes('.mp4');
                             
-                            return (
+                            return isVideo ? (
+                              <FeedVideo 
+                                key={i} 
+                                url={m.url} 
+                                onExpand={() => setExpandedMedia({url: m.url, type: 'video'})} 
+                              />
+                            ) : (
                               <div 
                                 key={i} 
-                                className={`relative bg-black w-full flex justify-center items-center ${isVideo ? 'h-auto max-h-[800px]' : 'aspect-[4/5] cursor-pointer'}`}
-                                onClick={() => !isVideo && setExpandedMedia(m.url)}
+                                className="relative bg-black w-full flex justify-center items-center aspect-[4/5] cursor-pointer rounded-2xl overflow-hidden"
+                                onClick={() => setExpandedMedia({url: m.url, type: 'image'})}
                               >
-                                {isVideo ? (
-                                  <video src={m.url} className="w-full h-auto max-h-[800px] object-contain" controls autoPlay muted loop playsInline />
-                                ) : (
-                                  <img src={m.url} className="w-full h-full object-cover hover:opacity-90 transition-opacity" />
-                                )}
+                                <img src={m.url} className="w-full h-full object-cover hover:opacity-90 transition-opacity" />
                               </div>
                             );
                           })}
@@ -442,17 +497,34 @@ export default function CommunityFeedPage() {
                       {activeCommentPost === post.id && (
                         <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-900 animate-in slide-in-from-top-2">
                           <div className="mb-4">{renderComments(post.id, post.comments)}</div>
-                          <div className="flex gap-2 items-center">
-                            <input 
-                              type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
-                              onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
-                              placeholder="Write a comment..." 
-                              className="flex-grow bg-zinc-100 dark:bg-zinc-900 rounded-full px-4 py-2.5 text-sm outline-none border border-transparent focus:border-[#9cf822] text-black dark:text-white"
-                            />
-                            <button onClick={() => submitComment(post.id)} disabled={!commentText.trim()} className="text-[#9cf822] p-2">
+                          
+                          {/* UPDATED COMMENT INPUT WITH REPLY UI */}
+                          <div className="flex gap-2 items-end">
+                            <div className="flex-grow flex flex-col gap-2">
+                              {/* Reply Target Indicator */}
+                              {replyTo && (
+                                <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg text-xs w-fit">
+                                  <span className="text-zinc-500 font-medium">
+                                    Replying to <span className="font-bold text-black dark:text-white">@{replyTo.userName}</span>
+                                  </span>
+                                  <button onClick={() => setReplyTo(null)} className="ml-3 text-zinc-400 hover:text-black dark:hover:text-white transition-colors">
+                                    <X size={12}/>
+                                  </button>
+                                </div>
+                              )}
+                              <input 
+                                id={`comment-input-${post.id}`}
+                                type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
+                                placeholder="Write a comment..." 
+                                className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-full px-4 py-2.5 text-sm outline-none border border-transparent focus:border-[#9cf822] text-black dark:text-white"
+                              />
+                            </div>
+                            <button onClick={() => submitComment(post.id)} disabled={!commentText.trim()} className="text-[#9cf822] p-2 self-end mb-1">
                               <Send size={18} />
                             </button>
                           </div>
+                          
                         </div>
                       )}
                     </div>
