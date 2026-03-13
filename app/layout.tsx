@@ -218,7 +218,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const modalContent: Record<string, { title: string, content: React.ReactNode }> = {};
 
   const isAuthPage = pathname === '/login' || pathname === '/signup';
-  const showSidebar = !isAuthPage && pathname !== '/';
+  
+  // LOGIC UPDATE: Hide sidebar on the landing page AND the new marketing/legal pages
+  const isMarketingPage = pathname === '/' || pathname === '/about' || pathname === '/terms' || pathname === '/privacy' || pathname === '/blog';
+  const showSidebar = !isAuthPage && !isMarketingPage;
 
   // LOGIC: Only trigger scroll-hide effect on the Community Feed
   const isCommunityFeed = pathname === '/community';
@@ -253,8 +256,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               >
                 <BrandLogo isMobile />
                 <div className="flex items-center gap-4 text-zinc-500 dark:text-zinc-400">
-                    <button onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
-                    <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu"><Menu size={24} /></button>
+                  <button onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
+                  <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu"><Menu size={24} /></button>
                 </div>
               </div>
 
