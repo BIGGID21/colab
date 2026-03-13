@@ -1,12 +1,55 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowRight, Sparkles, Star, Zap, 
   ArrowUpRight, Users, Code, Share2, 
   PenTool, Rocket 
 } from 'lucide-react';
 import Link from 'next/link';
+
+// --- Animated Stat Counter ---
+const AnimatedStat = ({ prefix, end, suffix }: { prefix: string, end: number, suffix: string }) => {
+  const [count, setCount] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setIsVisible(true);
+      }
+    }, { threshold: 0.1 });
+    
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    
+    let startTimestamp: number | null = null;
+    const duration = 2000; // 2 seconds animation
+    
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      // easeOutQuad easing function for a smooth slow-down effect at the end
+      const easeProgress = progress * (2 - progress); 
+      setCount(Math.floor(easeProgress * end));
+      
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      } else {
+        setCount(end);
+      }
+    };
+    
+    window.requestAnimationFrame(step);
+  }, [isVisible, end]);
+
+  return <span ref={ref}>{prefix}{count}{suffix}</span>;
+};
 
 // --- Floating Pill Navbar ---
 const Navbar = () => (
@@ -146,13 +189,15 @@ export default function LandingPage() {
       {/* 2. STATS SECTION */}
       <section className="py-20 max-w-6xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-10 divide-x divide-zinc-800 border-b border-zinc-900">
         {[
-          { num: "5K+", label: "Active creators" },
-          { num: "50+", label: "Live projects" },
-          { num: "99%", label: "Deadline success" },
-          { num: "$2M+", label: "Value shared" }
+          { prefix: "", end: 5, suffix: "K+", label: "Active creators" },
+          { prefix: "", end: 50, suffix: "+", label: "Live projects" },
+          { prefix: "", end: 99, suffix: "%", label: "Deadline success" },
+          { prefix: "$", end: 2, suffix: "M+", label: "Value shared" }
         ].map((stat, i) => (
           <div key={i} className={`flex flex-col items-center justify-center text-center ${i === 0 ? 'pl-0' : ''}`}>
-            <h3 className="text-4xl md:text-5xl font-medium text-white">{stat.num}</h3>
+            <h3 className="text-4xl md:text-5xl font-medium text-white">
+              <AnimatedStat prefix={stat.prefix} end={stat.end} suffix={stat.suffix} />
+            </h3>
             <p className="text-xs text-zinc-500 font-medium mt-2">{stat.label}</p>
           </div>
         ))}
