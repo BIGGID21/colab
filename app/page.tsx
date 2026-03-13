@@ -91,22 +91,26 @@ export default function LandingPage() {
     { 
       title: "The designer’s canvas", 
       desc: "Showcase your visual identity and find trusted devs who bring your UI to life—no pixel lost in translation.",
-      icon: Users
+      icon: Users,
+      link: "/community"
     },
     { 
       title: "The developer’s engine", 
       desc: "Skip the idea guys. Connect with serious creators with high-fidelity visions ready for robust code.",
-      icon: Code
+      icon: Code,
+      link: "/community"
     },
     { 
       title: "The creator’s hub", 
       desc: "From AI movies to clothing brands—this is where your concepts become companies. Ship faster.",
-      icon: Zap
+      icon: Zap,
+      link: "/community"
     },
     { 
       title: "Percentage sharing", 
       desc: "Unified payout formulas built in. Stop tracking hourly rates, start sharing in the collective success.",
-      icon: Share2
+      icon: Share2,
+      link: "/community"
     }
   ];
 
@@ -130,9 +134,6 @@ export default function LandingPage() {
 
       {/* 1. HERO SECTION (White with curved bottom) */}
       <section id="about" className="relative bg-white text-black pt-40 pb-32 px-6 rounded-b-[3rem] lg:rounded-b-[5rem] z-10 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-        {/* Decorative background elements */}
-        <div className="absolute top-20 left-10 text-[#9cf822] opacity-50"><Sparkles size={64} strokeWidth={1} /></div>
-        <div className="absolute bottom-40 right-10 text-[#9cf822] opacity-50"><Sparkles size={48} strokeWidth={1} /></div>
         
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
           
@@ -140,7 +141,7 @@ export default function LandingPage() {
             <h1 className="text-5xl lg:text-7xl font-medium leading-[1.1]">
               Now you can  <br/>
               <span className="text-black inline-flex items-center gap-4">
-                take More Jobs. <Sparkles className="text-[#9cf822] fill-[#9cf822]" size={40} />
+                take More Jobs.
               </span>
             </h1>
             <p className="text-lg text-zinc-600 max-w-md font-medium leading-relaxed">
@@ -242,18 +243,22 @@ export default function LandingPage() {
                 return (
                   <button 
                     key={idx}
-                    onClick={() => setActiveService(idx)}
-                    className={`w-full flex items-center justify-between px-6 py-5 rounded-full transition-all duration-300 border ${
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setActiveService(idx);
+                    }}
+                    className={`w-full text-left flex items-center justify-between px-6 py-5 rounded-full transition-all duration-300 border relative z-20 cursor-pointer ${
                       isActive 
                         ? 'bg-white text-black border-white scale-[1.02]' 
                         : 'bg-transparent text-white border-zinc-800 hover:border-zinc-600'
                     }`}
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 pointer-events-none">
                       <span className="text-xs font-medium opacity-50">0{idx + 1}</span>
                       <span className="font-medium text-lg">{item.title}</span>
                     </div>
-                    <ArrowRight size={20} className={isActive ? 'text-black' : 'text-zinc-600'} />
+                    <ArrowRight size={20} className={`pointer-events-none ${isActive ? 'text-black' : 'text-zinc-600'}`} />
                   </button>
                 )
               })}
@@ -269,15 +274,14 @@ export default function LandingPage() {
                       activeService === 2 ? "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2000&auto=format&fit=crop" :
                       "https://images.unsplash.com/photo-1600880292089-90a7e086ee0c?q=80&w=2000&auto=format&fit=crop"
                     }
-                    key={activeService} // forces re-render/animation
-                    className="w-full h-full object-cover opacity-80 animate-in fade-in duration-700" 
+                    className="absolute inset-0 w-full h-full object-cover opacity-80 transition-opacity duration-500 ease-in-out" 
                     alt="Ecosystem Feature" 
                   />
                   
                   {/* Floating Green Card */}
-                  <div className="absolute bottom-8 right-8 bg-[#9cf822] text-black p-6 rounded-3xl max-w-[240px] shadow-2xl">
+                  <div className="absolute bottom-8 right-8 bg-[#9cf822] text-black p-6 rounded-3xl max-w-[240px] shadow-2xl z-30">
                     <p className="font-medium text-sm mb-4 leading-tight">{ecosystemItems[activeService].desc}</p>
-                    <Link href="/community" className="flex items-center gap-2 text-xs font-medium hover:opacity-70 transition-opacity">
+                    <Link href={ecosystemItems[activeService].link} className="flex items-center gap-2 text-xs font-medium hover:opacity-70 transition-opacity">
                       See how we work <ArrowUpRight size={16} />
                     </Link>
                   </div>
