@@ -332,7 +332,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <Link href="/" className="flex items-center gap-2 group">
             <img src="/white.png" alt="CoLab Logo" className="w-6 h-6 object-contain group-hover:rotate-12 transition-transform" />
-            <span className="text-xl font-medium text-white">CoLab</span>
+            <span className="text-xl font-medium text-white">CoLab™</span>
           </Link>
           <div className="text-xs font-medium text-zinc-500">CoLab 2026, all rights reserved</div>
           <div className="flex items-center gap-6">
