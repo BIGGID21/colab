@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  ArrowRight, Sparkles, Star, Zap, 
+  ArrowRight, Sparkles, Zap, 
   ArrowUpRight, Users, Code, Share2, 
   PenTool, Rocket 
 } from 'lucide-react';
@@ -334,10 +334,10 @@ export default function LandingPage() {
             <img src="/white.png" alt="CoLab Logo" className="w-6 h-6 object-contain group-hover:rotate-12 transition-transform" />
             <span className="text-xl font-medium text-white">CoLab™</span>
           </Link>
-          <div className="text-xs font-medium text-zinc-500">CoLab 2026, all rights reserved</div>
+          <div className="text-xs font-medium text-zinc-500">&copy; 2026 CoLab. All rights reserved.</div>
           <div className="flex items-center gap-6">
               {['About', 'Terms', 'Privacy', 'Blog'].map(item => (
-                  <Link key={item} href="#" className="text-xs font-medium text-zinc-500 hover:text-[#9cf822] transition-colors">{item}</Link>
+                  <Link key={item} href={`/${item.toLowerCase()}`} className="text-xs font-medium text-zinc-500 hover:text-[#9cf822] transition-colors">{item}</Link>
               ))}
           </div>
         </div>
