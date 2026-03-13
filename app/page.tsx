@@ -69,12 +69,14 @@ export default function LandingPage() {
   const [activeService, setActiveService] = useState(0);
   const [currentHeroImg, setCurrentHeroImg] = useState(0);
 
-  // Rotating images for the hero section (Designer, developer, content creator; diverse)
+  // Rotating images for the hero section
   const heroImages = [
-    "https://images.unsplash.com/photo-1531384441138-2736e62e0919?q=80&w=2800&auto=format&fit=crop", // Black team collaborating
-    "https://images.unsplash.com/photo-1573164713988-8665fc963095?q=80&w=2800&auto=format&fit=crop", // White female developer/creator
-    "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2800&auto=format&fit=crop", // Diverse guys working
-    "https://images.unsplash.com/photo-1600880292089-90a7e086ee0c?q=80&w=2800&auto=format&fit=crop"  // Startup content creators
+    "/image1.jpg",
+    "/image2.jpg",
+    "/image3.jpg",
+    "/image4.jpg",
+    "/image5.jpg",
+    "/image6.jpg"
   ];
 
   // Effect to handle the hero image rotation
@@ -145,8 +147,8 @@ export default function LandingPage() {
               The premium ecosystem for designers, developers, and creators to collaborate, beat deadlines, and share collective success.
             </p>
             <div className="flex items-center gap-4 pt-4">
-              <Link href="/signup" className="px-8 py-4 bg-[#9cf822] text-black font-medium text-sm rounded-full hover:scale-105 transition-transform flex items-center gap-2">
-                Start building — it's free <ArrowRight size={16} />
+              <Link href="/create" className="px-8 py-4 bg-[#9cf822] text-black font-medium text-sm rounded-full hover:scale-105 transition-transform flex items-center gap-2">
+                Create a project <ArrowRight size={16} />
               </Link>
               <Link href="/community" className="px-8 py-4 bg-transparent border-2 border-black text-black font-medium text-sm rounded-full hover:bg-black hover:text-white transition-colors">
                 Explore community feed
@@ -170,13 +172,6 @@ export default function LandingPage() {
                
                {/* Floating Badge */}
                <div className="absolute bottom-8 -left-8 bg-white p-4 rounded-2xl shadow-2xl border border-zinc-100 flex flex-col gap-1 hidden md:flex z-20">
-                 <div className="flex gap-1 text-[#9cf822]">
-                   <Star size={16} fill="currentColor" />
-                   <Star size={16} fill="currentColor" />
-                   <Star size={16} fill="currentColor" />
-                   <Star size={16} fill="currentColor" />
-                   <Star size={16} fill="currentColor" />
-                 </div>
                  <p className="font-medium text-xl text-black">5,000+</p>
                  <p className="text-xs text-zinc-500 font-medium">Verified creators</p>
                </div>
@@ -203,12 +198,12 @@ export default function LandingPage() {
         ))}
       </section>
 
-      {/* 3. VALUE PROP (Turning Concepts into Companies) */}
+      {/* 3. VALUE PROP */}
       <section className="py-32 max-w-6xl mx-auto px-6 border-b border-zinc-900">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
           <div className="space-y-6">
             <h2 className="text-4xl lg:text-6xl font-medium leading-tight">
-              Turning concepts <br/> into <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-500">companies.</span>
+              Stay ahead <br/> of the <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-500">game.</span>
             </h2>
             <div className="relative rounded-[2rem] overflow-hidden bg-zinc-900 aspect-video group">
               <div className="absolute inset-0 bg-[#9cf822] opacity-0 group-hover:opacity-20 transition-opacity z-10 mix-blend-overlay"></div>
@@ -221,7 +216,7 @@ export default function LandingPage() {
           
           <div className="flex flex-col justify-between pt-4">
             <p className="text-lg text-zinc-400 font-medium leading-relaxed max-w-md">
-              We may be a vast network, but our collaboration feels boutique. By working hand-in-hand with trusted experts, we transform raw ideas into shipped products that make a lasting impression.
+              CoLab connects you with trusted collaborators to ensure you never miss a deadline.
             </p>
             <div className="relative rounded-[2rem] overflow-hidden bg-zinc-900 aspect-square w-2/3 ml-auto mt-10">
                <img src="https://images.unsplash.com/photo-1573164713988-8665fc963095?q=80&w=2938&auto=format&fit=crop" className="w-full h-full object-cover grayscale opacity-60" alt="Focus" />
