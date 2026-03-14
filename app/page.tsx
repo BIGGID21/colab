@@ -157,7 +157,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="lg:col-span-6 relative flex justify-center lg:justify-end">
+          <div className="lg:col-span-6 relative flex justify-center lg:justify-end mt-12 lg:mt-0">
              {/* Hero Image Container with Crossfade Images */}
              <div className="relative w-full max-w-md aspect-[4/5] rounded-[2rem] bg-zinc-200 shadow-2xl">
                {heroImages.map((src, idx) => (
@@ -165,16 +165,16 @@ export default function LandingPage() {
                    key={src}
                    src={src} 
                    alt={`Collaborator ${idx + 1}`} 
-                   className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${
+                   className={`absolute inset-0 w-full h-full object-cover rounded-[2rem] transition-opacity duration-1000 ease-in-out ${
                      currentHeroImg === idx ? 'opacity-100 z-10' : 'opacity-0 z-0'
                    }`}
                  />
                ))}
                
-               {/* Floating Badge - Now positioned outside the images map and with z-20 */}
-               <div className="absolute bottom-8 -left-8 bg-white p-4 rounded-2xl shadow-2xl border border-zinc-100 flex flex-col gap-1 hidden md:flex z-20">
-                 <p className="font-medium text-xl text-black">5,000+</p>
-                 <p className="text-xs text-zinc-500 font-medium">Verified creators</p>
+               {/* Floating Badge - Positioned to show on mobile without overflow */}
+               <div className="absolute -bottom-6 left-6 md:bottom-8 md:-left-8 bg-white p-3 md:p-4 rounded-2xl shadow-2xl border border-zinc-100 flex flex-col gap-1 z-20">
+                 <p className="font-medium text-lg md:text-xl text-black">5,000+</p>
+                 <p className="text-[10px] md:text-xs text-zinc-500 font-medium">Verified creators</p>
                </div>
              </div>
           </div>
