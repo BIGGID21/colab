@@ -9,7 +9,7 @@ import {
   Home, Compass, PlusCircle, FolderClosed, Settings, User, 
   LogOut, TrendingUp, ChevronUp, Menu, X, ChevronLeft, ChevronRight,
   HelpCircle, FileText, Shield, Bell, Search, Palette, Sun, Moon, CreditCard,
-  Globe, BadgeCheck 
+  Globe, BadgeCheck, Wallet, ArrowUpRight 
 } from 'lucide-react';
 import Modal from '@/components/Modal'; 
 import SearchModal from '@/components/SearchModal'; 
@@ -232,6 +232,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true },
     { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true },
     { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true },
+    { name: 'Wallet', icon: Wallet, href: '/wallet', showOnMobileBar: false }, // Added Wallet to Navigation
     { name: 'Notifications', icon: Bell, href: '/notifications', count: unreadCount, showOnMobileBar: true },
     { name: 'Manage', icon: Settings, href: '/manage', showOnMobileBar: false },
   ];
@@ -318,7 +319,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   })}
                 </nav>
 
-                <div className="p-4 pb-10 mb-6 mt-auto relative" ref={menuRef}>
+                {/* QUICK-VIEW WALLET WIDGET */}
+                {(!isCollapsed || isMobileMenuOpen) && (
+                  <div className="px-4 mt-auto mb-2 relative z-10">
+                    <Link href="/wallet" className="block bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors group shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                          <Wallet size={12} /> Available Balance
+                        </span>
+                        <ArrowUpRight size={14} className="text-zinc-400 dark:text-zinc-500 group-hover:text-black dark:group-hover:text-[#9cf822] transition-colors" />
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-medium text-zinc-900 dark:text-white">$4,250</span>
+                        <span className="text-xs text-zinc-500 font-medium">.00</span>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                        <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">In Escrow</span>
+                        <span className="text-xs font-medium text-green-600 dark:text-[#9cf822]">$1,200</span>
+                      </div>
+                    </Link>
+                  </div>
+                )}
+
+                <div className={`p-4 pb-10 mb-6 relative ${isCollapsed && !isMobileMenuOpen ? 'mt-auto' : ''}`} ref={menuRef}>
                   {showMenu && (
                     <div className={`absolute bottom-20 border rounded-2xl py-2 z-[120] shadow-xl bg-white dark:bg-[#121212] border-zinc-200 dark:border-zinc-800 animate-in fade-in slide-in-from-bottom-2 duration-200 ${isCollapsed && !isMobileMenuOpen ? 'left-4 w-64' : 'left-4 right-4'}`}>
                       <div className="px-2 pb-2 mb-2 border-b border-zinc-100 dark:border-zinc-900">
