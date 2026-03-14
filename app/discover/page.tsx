@@ -261,8 +261,9 @@ export default function DiscoverPage() {
                     {/* Image Gradient Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10 z-10 opacity-60 group-hover:opacity-40 transition-opacity" />
 
-                    {project.image_url ? (
-                      <img src={project.image_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={project.title} />
+                    {/* UPDATED: Mapped to cover_image_url */}
+                    {project.cover_image_url ? (
+                      <img src={project.cover_image_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={project.title} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-zinc-300 dark:text-zinc-700">
                         <Grid size={48} strokeWidth={1} />
@@ -300,13 +301,15 @@ export default function DiscoverPage() {
                       <div className="bg-zinc-50 dark:bg-zinc-900/80 rounded-2xl p-3 border border-zinc-100 dark:border-zinc-800">
                         <span className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Budget</span>
                         <span className="block text-sm font-black text-black dark:text-white truncate">
-                          {getCurrencySymbol(project.currency)}{project.valuation?.toLocaleString() || '0'}
+                          {/* UPDATED: Mapped to budget */}
+                          {getCurrencySymbol(project.currency)}{project.budget?.toLocaleString() || '0'}
                         </span>
                       </div>
                       <div className="bg-zinc-50 dark:bg-[#9cf822]/5 rounded-2xl p-3 border border-zinc-100 dark:border-[#9cf822]/20">
                         <span className="block text-[10px] font-black text-[#5a9a00] dark:text-[#9cf822] uppercase tracking-widest mb-1">Equity/Share</span>
                         <span className="block text-sm font-black text-black dark:text-white">
-                          {project.available_share || 45}%
+                          {/* UPDATED: Mapped to equity */}
+                          {project.equity || 0}%
                         </span>
                       </div>
                     </div>
