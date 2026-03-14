@@ -67,6 +67,25 @@ const Navbar = () => (
 
 export default function LandingPage() {
   const [activeService, setActiveService] = useState(0);
+  const [currentHeroImg, setCurrentHeroImg] = useState(0);
+
+  // Rotating images for the hero section
+  const heroImages = [
+    "/image1.jpg",
+    "/image2.jpg",
+    "/image3.jpg",
+    "/image4.jpg",
+    "/image5.jpg",
+    "/image6.jpg"
+  ];
+
+  // Effect to handle the hero image rotation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentHeroImg((prev) => (prev + 1) % heroImages.length);
+    }, 4000); // Rotates every 4 seconds
+    return () => clearInterval(interval);
+  }, [heroImages.length]);
 
   const ecosystemItems = [
     { 
@@ -139,18 +158,21 @@ export default function LandingPage() {
           </div>
 
           <div className="lg:col-span-6 relative flex justify-center lg:justify-end">
-             {/* Dynamic GIF Container with Device Bezel effect */}
-             <div className="relative w-full max-w-xl rounded-[2rem] bg-white p-2 shadow-2xl border border-zinc-200">
-               <div className="w-full h-full rounded-[1.5rem] overflow-hidden bg-zinc-100 border border-zinc-100/50">
+             {/* Hero Image Container with Crossfade Images */}
+             <div className="relative w-full max-w-md aspect-[4/5] rounded-[2rem] overflow-hidden bg-zinc-200 shadow-2xl">
+               {heroImages.map((src, idx) => (
                  <img 
-                   src="/animation.gif" 
-                   alt="CoLab Platform Interface Animation" 
-                   className="w-full h-auto object-cover"
+                   key={src}
+                   src={src} 
+                   alt={`Collaborator ${idx + 1}`} 
+                   className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${
+                     currentHeroImg === idx ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                   }`}
                  />
-               </div>
+               ))}
                
                {/* Floating Badge */}
-               <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-2xl shadow-xl border border-zinc-100 flex flex-col gap-1 hidden md:flex z-20">
+               <div className="absolute bottom-8 -left-8 bg-white p-4 rounded-2xl shadow-2xl border border-zinc-100 flex flex-col gap-1 hidden md:flex z-20">
                  <p className="font-medium text-xl text-black">5,000+</p>
                  <p className="text-xs text-zinc-500 font-medium">Verified creators</p>
                </div>
