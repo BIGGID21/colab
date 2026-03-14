@@ -92,25 +92,25 @@ export default function LandingPage() {
       title: "The designer’s canvas", 
       desc: "Showcase your visual identity and find trusted devs who bring your UI to life—no pixel lost in translation.",
       icon: Users,
-      link: "/community"
+      link: "/community" // Links to feed to find devs
     },
     { 
       title: "The developer’s engine", 
       desc: "Skip the idea guys. Connect with serious creators with high-fidelity visions ready for robust code.",
       icon: Code,
-      link: "/community"
+      link: "/community" // Links to feed to find projects
     },
     { 
       title: "The creator’s hub", 
       desc: "From AI movies to clothing brands—this is where your concepts become companies. Ship faster.",
       icon: Zap,
-      link: "/community"
+      link: "/create" // Specifically links to the project creation page
     },
     { 
       title: "Percentage sharing", 
       desc: "Unified payout formulas built in. Stop tracking hourly rates, start sharing in the collective success.",
       icon: Share2,
-      link: "/community"
+      link: "/blog" // Specifically links to your newly created deep-dive article
     }
   ];
 
