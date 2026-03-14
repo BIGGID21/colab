@@ -20,7 +20,6 @@ const getCurrencySymbol = (currency: string) => {
   }
 };
 
-// Updated Categories with related icons
 const CATEGORIES = [
   { name: 'All', icon: Grid },
   { name: 'Tech', icon: Code },
@@ -34,13 +33,10 @@ const CATEGORIES = [
 export default function DiscoverPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // New Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [sortBy, setSortBy] = useState<'newest' | 'popular'>('newest');
   const [isSortOpen, setIsSortOpen] = useState(false);
-  
   const [likedProjects, setLikedProjects] = useState<string[]>([]);
   const [savedProjects, setSavedProjects] = useState<string[]>([]);
 
@@ -116,15 +112,11 @@ export default function DiscoverPage() {
     alert("Link copied!");
   };
 
-  // Advanced Filtering & Sorting Logic
   const filteredProjects = projects
     .filter(p => {
       const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      // Rudimentary category check (scans title/desc since we don't have a tags column yet)
       const matchesCategory = activeCategory === 'All' || 
         (p.title + ' ' + (p.description || '')).toLowerCase().includes(activeCategory.toLowerCase());
-        
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
@@ -136,11 +128,7 @@ export default function DiscoverPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-24 relative overflow-hidden">
-      
-      {/* Header & Controls Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-10 pt-8 sm:pt-16 mb-8 relative z-10">
-        
-        {/* Title */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div className="space-y-2">
             <h1 className="text-4xl md:text-6xl font-black text-black dark:text-white tracking-tighter flex items-center gap-3">
@@ -152,10 +140,7 @@ export default function DiscoverPage() {
           </div>
         </div>
 
-        {/* Search, Filter, and Sort Bar */}
         <div className="flex flex-col lg:flex-row gap-4 mb-6">
-          
-          {/* Main Search */}
           <div className="relative flex-grow">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
             <input 
@@ -167,7 +152,6 @@ export default function DiscoverPage() {
             />
           </div>
 
-          {/* Sort Dropdown */}
           <div className="relative shrink-0 z-20">
             <button 
               onClick={() => setIsSortOpen(!isSortOpen)}
@@ -199,7 +183,6 @@ export default function DiscoverPage() {
           </div>
         </div>
 
-        {/* Category Pills (Scrollable) */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mask-linear-fade">
           <div className="flex items-center gap-2 px-1 text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 pr-4 mr-2 shrink-0">
              <SlidersHorizontal size={16} />
@@ -225,17 +208,14 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Main Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-10 relative z-10">
-        
         {filteredProjects.length === 0 ? (
-          /* Empty State */
           <div className="w-full py-24 flex flex-col items-center justify-center text-center bg-zinc-50 dark:bg-zinc-900/20 rounded-[3rem] border border-dashed border-zinc-200 dark:border-zinc-800">
             <div className="w-20 h-20 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-6">
               <Search className="text-zinc-400" size={32} />
             </div>
             <h3 className="text-2xl font-black text-black dark:text-white mb-2 tracking-tight">No projects found</h3>
-            <p className="text-zinc-500 max-w-sm font-medium mb-6">We couldn't find any projects matching your current filters or search query.</p>
+            <p className="text-zinc-500 max-w-sm font-medium mb-6">We couldn't find any projects matching your current filters.</p>
             <button 
               onClick={() => { setSearchQuery(''); setActiveCategory('All'); }}
               className="px-6 py-3 bg-black dark:bg-white text-white dark:text-black rounded-full text-sm font-bold hover:scale-105 transition-transform"
@@ -249,34 +229,33 @@ export default function DiscoverPage() {
               const isLiked = likedProjects.includes(project.id);
               const isSaved = savedProjects.includes(project.id);
 
+              // --- SMART FALLBACKS FOR LEGACY DATA ---
+              const displayImage = project.cover_image_url || project.image_url;
+              const displayBudget = project.budget || project.valuation || 0;
+              const displayEquity = project.equity || project.available_share || 0;
+
               return (
                 <div 
                   key={project.id} 
                   className="group bg-white dark:bg-[#0a0a0a] rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col transition-all duration-500 hover:shadow-2xl hover:shadow-[#9cf822]/5 hover:-translate-y-1 hover:border-zinc-300 dark:hover:border-zinc-700"
                 >
-                  {/* Visual Area */}
                   <div className="aspect-[4/3] relative overflow-hidden m-2 sm:m-3 rounded-[2rem] z-10 bg-zinc-100 dark:bg-zinc-900">
                     <Link href={`/project/${project.id}`} className="absolute inset-0 z-20" />
-                    
-                    {/* Image Gradient Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10 z-10 opacity-60 group-hover:opacity-40 transition-opacity" />
 
-                    {/* UPDATED: Mapped to cover_image_url */}
-                    {project.cover_image_url ? (
-                      <img src={project.cover_image_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={project.title} />
+                    {displayImage ? (
+                      <img src={displayImage} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={project.title} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-zinc-300 dark:text-zinc-700">
                         <Grid size={48} strokeWidth={1} />
                       </div>
                     )}
                     
-                    {/* Live Badge */}
                     <div className="absolute top-4 left-4 z-30 px-3 py-1.5 backdrop-blur-md bg-black/40 border border-white/10 rounded-full flex items-center gap-2 shadow-lg">
                       <div className="w-1.5 h-1.5 rounded-full bg-[#9cf822] animate-pulse shadow-[0_0_8px_#9cf822]" />
                       <span className="text-[9px] font-black text-white uppercase tracking-widest">Active</span>
                     </div>
 
-                    {/* Quick Like Overlay */}
                     <button 
                       onClick={(e) => toggleLike(e, project)} 
                       className="absolute top-4 right-4 z-30 p-2.5 backdrop-blur-md bg-black/40 border border-white/10 rounded-full text-white hover:bg-black/60 transition-colors shadow-lg"
@@ -286,7 +265,6 @@ export default function DiscoverPage() {
                   </div>
 
                   <div className="px-6 pb-6 pt-2 flex flex-col flex-grow">
-                    {/* Title & Description */}
                     <div className="space-y-1.5 mb-6 flex-grow">
                       <h3 className="text-xl font-black text-black dark:text-white tracking-tight line-clamp-1 group-hover:text-[#5a9a00] dark:group-hover:text-[#9cf822] transition-colors">
                         {project.title}
@@ -296,25 +274,21 @@ export default function DiscoverPage() {
                       </p>
                     </div>
 
-                    {/* Metric Dashboard */}
                     <div className="grid grid-cols-2 gap-2 mb-6">
                       <div className="bg-zinc-50 dark:bg-zinc-900/80 rounded-2xl p-3 border border-zinc-100 dark:border-zinc-800">
                         <span className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Budget</span>
                         <span className="block text-sm font-black text-black dark:text-white truncate">
-                          {/* UPDATED: Mapped to budget */}
-                          {getCurrencySymbol(project.currency)}{project.budget?.toLocaleString() || '0'}
+                          {getCurrencySymbol(project.currency)}{displayBudget.toLocaleString()}
                         </span>
                       </div>
                       <div className="bg-zinc-50 dark:bg-[#9cf822]/5 rounded-2xl p-3 border border-zinc-100 dark:border-[#9cf822]/20">
                         <span className="block text-[10px] font-black text-[#5a9a00] dark:text-[#9cf822] uppercase tracking-widest mb-1">Equity/Share</span>
                         <span className="block text-sm font-black text-black dark:text-white">
-                          {/* UPDATED: Mapped to equity */}
-                          {project.equity || 0}%
+                          {displayEquity}%
                         </span>
                       </div>
                     </div>
 
-                    {/* Footer / User Profile Info */}
                     <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800/50">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0">
@@ -343,7 +317,6 @@ export default function DiscoverPage() {
                         </button>
                       </div>
                     </div>
-
                   </div>
                 </div>
               );
