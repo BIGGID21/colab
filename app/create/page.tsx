@@ -91,7 +91,7 @@ export default function CreateProjectPage() {
       const user = session?.user;
 
       if (!user) {
-        throw new Error("Session sync error: Please refresh the page. We couldn't verify your active login state.");
+        throw new Error("Please refresh the page and log in again to verify your session.");
       }
 
       let coverImageUrl = null;
@@ -105,7 +105,9 @@ export default function CreateProjectPage() {
           .from('project_files') 
           .upload(`covers/${fileName}`, coverImage);
         
-        if (imgError) throw new Error("Failed to upload cover image. Check Supabase Storage bucket.");
+        if (imgError) {
+          throw new Error("Storage Bucket 'project_files' not found or inaccessible. Please check your Supabase bucket policies.");
+        }
         
         const { data: { publicUrl } } = supabase.storage
           .from('project_files')
@@ -121,12 +123,14 @@ export default function CreateProjectPage() {
           .from('project_files')
           .upload(`docs/${fileName}`, file);
           
-        if (!docError) {
-           const { data: { publicUrl } } = supabase.storage
-            .from('project_files')
-            .getPublicUrl(`docs/${fileName}`);
-           fileUrls.push(publicUrl);
+        if (docError) {
+           throw new Error(`Failed to upload ${file.name}. Check your Supabase storage policies.`);
         }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('project_files')
+          .getPublicUrl(`docs/${fileName}`);
+        fileUrls.push(publicUrl);
       }
 
       // 3. Insert Project into Database
@@ -176,8 +180,8 @@ export default function CreateProjectPage() {
       console.error("Submission error:", error);
       // Clean up technical Supabase errors for the UI
       let errorMsg = error.message;
-      if (errorMsg.includes('does not exist')) {
-        errorMsg = "Database tables are missing in Supabase. Please ensure the 'projects' and 'project_roles' tables are created.";
+      if (errorMsg.includes('does not exist') || errorMsg.includes('column "additional_files" of relation "projects" does not exist')) {
+        errorMsg = "Database missing column: Please run the SQL command to add 'additional_files' to your projects table.";
       }
       setSubmitError(errorMsg);
     } finally {
