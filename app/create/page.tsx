@@ -8,14 +8,14 @@ import {
   Plus, Trash2, ShieldCheck, Info, Sparkles, CheckCircle2, Bot, UploadCloud, FileIcon, X, Image as ImageIcon
 } from 'lucide-react';
 
+// Initialize Supabase OUTSIDE the component so it doesn't recreate on every keystroke
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 export default function CreateProjectPage() {
   const router = useRouter();
-  
-  // --- Supabase Client ---
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
   
   // --- Form State ---
   const [title, setTitle] = useState('');
@@ -72,7 +72,6 @@ export default function CreateProjectPage() {
     if (!title) return;
     setIsGeneratingBrief(true);
     
-    // Simulate AI thinking (In a real app, this would hit an OpenAI API route)
     setTimeout(() => {
       const generatedText = `Project Overview:\nWe are building a cutting-edge solution for "${title}". The goal is to deliver a premium, high-performing product that stands out in the market.\n\nKey Objectives:\n- Design an intuitive, high-fidelity user interface.\n- Architect a robust, secure, and scalable infrastructure.\n- Ensure cross-platform responsiveness and seamless user experience.\n\nCollaborator Expectations:\nWe are looking for dedicated professionals who can take ownership of their roles, communicate effectively, and ship high-quality work on schedule.`;
       setDescription(generatedText);
@@ -87,8 +86,13 @@ export default function CreateProjectPage() {
     setSubmitError(null);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("You must be logged in to create a project.");
+      // Use getSession() to read the local authenticated state, matching your UI
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      const user = session?.user;
+
+      if (!user) {
+        throw new Error("Session sync error: Please refresh the page. We couldn't verify your active login state.");
+      }
 
       let coverImageUrl = null;
       let fileUrls: string[] = [];
@@ -98,10 +102,10 @@ export default function CreateProjectPage() {
         const fileExt = coverImage.name.split('.').pop();
         const fileName = `${user.id}-${Date.now()}.${fileExt}`;
         const { data: imgData, error: imgError } = await supabase.storage
-          .from('project_files') // Note: Make sure this bucket exists in your Supabase dashboard
+          .from('project_files') 
           .upload(`covers/${fileName}`, coverImage);
         
-        if (imgError) throw new Error("Failed to upload cover image.");
+        if (imgError) throw new Error("Failed to upload cover image. Check Supabase Storage bucket.");
         
         const { data: { publicUrl } } = supabase.storage
           .from('project_files')
@@ -127,7 +131,7 @@ export default function CreateProjectPage() {
 
       // 3. Insert Project into Database
       const { data: projectData, error: projectError } = await supabase
-        .from('projects') // Note: Make sure this table exists
+        .from('projects') 
         .insert({
           user_id: user.id,
           title,
@@ -155,7 +159,7 @@ export default function CreateProjectPage() {
         }));
         
         const { error: rolesError } = await supabase
-          .from('project_roles') // Note: Make sure this table exists
+          .from('project_roles') 
           .insert(rolesToInsert);
           
         if (rolesError) throw rolesError;
@@ -170,7 +174,12 @@ export default function CreateProjectPage() {
 
     } catch (error: any) {
       console.error("Submission error:", error);
-      setSubmitError(error.message || "Failed to create project. Please ensure all tables and storage buckets are configured.");
+      // Clean up technical Supabase errors for the UI
+      let errorMsg = error.message;
+      if (errorMsg.includes('does not exist')) {
+        errorMsg = "Database tables are missing in Supabase. Please ensure the 'projects' and 'project_roles' tables are created.";
+      }
+      setSubmitError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
