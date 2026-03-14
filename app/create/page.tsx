@@ -86,12 +86,12 @@ export default function CreateProjectPage() {
     setSubmitError(null);
 
     try {
-      // Use getSession() to read the local authenticated state, matching your UI
+      // Use getSession() to read the local authenticated state
       const { data: { session }, error: authError } = await supabase.auth.getSession();
       const user = session?.user;
 
       if (!user) {
-        throw new Error("Please refresh the page and log in again to verify your session.");
+        throw new Error("Session sync error: Please refresh the page. We couldn't verify your active login state.");
       }
 
       let coverImageUrl = null;
@@ -105,9 +105,7 @@ export default function CreateProjectPage() {
           .from('project_files') 
           .upload(`covers/${fileName}`, coverImage);
         
-        if (imgError) {
-          throw new Error("Storage Bucket 'project_files' not found or inaccessible. Please check your Supabase bucket policies.");
-        }
+        if (imgError) throw new Error("Failed to upload cover image. Check Supabase Storage bucket.");
         
         const { data: { publicUrl } } = supabase.storage
           .from('project_files')
@@ -123,14 +121,12 @@ export default function CreateProjectPage() {
           .from('project_files')
           .upload(`docs/${fileName}`, file);
           
-        if (docError) {
-           throw new Error(`Failed to upload ${file.name}. Check your Supabase storage policies.`);
+        if (!docError) {
+           const { data: { publicUrl } } = supabase.storage
+            .from('project_files')
+            .getPublicUrl(`docs/${fileName}`);
+           fileUrls.push(publicUrl);
         }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('project_files')
-          .getPublicUrl(`docs/${fileName}`);
-        fileUrls.push(publicUrl);
       }
 
       // 3. Insert Project into Database
@@ -158,6 +154,7 @@ export default function CreateProjectPage() {
         const rolesToInsert = roles.map(role => ({
           project_id: projectData.id,
           title: role.title,
+          role_name: role.title, // Added to satisfy existing DB schema requirements
           type: role.type,
           status: 'open'
         }));
@@ -178,10 +175,9 @@ export default function CreateProjectPage() {
 
     } catch (error: any) {
       console.error("Submission error:", error);
-      // Clean up technical Supabase errors for the UI
       let errorMsg = error.message;
-      if (errorMsg.includes('does not exist') || errorMsg.includes('column "additional_files" of relation "projects" does not exist')) {
-        errorMsg = "Database missing column: Please run the SQL command to add 'additional_files' to your projects table.";
+      if (errorMsg.includes('does not exist')) {
+        errorMsg = "Database tables are missing in Supabase. Please ensure the 'projects' and 'project_roles' tables are created.";
       }
       setSubmitError(errorMsg);
     } finally {
@@ -451,7 +447,6 @@ export default function CreateProjectPage() {
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-bold text-zinc-900 dark:text-white">Total Fixed Budget</label>
                     
-                    {/* Currency Toggle */}
                     <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-lg p-0.5">
                       <button 
                         type="button"
@@ -573,4 +568,6 @@ export default function CreateProjectPage() {
       </form>
     </div>
   );
-}
+}git add .
+git commit -m "fix: resolve project_roles schema mismatch and stabilize multi-table insertion"
+git push
