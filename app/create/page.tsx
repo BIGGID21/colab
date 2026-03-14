@@ -2,439 +2,319 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
 import { 
-  Briefcase, Percent, Image as ImageIcon, 
-  UploadCloud, Plus, Trash2, ChevronDown, Loader2, Sparkles,
-  ArrowRight, ArrowLeft, Target, Crown, Users, ShieldCheck
+  Rocket, AlignLeft, Users, DollarSign, Percent, 
+  Plus, Trash2, ShieldCheck, Info, ArrowRight, Sparkles, CheckCircle2
 } from 'lucide-react';
 
 export default function CreateProjectPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [step, setStep] = useState(1); 
   
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-  
-  const [projectName, setProjectName] = useState('');
+  // --- Form State ---
+  const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [budget, setBudget] = useState(''); 
-  const [currency, setCurrency] = useState('USD');
-  const [coverImage, setCoverImage] = useState<File | null>(null);
-  const [documents, setDocuments] = useState<File[]>([]);
-  const [roles, setRoles] = useState([{ id: 1, title: '', share: '' }]); 
-
-  const [milestones, setMilestones] = useState([
-    { id: 1, title: 'Phase 1: Initial Draft', timeline: '' }
-  ]);
-
-  const PLATFORM_FEE = 5; 
-  const [collaboratorPool, setCollaboratorPool] = useState(45); 
-  const leadShare = Math.max(0, 100 - PLATFORM_FEE - collaboratorPool); 
+  const [roles, setRoles] = useState([{ id: 1, title: '', type: 'Developer' }]);
   
-  const totalAssignedRoles = roles.reduce((sum, role) => sum + (Number(role.share) || 0), 0);
-  const isRolesOverAllocated = totalAssignedRoles > collaboratorPool;
+  // Compensation State
+  const [compType, setCompType] = useState<'fixed' | 'percentage' | 'both'>('both');
+  const [budget, setBudget] = useState('');
+  const [equity, setEquity] = useState('');
 
-  const triggerHaptic = (pattern: number | number[] = 10) => {
-    if (typeof window !== 'undefined' && window.navigator.vibrate) {
-      window.navigator.vibrate(pattern);
-    }
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  const handleGenerateAI = async () => {
-    if (!projectName) return;
-    setIsAiLoading(true);
-    triggerHaptic([10, 30, 10]);
-
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const title = projectName.toLowerCase();
-      let generatedBrief = "";
-
-      if (title.includes('branding') || title.includes('design')) {
-        generatedBrief = `Project Scope for ${projectName.toUpperCase()}: We are looking for talented designers to collaborate on a complete visual identity overhaul. Deliverables include a new logo suite, brand guidelines, and social media assets.`;
-      } else if (title.includes('app') || title.includes('tech') || title.includes('web')) {
-        generatedBrief = `Project Scope for ${projectName.toUpperCase()}: A fast-paced development project to build a responsive, high-performance digital product. Seeking experienced developers to handle frontend architecture and backend integration.`;
-      } else {
-        generatedBrief = `Project Scope for ${projectName.toUpperCase()}: A collaborative creative project requiring specialized skills to execute a shared vision. We are looking for dedicated professionals to deliver high-quality results on an agreed timeline.`;
-      }
-
-      setDescription(generatedBrief);
-      triggerHaptic(20);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
+  // --- Handlers ---
   const handleAddRole = () => {
-    setRoles([...roles, { id: Date.now(), title: '', share: '' }]);
-    triggerHaptic(10);
+    setRoles([...roles, { id: Date.now(), title: '', type: 'Designer' }]);
   };
 
   const handleRemoveRole = (id: number) => {
     if (roles.length > 1) {
-      setRoles(roles.filter(role => role.id !== id));
-      triggerHaptic(5);
+      setRoles(roles.filter(r => r.id !== id));
     }
   };
 
-  const updateRole = (id: number, field: 'title' | 'share', value: string) => {
-    setRoles(roles.map(role => role.id === id ? { ...role, [field]: value } : role));
+  const handleUpdateRole = (id: number, field: string, value: string) => {
+    setRoles(roles.map(r => r.id === id ? { ...r, [field]: value } : r));
   };
 
-  const handleAddMilestone = () => {
-    setMilestones([...milestones, { id: Date.now(), title: '', timeline: '' }]);
-    triggerHaptic(10);
-  };
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
 
-  const handleRemoveMilestone = (id: number) => {
-    if (milestones.length > 1) {
-      setMilestones(milestones.filter(m => m.id !== id));
-      triggerHaptic(5);
-    }
-  };
-
-  const updateMilestone = (id: number, field: string, value: string) => {
-    setMilestones(milestones.map(m => m.id === id ? { ...m, [field]: value } : m));
-  };
-
-  const handleDeployProject = async () => {
-    if (!projectName || !description) return alert("Fill in the project name and scope.");
-    setLoading(true);
-    triggerHaptic(50);
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Unauthorized");
-
-      let image_url = null;
-      if (coverImage) {
-        const fileExt = coverImage.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('projects')
-          .upload(fileName, coverImage);
-
-        if (!uploadError && uploadData) {
-          const { data: publicUrlData } = supabase.storage.from('projects').getPublicUrl(uploadData.path);
-          image_url = publicUrlData.publicUrl;
-        }
-      }
-
-      const neededRoles = roles.map(r => r.title).filter(Boolean);
-
-      const { data, error } = await supabase.from('projects').insert({
-        user_id: user.id,
-        title: projectName,
-        description,
-        valuation: Number(budget) || 0, 
-        currency,
-        available_share: collaboratorPool,
-        needed_roles: neededRoles,
-        image_url: image_url 
-      }).select().single();
-
-      if (error) throw error;
+    // Simulate API/Database call
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setIsSuccess(true);
       
-      if (data && milestones.length > 0) {
-        const milestonePayload = milestones.map(m => ({
-          project_id: data.id,
-          title: m.title,
-          status: 'pending',
-          description: `Timeline: ${m.timeline}`
-        }));
-
-        await supabase.from('milestones').insert(milestonePayload);
-      }
-      
-      router.push(data && data.id ? `/project/${data.id}` : '/discover');
-      
-    } catch (error: any) {
-      alert(error.message);
-    } finally {
-      setLoading(false);
-    }
+      // Redirect to the community feed after success
+      setTimeout(() => {
+        router.push('/community');
+      }, 2000);
+    }, 2000);
   };
 
-  return (
-    <div className="min-h-screen bg-transparent transition-colors duration-300 pb-24 overflow-x-hidden">
-      <div className="max-w-2xl mx-auto p-4 md:p-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        
-        <header className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-medium text-black dark:text-white tracking-tight">
-              {step === 1 ? 'Create Project' : 'Set Deliverables'}
-            </h1>
-            <div className="flex items-center gap-3 mt-2">
-              <div className="w-8 h-[2px] bg-[#9cf822]" />
-              <p className="text-sm text-zinc-500 font-medium">
-                {step === 1 ? 'Step 1: Core Details' : 'Step 2: Milestones & Timeline'}
-              </p>
-            </div>
-          </div>
-
-          {step === 2 && (
-            <button 
-              onClick={() => { setStep(1); triggerHaptic(10); }}
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white transition-colors"
-            >
-              <ArrowLeft size={14} /> Back
-            </button>
-          )}
-        </header>
-
-        <div className="bg-white border border-zinc-200 rounded-[2rem] shadow-sm dark:bg-[#0a0a0a] dark:border-zinc-800 overflow-hidden relative">
-          
-          <div className={`transition-all duration-500 ${step === 1 ? 'block opacity-100' : 'hidden opacity-0 absolute pointer-events-none'}`}>
-            <form className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
-              
-              <div className="p-8 space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Project Name</label>
-                    <input 
-                      type="text" value={projectName}
-                      onChange={(e) => setProjectName(e.target.value)}
-                      placeholder="e.g. Mamas Kitchen Website"
-                      className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-sm text-black focus:outline-none focus:border-[#9cf822] transition-all dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Total Budget</label>
-                    <div className="flex gap-2">
-                      <input 
-                        type="number" value={budget}
-                        onChange={(e) => setBudget(e.target.value)}
-                        placeholder="0.00"
-                        className="flex-grow bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-sm text-black focus:outline-none focus:border-[#9cf822] transition-all dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white"
-                      />
-                      <div className="relative w-28">
-                        <select 
-                          value={currency} onChange={(e) => setCurrency(e.target.value)}
-                          className="w-full appearance-none bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-4 text-xs font-bold text-black focus:outline-none focus:border-[#9cf822] dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white cursor-pointer"
-                        >
-                          <option value="USD">USD</option>
-                          <option value="EUR">EUR</option>
-                          <option value="GBP">GBP</option>
-                          <option value="NGN">NGN</option>
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <div className="flex items-end justify-between mb-2 min-h-[40px]">
-                    <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Project Scope & Details</label>
-                    <div className={`transition-all duration-500 transform ${projectName.length >= 3 ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'}`}>
-                      <button 
-                        type="button" onClick={handleGenerateAI} disabled={isAiLoading}
-                        className="flex items-center gap-2 px-4 py-1.5 bg-black text-[#9cf822] rounded-full shadow-xl hover:bg-zinc-900 transition-all dark:bg-white dark:text-black border border-zinc-800 dark:border-zinc-200"
-                      >
-                        {isAiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                        <span className="text-[10px] font-bold uppercase tracking-tight">Write Brief</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <textarea 
-                    rows={5} value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Describe the deliverables..."
-                    className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-sm text-black focus:outline-none focus:border-[#9cf822] transition-all resize-none dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Cover Image</label>
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors cursor-pointer group relative overflow-hidden">
-                      {coverImage ? (
-                        <div className="absolute inset-0 w-full h-full">
-                          <img src={URL.createObjectURL(coverImage)} alt="Cover preview" className="w-full h-full object-cover opacity-60" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                            <span className="text-[10px] font-bold text-white bg-black/50 px-3 py-1 rounded-full truncate max-w-[80%]">{coverImage.name}</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center pt-5 pb-6 text-zinc-400 group-hover:text-[#9cf822] transition-colors">
-                          <ImageIcon size={24} className="mb-2" />
-                          <p className="text-xs font-medium">Click to upload image</p>
-                        </div>
-                      )}
-                      <input 
-                        type="file" accept="image/*" className="hidden" 
-                        onChange={(e) => { if(e.target.files?.[0]) { setCoverImage(e.target.files[0]); triggerHaptic(10); } }} 
-                      />
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Brief & Assets</label>
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors cursor-pointer group">
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6 text-zinc-400 group-hover:text-[#9cf822] transition-colors">
-                        <UploadCloud size={24} className="mb-2" />
-                        <p className="text-xs font-medium">Upload project files</p>
-                      </div>
-                      <input 
-                        type="file" multiple accept=".pdf,.doc,.docx" className="hidden" 
-                        onChange={(e) => { if(e.target.files) { setDocuments(Array.from(e.target.files)); triggerHaptic(10); } }} 
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* REVENUE SPLIT SECTION WITH ICONS */}
-              <div className="p-8 bg-zinc-50/50 dark:bg-black/10">
-                <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-6 text-center">Revenue Share Split</label>
-                
-                <div className="relative h-6 w-full rounded-2xl overflow-hidden flex mb-10 bg-zinc-200 dark:bg-zinc-800 p-1 shadow-inner">
-                  <div style={{ width: `${leadShare}%` }} className="h-full bg-black dark:bg-white rounded-xl transition-all duration-500 ease-out shadow-lg" />
-                  <div style={{ width: `${collaboratorPool}%` }} className={`h-full mx-1 transition-all duration-500 rounded-xl shadow-lg ${isRolesOverAllocated ? 'bg-red-500' : 'bg-[#9cf822]'}`} />
-                  <div style={{ width: `${PLATFORM_FEE}%` }} className="h-full bg-zinc-400 dark:bg-zinc-600 rounded-xl" />
-                  
-                  <input 
-                    type="range" min="0" max="95" step="1" 
-                    value={collaboratorPool} 
-                    onChange={(e) => {
-                      setCollaboratorPool(Number(e.target.value));
-                      triggerHaptic(5);
-                    }}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-20"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-3 md:gap-4">
-                  <div className="p-4 rounded-2xl border border-zinc-100 bg-white dark:bg-zinc-900 dark:border-zinc-800 flex flex-col items-center">
-                    <Crown size={18} className="text-zinc-400 mb-2" />
-                    <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-tight mb-0.5">Lead</p>
-                    <span className="text-xl font-bold">{leadShare}%</span>
-                  </div>
-                  <div className={`p-4 rounded-2xl border flex flex-col items-center ${isRolesOverAllocated ? 'bg-red-50 border-red-200 text-red-500' : 'bg-white border-zinc-100 dark:bg-zinc-900 dark:border-zinc-800'}`}>
-                    <Users size={18} className={`${isRolesOverAllocated ? 'text-red-500' : 'text-[#5a9a00] dark:text-[#9cf822]'} mb-2`} />
-                    <p className="text-[9px] font-bold uppercase tracking-tight mb-0.5">Team</p>
-                    <span className="text-xl font-bold">{collaboratorPool}%</span>
-                  </div>
-                  <div className="p-4 rounded-2xl border border-zinc-100 bg-zinc-50 dark:bg-black/20 dark:border-zinc-800 flex flex-col items-center grayscale opacity-60">
-                    <ShieldCheck size={18} className="text-zinc-400 mb-2" />
-                    <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-tight mb-0.5">Fee</p>
-                    <span className="text-xl font-bold">{PLATFORM_FEE}%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-8">
-                <div className="flex items-center justify-between mb-6">
-                  <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Required Roles</label>
-                  <button type="button" onClick={handleAddRole} className="text-[10px] font-bold uppercase tracking-widest text-[#5a9a00] flex items-center gap-1">
-                    <Plus size={14} /> Add Role
-                  </button>
-                </div>
-                <div className="space-y-4">
-                  {roles.map((role) => (
-                    <div key={role.id} className="flex items-center gap-3">
-                      <input 
-                        type="text" value={role.title} onChange={(e) => updateRole(role.id, 'title', e.target.value)}
-                        placeholder="e.g. Lead UI Designer"
-                        className="flex-grow bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 text-sm dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white outline-none focus:border-[#9cf822]"
-                      />
-                      <div className="w-24 relative">
-                        <Percent size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                        <input 
-                          type="number" value={role.share} onChange={(e) => updateRole(role.id, 'share', e.target.value)}
-                          placeholder="0"
-                          className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-4 pr-8 text-sm dark:bg-zinc-900/40 dark:border-zinc-800 dark:text-white outline-none focus:border-[#9cf822]"
-                        />
-                      </div>
-                      <button type="button" onClick={() => handleRemoveRole(role.id)} className="p-3 text-zinc-400 hover:text-red-500 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </form>
-            
-            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-black/20">
-              <button 
-                type="button"
-                onClick={() => { setStep(2); triggerHaptic(15); }}
-                disabled={!projectName || !budget || isRolesOverAllocated}
-                className="w-full flex items-center justify-center gap-3 py-5 bg-black text-white dark:bg-white dark:text-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all font-bold text-sm uppercase tracking-widest disabled:opacity-50"
-              >
-                <span>Set Deliverables</span> <ArrowRight size={18} />
-              </button>
-            </div>
-          </div>
-
-          <div className={`transition-all duration-500 ${step === 2 ? 'block opacity-100' : 'hidden opacity-0 absolute pointer-events-none'}`}>
-            <div className="p-8">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-sm font-bold text-black dark:text-white uppercase tracking-tight">Deliverables Roadmap</h3>
-                  <p className="text-xs text-zinc-500">Break your project into trackable phases and dates.</p>
-                </div>
-                <button type="button" onClick={handleAddMilestone} className="text-[10px] font-bold uppercase tracking-widest text-[#5a9a00] flex items-center gap-1 bg-[#9cf822]/10 px-3 py-1.5 rounded-lg">
-                  <Plus size={14} /> Add Phase
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                {milestones.map((milestone, idx) => (
-                  <div key={milestone.id} className="p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40 relative group">
-                    <span className="absolute -top-3 left-4 bg-white dark:bg-black px-2 text-[10px] font-bold text-zinc-400 tracking-widest uppercase border border-zinc-100 dark:border-zinc-800 rounded-full">Phase {idx + 1}</span>
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mt-2">
-                      <div className="md:col-span-7 relative">
-                        <Target size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                        <input 
-                          type="text" value={milestone.title} onChange={(e) => updateMilestone(milestone.id, 'title', e.target.value)}
-                          placeholder="e.g. Wireframes & UI Kit"
-                          className="w-full bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 pl-9 pr-3 text-sm focus:border-[#9cf822] transition-colors outline-none text-black dark:text-white"
-                        />
-                      </div>
-                      <div className="md:col-span-5 relative flex gap-2">
-                        <div className="relative flex-grow">
-                          <input 
-                            type="date" value={milestone.timeline} 
-                            min={new Date().toISOString().split('T')[0]}
-                            onChange={(e) => updateMilestone(milestone.id, 'timeline', e.target.value)}
-                            className="w-full bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-sm focus:border-[#9cf822] transition-colors outline-none text-black dark:text-white cursor-pointer"
-                          />
-                        </div>
-                        <button type="button" onClick={() => handleRemoveMilestone(milestone.id)} className="p-3 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl transition-colors shrink-0">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-black/20">
-              <button 
-                onClick={handleDeployProject} 
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-3 py-5 bg-[#9cf822] text-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all font-bold text-sm uppercase tracking-widest disabled:opacity-50 shadow-lg shadow-[#9cf822]/20"
-              >
-                {loading ? <Loader2 className="animate-spin" size={20} /> : (
-                  <><span>Post Project</span><Briefcase size={18} /></>
-                )}
-              </button>
-            </div>
-          </div>
-
+  if (isSuccess) {
+    return (
+      <div className="max-w-2xl mx-auto mt-20 p-10 bg-zinc-900 rounded-[2rem] text-center animate-in zoom-in-95 duration-500 border border-zinc-800 shadow-2xl">
+        <div className="w-20 h-20 bg-[#9cf822]/20 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle2 size={40} className="text-[#9cf822]" />
+        </div>
+        <h2 className="text-3xl font-bold text-white mb-4">Project Live!</h2>
+        <p className="text-zinc-400 font-medium mb-8">
+          Your project has been published to the CoLab ecosystem. We're matching you with verified creators now.
+        </p>
+        <div className="flex items-center justify-center gap-2 text-sm text-zinc-500">
+          <div className="w-4 h-4 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin"></div>
+          Redirecting to community feed...
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto animate-in fade-in duration-500">
+      
+      {/* HEADER */}
+      <div className="mb-10">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#9cf822]/10 text-[#9cf822] text-xs font-bold uppercase tracking-wider rounded-full mb-4">
+          <Sparkles size={14} /> Creation Engine
+        </div>
+        <h1 className="text-3xl md:text-5xl font-bold text-zinc-900 dark:text-white tracking-tight">
+          Launch a Project
+        </h1>
+        <p className="text-zinc-500 dark:text-zinc-400 font-medium mt-2 text-lg">
+          Define your vision, lock in the escrow, and attract top-tier talent.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* LEFT COLUMN: Main Form */}
+        <div className="lg:col-span-2 space-y-8">
+          
+          {/* SECTION 1: Basic Info */}
+          <div className="bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-6 md:p-8 shadow-sm">
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
+              <AlignLeft size={20} className="text-[#9cf822]" /> Basic Details
+            </h2>
+            
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-zinc-900 dark:text-white mb-2">Project Title</label>
+                <input 
+                  type="text" 
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g., CAVIE Fintech App Redesign"
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 text-sm font-medium text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#9cf822] transition-shadow"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-bold text-zinc-900 dark:text-white mb-2">Project Brief</label>
+                <textarea 
+                  required
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  placeholder="Describe the problem, your solution, and what you expect from collaborators..."
+                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 text-sm font-medium text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#9cf822] transition-shadow resize-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2: Roles Required */}
+          <div className="bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-6 md:p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                <Users size={20} className="text-[#9cf822]" /> Roles Needed
+              </h2>
+              <span className="text-xs font-medium text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 rounded-md">
+                {roles.length} Role{roles.length > 1 ? 's' : ''}
+              </span>
+            </div>
+            
+            <div className="space-y-4">
+              {roles.map((role, index) => (
+                <div key={role.id} className="flex flex-col sm:flex-row gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <div className="flex-1">
+                    <input 
+                      type="text" 
+                      required
+                      value={role.title}
+                      onChange={(e) => handleUpdateRole(role.id, 'title', e.target.value)}
+                      placeholder="e.g., Senior Frontend Dev"
+                      className="w-full bg-transparent border-none p-0 text-sm font-bold text-zinc-900 dark:text-white focus:ring-0 placeholder-zinc-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 border-t sm:border-t-0 sm:border-l border-zinc-200 dark:border-zinc-800 pt-3 sm:pt-0 sm:pl-3">
+                    <select 
+                      value={role.type}
+                      onChange={(e) => handleUpdateRole(role.id, 'type', e.target.value)}
+                      className="bg-transparent text-sm font-medium text-zinc-600 dark:text-zinc-400 focus:ring-0 border-none p-0 cursor-pointer"
+                    >
+                      <option>Developer</option>
+                      <option>Designer</option>
+                      <option>Creator</option>
+                      <option>Marketing</option>
+                    </select>
+                    {roles.length > 1 && (
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveRole(role.id)}
+                        className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              
+              <button 
+                type="button"
+                onClick={handleAddRole}
+                className="w-full py-3 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-bold text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-700 hover:text-zinc-900 dark:hover:text-white transition-all flex items-center justify-center gap-2"
+              >
+                <Plus size={16} /> Add another role
+              </button>
+            </div>
+          </div>
+
+          {/* SECTION 3: Compensation & Escrow */}
+          <div className="bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-6 md:p-8 shadow-sm">
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-2 flex items-center gap-2">
+              <ShieldCheck size={20} className="text-[#9cf822]" /> Compensation Engine
+            </h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mb-6">
+              Funds are held securely in CoLab Escrow until milestones are met.
+            </p>
+            
+            {/* Comp Type Toggle */}
+            <div className="flex p-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl mb-6">
+              {['fixed', 'percentage', 'both'].map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setCompType(type as any)}
+                  className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all capitalize ${
+                    compType === type 
+                      ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' 
+                      : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-5">
+              {(compType === 'fixed' || compType === 'both') && (
+                <div>
+                  <label className="block text-sm font-bold text-zinc-900 dark:text-white mb-2">Total Fixed Budget (USD)</label>
+                  <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"><DollarSign size={18} /></div>
+                    <input 
+                      type="number" 
+                      value={budget}
+                      onChange={(e) => setBudget(e.target.value)}
+                      placeholder="5,000"
+                      className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl py-4 pl-10 pr-4 text-lg font-bold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#9cf822] transition-shadow"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {(compType === 'percentage' || compType === 'both') && (
+                <div>
+                  <label className="block text-sm font-bold text-zinc-900 dark:text-white mb-2">Percentage Share (Equity/Revenue)</label>
+                  <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"><Percent size={18} /></div>
+                    <input 
+                      type="number" 
+                      max="100"
+                      value={equity}
+                      onChange={(e) => setEquity(e.target.value)}
+                      placeholder="15"
+                      className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl py-4 pl-10 pr-4 text-lg font-bold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#9cf822] transition-shadow"
+                    />
+                  </div>
+                  <p className="text-[10px] text-zinc-500 mt-2 font-medium">This is the total % pool available to split among collaborators.</p>
+                </div>
+              )}
+            </div>
+            
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Summary & Actions */}
+        <div className="lg:col-span-1">
+          <div className="sticky top-24 space-y-6">
+            
+            {/* Review Card */}
+            <div className="bg-zinc-900 text-white rounded-[2rem] p-6 shadow-2xl border border-zinc-800">
+              <h3 className="text-lg font-bold mb-4">Project Overview</h3>
+              
+              <div className="space-y-4 mb-6">
+                <div>
+                  <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1">Title</p>
+                  <p className="text-sm font-medium line-clamp-1">{title || 'Untitled Project'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1">Roles Needed</p>
+                  <p className="text-sm font-medium">{roles.length} Openings</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1">Total Pool</p>
+                  <div className="flex items-center gap-2">
+                    {budget && <span className="text-lg font-bold text-[#9cf822]">${budget}</span>}
+                    {budget && equity && <span className="text-zinc-500">+</span>}
+                    {equity && <span className="text-lg font-bold text-purple-400">{equity}%</span>}
+                    {!budget && !equity && <span className="text-sm font-medium text-zinc-400">Not set</span>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-black/50 p-4 rounded-xl flex gap-3 border border-zinc-800">
+                <Info size={20} className="text-[#9cf822] shrink-0" />
+                <p className="text-xs font-medium text-zinc-400 leading-relaxed">
+                  Upon publishing, this project will appear in the Community Feed. Escrow funding will be required before work begins.
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-3">
+              <button 
+                type="submit"
+                disabled={isSubmitting || !title || (!budget && !equity)}
+                className="w-full py-4 bg-[#9cf822] text-black font-bold rounded-xl hover:bg-[#8be01d] transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-[#9cf822]/20 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                    Publishing...
+                  </div>
+                ) : (
+                  <>Publish Project <Rocket size={18} /></>
+                )}
+              </button>
+              <button 
+                type="button"
+                onClick={() => router.back()}
+                className="w-full py-4 bg-transparent border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white font-bold rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+              >
+                Save as Draft
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+      </form>
     </div>
   );
 }
