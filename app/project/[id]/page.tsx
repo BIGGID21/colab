@@ -6,7 +6,7 @@ import {
   Loader2, ArrowLeft, Users, ShieldCheck, 
   Target, Zap, Share2, Bookmark, Heart,
   ChevronRight, Plus, ExternalLink, X, Send, Banknote, Calendar,
-  LayoutDashboard, ArrowRight
+  LayoutDashboard, ArrowRight, Download
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -28,6 +28,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const router = useRouter();
 
   const [project, setProject] = useState<any>(null);
+  const [roles, setRoles] = useState<any[]>([]); // Added Roles state
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<'owner' | 'collaborator' | 'applicant' | 'guest'>('guest');
@@ -59,6 +60,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       setCurrentUserId(uid);
 
       // 2. Fetch project + founder profile + milestones
+      // Added budget, equity, cover_image_url to select
       const { data, error } = await supabase
         .from('projects')
         .select(`
@@ -72,18 +74,24 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       if (!error && data) {
         setProject(data);
         
-        // 3. Determine User Relationship to Project
+        // 3. Fetch Associated Roles (The Fix for missing roles)
+        const { data: rolesData } = await supabase
+          .from('project_roles')
+          .select('*')
+          .eq('project_id', projectId);
+        setRoles(rolesData || []);
+        
+        // 4. Determine User Relationship to Project
         if (uid) {
           if (data.user_id === uid) {
             setUserRole('owner');
           } else {
-            // Check if they have an existing collaboration/application
             const { data: collabData } = await supabase
               .from('collaborations')
               .select('status')
               .eq('project_id', projectId)
               .eq('user_id', uid)
-              .single();
+              .maybeSingle(); // Used maybeSingle to avoid 406 errors
             
             if (collabData) {
               setCollabStatus(collabData.status);
@@ -95,7 +103,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       
       setLoading(false);
 
-      // 4. Sync initial interaction state from LocalStorage
       if (typeof window !== 'undefined') {
         const savedLikes = JSON.parse(localStorage.getItem('likedProjects') || '[]');
         const savedBookmarks = JSON.parse(localStorage.getItem('savedProjects') || '[]');
@@ -109,7 +116,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const triggerActivityNotification = async (type: 'like' | 'save' | 'share') => {
     try {
       if (!currentUserId || userRole === 'owner') return;
-
       await supabase.from('notifications').insert({
         user_id: project.user_id, 
         sender_id: currentUserId,      
@@ -130,7 +136,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     triggerHaptic(10);
     let liked = JSON.parse(localStorage.getItem('likedProjects') || '[]');
     if (newLiked) liked.push(projectId);
-    else liked = liked.filter((id: string) => id !== projectId);
+    else liked = liked.filter((id: string = '') => id !== projectId);
     localStorage.setItem('likedProjects', JSON.stringify(liked));
     if (newLiked) await triggerActivityNotification('like');
   };
@@ -141,7 +147,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     triggerHaptic(10);
     let saved = JSON.parse(localStorage.getItem('savedProjects') || '[]');
     if (newSaved) saved.push(projectId);
-    else saved = saved.filter((id: string) => id !== projectId);
+    else saved = saved.filter((id: string = '') => id !== projectId);
     localStorage.setItem('savedProjects', JSON.stringify(saved));
     if (newSaved) await triggerActivityNotification('save');
   };
@@ -168,7 +174,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setIsSending(true);
     try {
       if (!currentUserId) throw new Error('Please sign in to collaborate');
-
       const { error: collaboError } = await supabase
         .from('collaborations')
         .insert({
@@ -177,18 +182,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           message: requestMessage,
           status: 'pending'
         });
-
       if (collaboError) throw collaboError;
-
-      await supabase
-        .from('notifications').insert({
+      await supabase.from('notifications').insert({
           user_id: project.user_id,
           sender_id: currentUserId,      
           project_id: projectId,
           type: 'request',
           message: 'sent a collaboration request for'
         });
-      
       alert('Application sent! The project lead has been notified.');
       setShowModal(false);
       setUserRole('applicant');
@@ -214,6 +215,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       </Link>
     </div>
   );
+
+  // --- SMART FALLBACKS (The Fix for older project data) ---
+  const displayImage = project.cover_image_url || project.image_url;
+  const displayBudget = project.budget || project.valuation || 0;
+  const displayEquity = project.equity || project.available_share || 0;
 
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-20">
@@ -243,8 +249,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           {/* LEFT: THE VISION */}
           <div className="lg:col-span-7 space-y-12">
             <div className="aspect-video rounded-[2.5rem] overflow-hidden border border-zinc-100 dark:border-zinc-900 shadow-2xl bg-zinc-50 dark:bg-zinc-950 relative">
-              {project.image_url ? (
-                <img src={project.image_url} className="w-full h-full object-cover" alt={project.title} />
+              {displayImage ? (
+                <img src={displayImage} className="w-full h-full object-cover" alt={project.title} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-zinc-300 italic font-medium tracking-tight">Project Asset Pending</div>
               )}
@@ -261,10 +267,28 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <h1 className="text-4xl md:text-6xl font-semibold text-black dark:text-white tracking-tight leading-tight">
                 {project.title}
               </h1>
-              <p className="text-lg text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-2xl">
+              <p className="text-lg text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-2xl whitespace-pre-wrap">
                 {project.description}
               </p>
             </section>
+
+            {/* Additional Files Section */}
+            {project.additional_files?.length > 0 && (
+              <section className="pt-10 border-t border-zinc-100 dark:border-zinc-900">
+                <div className="flex items-center gap-2 mb-6">
+                  <Download size={20} className="text-[#9cf822]" />
+                  <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Project Assets</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {project.additional_files.map((file: string, idx: number) => (
+                    <a key={idx} href={file} target="_blank" className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-900/40 rounded-2xl border border-zinc-100 dark:border-zinc-800 hover:border-[#9cf822] transition-all group">
+                      <span className="text-sm font-bold truncate pr-4">Attachment_{idx + 1}.pdf</span>
+                      <ArrowRight size={16} className="text-zinc-400 group-hover:text-[#9cf822]" />
+                    </a>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="pt-10 border-t border-zinc-100 dark:border-zinc-900">
                <div className="flex items-center gap-2 mb-8">
@@ -298,7 +322,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </section>
           </div>
 
-          {/* RIGHT: THE ENGINE (DETERMINES ACTIONS BASED ON ROLE) */}
+          {/* RIGHT: THE ENGINE */}
           <div className="lg:col-span-5">
             <div className="sticky top-28 space-y-8">
               
@@ -311,13 +335,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <div className="flex justify-between items-start mb-8">
                     <div>
                       <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Available Share</span>
-                      <h2 className="text-4xl font-semibold text-black dark:text-white mt-2">{project.available_share || 0}%</h2>
+                      <h2 className="text-4xl font-semibold text-black dark:text-white mt-2">{displayEquity}%</h2>
                     </div>
                     <div className="text-right">
                       <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Total Budget</span>
                       <div className="flex items-center justify-end gap-1 text-[#5a9a00] dark:text-[#9cf822] mt-2 font-bold text-xl tracking-tight">
                         <Banknote size={18} strokeWidth={2.5} />
-                        {getCurrencySymbol(project.currency)} {project.valuation?.toLocaleString() || '0'}
+                        {getCurrencySymbol(project.currency)} {displayBudget.toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -356,6 +380,28 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               </div>
 
+              {/* Roles Needed (The dynamic section) */}
+              <div className="bg-white dark:bg-[#0a0a0a] rounded-[2rem] p-8 border border-zinc-100 dark:border-zinc-900">
+                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                  <Users size={18} className="text-[#9cf822]" /> Roles Available
+                </h3>
+                <div className="space-y-4">
+                  {roles.length > 0 ? roles.map((role) => (
+                    <div key={role.id} className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between group">
+                      <div>
+                        <p className="text-sm font-bold dark:text-white">{role.title || role.role_name}</p>
+                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{role.type}</p>
+                      </div>
+                      <div className="px-3 py-1 bg-white dark:bg-black rounded-full text-[9px] font-black border border-zinc-200 dark:border-zinc-800 text-zinc-400 uppercase tracking-tighter">
+                        Open
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="text-xs text-zinc-500 font-medium italic">No specific roles defined yet.</p>
+                  )}
+                </div>
+              </div>
+
               {/* FOUNDER BRANDING CARD */}
               <div className="p-6 rounded-[2rem] border border-zinc-100 dark:border-zinc-900 flex flex-col gap-6 bg-white dark:bg-black relative">
                  <div className="flex items-center gap-4">
@@ -377,7 +423,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                    <p className="text-xs text-zinc-500 leading-relaxed italic line-clamp-3">"{project.profiles.bio}"</p>
                  )}
                  {userRole !== 'owner' && (
-                   <Link href={`/profile/${project.user_id}`} className="w-full py-3 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white rounded-xl text-xs font-bold text-center border border-zinc-100 dark:border-zinc-800 flex items-center justify-center gap-2">
+                   <Link href={`/profile/${project.user_id}`} className="w-full py-3 bg-zinc-50 dark:bg-zinc-900 text-black dark:text-white rounded-xl text-xs font-bold text-center border border-zinc-100 dark:border-zinc-800 flex items-center justify-center gap-2 transition-all hover:bg-[#9cf822]/10 hover:border-[#9cf822]/20">
                      View Full Profile <ExternalLink size={12} />
                    </Link>
                  )}
