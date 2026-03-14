@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Rocket, AlignLeft, Users, DollarSign, Percent, 
-  Plus, Trash2, ShieldCheck, Info, ArrowRight, Sparkles, CheckCircle2
+  Plus, Trash2, ShieldCheck, Info, ArrowRight, Sparkles, CheckCircle2, Bot
 } from 'lucide-react';
 
 export default function CreateProjectPage() {
@@ -23,6 +23,9 @@ export default function CreateProjectPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // --- CoL-Pal (AI) State ---
+  const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
+
   // --- Handlers ---
   const handleAddRole = () => {
     setRoles([...roles, { id: Date.now(), title: '', type: 'Designer' }]);
@@ -36,6 +39,21 @@ export default function CreateProjectPage() {
 
   const handleUpdateRole = (id: number, field: string, value: string) => {
     setRoles(roles.map(r => r.id === id ? { ...r, [field]: value } : r));
+  };
+
+  // --- CoL-Pal Generation Logic ---
+  const generateBriefWithAI = () => {
+    if (!title) return;
+    
+    setIsGeneratingBrief(true);
+    
+    // Simulate AI thinking and generating based on the title
+    setTimeout(() => {
+      const generatedText = `Project Overview:\nWe are building a cutting-edge solution for "${title}". The goal is to deliver a premium, high-performing product that stands out in the market.\n\nKey Objectives:\n- Design an intuitive, high-fidelity user interface.\n- Architect a robust, secure, and scalable infrastructure.\n- Ensure cross-platform responsiveness and seamless user experience.\n\nCollaborator Expectations:\nWe are looking for dedicated professionals who can take ownership of their roles, communicate effectively, and ship high-quality work on schedule.`;
+      
+      setDescription(generatedText);
+      setIsGeneratingBrief(false);
+    }, 1800);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -113,15 +131,50 @@ export default function CreateProjectPage() {
               </div>
               
               <div>
-                <label className="block text-sm font-bold text-zinc-900 dark:text-white mb-2">Project Brief</label>
-                <textarea 
-                  required
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
-                  placeholder="Describe the problem, your solution, and what you expect from collaborators..."
-                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 text-sm font-medium text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#9cf822] transition-shadow resize-none"
-                />
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-bold text-zinc-900 dark:text-white">Project Brief</label>
+                  {/* CoL-Pal Status Indicator */}
+                  {title.length > 3 && description.length === 0 && !isGeneratingBrief && (
+                    <span className="text-[10px] font-bold text-[#9cf822] flex items-center gap-1 animate-pulse uppercase tracking-wider">
+                      <Bot size={12} /> CoL-Pal is ready
+                    </span>
+                  )}
+                </div>
+                
+                <div className="relative">
+                  <textarea 
+                    required
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={6}
+                    placeholder="Describe the problem, your solution, and what you expect from collaborators..."
+                    className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 text-sm font-medium text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#9cf822] transition-shadow resize-none"
+                  />
+                  
+                  {/* Floating CoL-Pal AI Prompt */}
+                  {title.length > 3 && description.length < 10 && (
+                    <div className="absolute bottom-4 right-4 z-10 animate-in zoom-in fade-in duration-300">
+                      <button
+                        type="button"
+                        onClick={generateBriefWithAI}
+                        disabled={isGeneratingBrief}
+                        className="flex items-center gap-2 bg-zinc-900 dark:bg-white text-[#9cf822] dark:text-black px-4 py-2.5 rounded-xl text-sm font-bold shadow-xl hover:scale-105 transition-all disabled:opacity-80 disabled:hover:scale-100"
+                      >
+                        {isGeneratingBrief ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div> 
+                            Drafting...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={16} /> 
+                            Auto-write with CoL-Pal
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
