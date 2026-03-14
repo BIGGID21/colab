@@ -568,6 +568,4 @@ export default function CreateProjectPage() {
       </form>
     </div>
   );
-}git add .
-git commit -m "fix: resolve project_roles schema mismatch and stabilize multi-table insertion"
-git push
+}
