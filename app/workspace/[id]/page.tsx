@@ -14,7 +14,7 @@ import {
   Wallet, Lock, DollarSign, CreditCard,
   Trash2, Maximize2, Sun, Moon,
   ShieldCheck, Image as ImageIcon,
-  Paperclip, ArrowUpRight
+  Paperclip, ArrowUpRight, Pin
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
@@ -68,7 +68,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [isFounder, setIsFounder] = useState(false);
-  const [isProcessing, setIsProcessing] = useState<string | null>(null); // Track which milestone is processing
+  const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
   // Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -116,14 +116,14 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       const isOwner = projectData.user_id === authUser.id;
       setIsFounder(isOwner);
 
-      // 2. Fetch Team (Accepted Collaborators)
+      // 2. Fetch Team
       const { data: collaborators } = await supabase
         .from('collaborations')
         .select('*, profiles:user_id(full_name, avatar_url, role)')
         .eq('project_id', projectId)
         .eq('status', 'accepted');
 
-      // Security Access Check: If not owner and not an accepted collaborator, kick them out.
+      // Security Access Check
       const isTeamMember = collaborators?.some(c => c.user_id === authUser.id);
       if (!isOwner && !isTeamMember) {
         return router.push(`/project/${projectId}`); 
@@ -159,24 +159,33 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     
     const channel = supabase.channel(`workspace_chat_${projectId}`)
       .on('postgres_changes', { 
-        event: 'INSERT', 
+        event: '*', // Listen for INSERT, UPDATE, and DELETE
         schema: 'public', 
         table: 'messages',
         filter: `project_id=eq.${projectId}`
       }, async (payload) => {
-        // Fetch the profile for the new message
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('full_name, avatar_url')
-          .eq('id', payload.new.user_id)
-          .single();
-          
-        const completeMessage = { ...payload.new, profiles: profileData };
-        setMessages(prev => [...prev, completeMessage]);
         
-        // Auto-scroll
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        // Handle new messages
+        if (payload.eventType === 'INSERT') {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url')
+            .eq('id', payload.new.user_id)
+            .single();
+            
+          const completeMessage = { ...payload.new, profiles: profileData };
+          setMessages(prev => [...prev, completeMessage]);
+          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+
+        // Handle deleted messages
+        if (payload.eventType === 'DELETE') {
+          setMessages(prev => prev.filter(msg => msg.id !== payload.old.id));
+        }
+
+        // Handle updated messages (like pinning)
+        if (payload.eventType === 'UPDATE') {
+          setMessages(prev => prev.map(msg => msg.id === payload.new.id ? { ...msg, ...payload.new } : msg));
         }
       })
       .subscribe();
@@ -184,7 +193,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     return () => { supabase.removeChannel(channel); };
   }, [projectId, isChatOpen, supabase]);
 
-  // Auto-scroll on initial load when opening chat
   useEffect(() => {
     if (isChatOpen && scrollRef.current) {
       setTimeout(() => {
@@ -198,20 +206,16 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   // HANDLERS
   // ----------------------------------------------------------------------
 
-  // Milestone Progress Handler
   const handleToggleMilestone = async (m: any) => {
-    if (!isFounder) return; // Only founders can check off milestones for now
+    if (!isFounder) return; 
     
     triggerHaptic([10, 30]);
     const newStatus = m.status === 'completed' ? 'pending' : 'completed';
     
-    // Optimistic UI
     setMilestones(prev => prev.map(milestone => milestone.id === m.id ? { ...milestone, status: newStatus } : milestone));
-
     await supabase.from('milestones').update({ status: newStatus }).eq('id', m.id);
   };
 
-  // Payment Handler (Paystack)
   const handlePayment = (amount: number, milestoneId: string) => {
     if (!user) return;
     setIsProcessing(milestoneId);
@@ -227,7 +231,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     const handler = window.PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
       email: user.email,
-      amount: amount * 100 * 1500, // Standard NGN conversion fallback if needed
+      amount: amount * 100 * 1500,
       currency: 'NGN',
       callback: async (response: any) => {
         const { error } = await supabase.from('milestones').update({ 
@@ -246,7 +250,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     handler.openIframe();
   };
 
-  // Chat Submission Handler
+  // Chat: Send Message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() && !pendingAttachment) return;
@@ -255,7 +259,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     let attachmentUrl = null;
 
     try {
-      // 1. Handle File Upload if exists
       if (pendingAttachment) {
         setIsChatUploading(true);
         const fileExt = pendingAttachment.name.split('.').pop();
@@ -275,7 +278,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         attachmentUrl = publicUrl;
       }
 
-      // 2. Insert Message Record
       await supabase.from('messages').insert({
         project_id: projectId,
         user_id: user.id,
@@ -286,19 +288,58 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         attachment_name: pendingAttachment?.name
       });
 
-      // Reset Input
       setNewMessage('');
       setPendingAttachment(null);
       if (chatFileInputRef.current) chatFileInputRef.current.value = '';
       
       triggerHaptic(10);
-
     } catch (error) {
       console.error("Message error:", error);
       alert("Failed to send message.");
     } finally {
       setIsSending(false);
       setIsChatUploading(false);
+    }
+  };
+
+  // Chat: Delete Message
+  const handleDeleteMessage = async (messageId: string) => {
+    // Optimistic UI update
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+    
+    // DB deletion
+    await supabase.from('messages').delete().eq('id', messageId);
+    triggerHaptic(10);
+  };
+
+  // Chat: Toggle Pin Message (Founder Only)
+  const handleTogglePin = async (messageId: string, currentPinStatus: boolean) => {
+    const newStatus = !currentPinStatus;
+
+    // Optimistic UI update
+    setMessages(prev => prev.map(m => ({
+      ...m,
+      // Unpin all other messages if we are pinning a new one
+      is_pinned: m.id === messageId ? newStatus : (newStatus ? false : m.is_pinned) 
+    })));
+
+    try {
+      if (newStatus) {
+        // Unpin others in the database first
+        await supabase.from('messages')
+          .update({ is_pinned: false })
+          .eq('project_id', projectId)
+          .neq('id', messageId);
+      }
+      
+      // Pin/Unpin the target message
+      await supabase.from('messages')
+        .update({ is_pinned: newStatus })
+        .eq('id', messageId);
+        
+      triggerHaptic([10, 20]);
+    } catch (error) {
+      console.error("Failed to pin message:", error);
     }
   };
 
@@ -318,9 +359,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const currencySymbol = getCurrencySymbol(project?.currency);
   const displayImage = project?.cover_image_url || project?.image_url;
 
-  // Calculate Progress
   const completedMilestones = milestones.filter(m => m.status === 'completed').length;
   const progressPercentage = milestones.length > 0 ? Math.round((completedMilestones / milestones.length) * 100) : 0;
+  const pinnedMessage = messages.find(m => m.is_pinned);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-20 overflow-x-hidden text-left font-sans">
@@ -369,7 +410,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         {/* LEFT COLUMN: ROADMAP & DELIVERABLES */}
         <div className="lg:col-span-8 space-y-8">
           
-          {/* Progress Header */}
           <div className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-900 rounded-[2rem] p-8 shadow-sm">
             <div className="flex justify-between items-end mb-4">
                <div>
@@ -390,7 +430,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             </div>
           </div>
 
-          {/* Milestones List */}
           <div className="space-y-4">
             {milestones.length > 0 ? milestones.map((m, index) => {
               const mockPrice = m.price || (totalBudget / (milestones.length || 1)).toFixed(0);
@@ -405,7 +444,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-6">
                     
                     <div className="flex gap-4">
-                      {/* Interactive Toggle for Founders, Read-only icon for others */}
                       <button 
                         onClick={() => handleToggleMilestone(m)}
                         disabled={!isFounder}
@@ -431,13 +469,11 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                     </div>
 
                     <div className="shrink-0 flex items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
-                       {/* Milestone Value */}
                        <div className="text-right">
                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-0.5">Value</span>
                          <span className={`font-bold ${isCompleted ? 'text-zinc-400' : 'text-black dark:text-white'}`}>{currencySymbol}{Number(mockPrice).toLocaleString()}</span>
                        </div>
 
-                       {/* Action Button (Fund) - Only for Founders if not funded and not complete */}
                        {isFounder && !isFunded && !isCompleted && (
                          <button 
                            disabled={isProcessing === m.id}
@@ -468,9 +504,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         {/* ------------------------------------------------------------------ */}
         <div className="lg:col-span-4 space-y-6">
           
-          {/* Financials Card */}
           <section className="bg-black text-white dark:bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
-             {/* Decorative Background */}
              <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
                <DollarSign size={160} />
              </div>
@@ -496,14 +530,12 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
              </div>
           </section>
 
-          {/* Active Roster */}
           <section className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-900 rounded-[2.5rem] p-8">
             <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-6 flex items-center gap-2">
               <Users size={16} /> Active Roster
             </h2>
             
             <div className="space-y-4">
-              {/* Founder Card */}
               <div className="flex items-center gap-4 group">
                  <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 border-2 border-[#9cf822] shrink-0">
                     {project?.profiles?.avatar_url ? (
@@ -523,7 +555,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                  </div>
               </div>
 
-              {/* Collaborators */}
               {team.map(member => (
                 <div key={member.id} className="flex items-center gap-4">
                    <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shrink-0">
@@ -548,7 +579,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             </div>
           </section>
 
-          {/* Project Assets Quick Links */}
           {project?.additional_files?.length > 0 && (
             <section className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-900 rounded-[2rem] p-6">
                <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -579,7 +609,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             <ChatWallpaper />
 
             {/* Chat Header */}
-            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-900 flex justify-between items-center bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-md relative z-10">
+            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-900 flex justify-between items-center bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-md relative z-20">
               <div>
                 <h3 className="text-sm font-bold text-black dark:text-white flex items-center gap-2">
                   <Zap size={16} className="text-[#9cf822] fill-[#9cf822]" /> Team Sync
@@ -590,6 +620,32 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                 <X size={16} />
               </button>
             </div>
+
+            {/* Pinned Message Banner */}
+            {pinnedMessage && (
+              <div className="px-6 py-3 bg-zinc-100/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 relative z-10 shadow-sm">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <Pin size={14} className="text-[#9cf822] fill-[#9cf822]/20 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold text-black dark:text-white truncate">
+                      Pinned by Lead
+                    </p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 truncate mt-0.5">
+                      {pinnedMessage.content || 'Attached a file'}
+                    </p>
+                  </div>
+                </div>
+                {isFounder && (
+                  <button 
+                    onClick={() => handleTogglePin(pinnedMessage.id, true)} 
+                    className="p-1.5 text-zinc-400 hover:text-black dark:hover:text-white bg-white dark:bg-black rounded-full border border-zinc-200 dark:border-zinc-800 transition-colors shrink-0"
+                    title="Unpin message"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Chat Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 relative z-10" ref={scrollRef}>
@@ -605,7 +661,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                   const isFounderMsg = msg.user_id === project.user_id;
 
                   return (
-                    <div key={msg.id} className={`flex gap-3 max-w-[85%] ${isMe ? 'ml-auto flex-row-reverse' : ''}`}>
+                    <div key={msg.id} className={`flex gap-3 max-w-[85%] group ${isMe ? 'ml-auto flex-row-reverse' : ''}`}>
                       <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 shrink-0 border border-zinc-100 dark:border-zinc-900">
                         {msg.profiles?.avatar_url ? (
                           <img src={msg.profiles.avatar_url} className="w-full h-full object-cover" alt="User" />
@@ -613,39 +669,67 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                           <User size={14} className="m-auto mt-2 text-zinc-500" />
                         )}
                       </div>
-                      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} relative`}>
                         <div className="flex items-center gap-2 mb-1">
                            <span className="text-[10px] font-bold text-zinc-500">{msg.profiles?.full_name || 'User'}</span>
                            {isFounderMsg && <span className="bg-[#9cf822]/20 text-[#5a9a00] dark:text-[#9cf822] text-[8px] font-black px-1.5 rounded uppercase tracking-widest border border-[#9cf822]/30">Lead</span>}
                         </div>
-                        <div className={`p-4 rounded-2xl text-sm ${
-                          isMe 
-                            ? 'bg-[#9cf822] text-black rounded-tr-sm' 
-                            : 'bg-zinc-100 dark:bg-zinc-900 text-black dark:text-white rounded-tl-sm border border-zinc-200 dark:border-zinc-800'
-                        }`}>
-                          {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
+                        
+                        <div className={`relative flex items-center gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
                           
-                          {/* Attachments rendering */}
-                          {msg.attachment_url && (
-                            <div className={`mt-2 ${msg.content ? 'pt-2 border-t border-black/10 dark:border-white/10' : ''}`}>
-                              {msg.attachment_type === 'image' ? (
-                                <img 
-                                  src={msg.attachment_url} 
-                                  className="w-full max-w-[200px] rounded-xl cursor-pointer hover:opacity-90"
-                                  onClick={() => setSelectedMedia(msg.attachment_url)}
-                                  alt="Attachment" 
-                                />
-                              ) : (
-                                <a 
-                                  href={msg.attachment_url} target="_blank" 
-                                  className={`flex items-center gap-2 text-xs font-bold hover:underline ${isMe ? 'text-black/70 hover:text-black' : 'text-zinc-500 hover:text-[#9cf822]'}`}
-                                >
-                                  <FileText size={14} /> {msg.attachment_name || 'Download File'}
-                                </a>
-                              )}
-                            </div>
-                          )}
+                          {/* Message Actions (Visible on Hover) */}
+                          <div className={`opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ${isMe ? 'mr-1' : 'ml-1'}`}>
+                             {isFounder && (
+                               <button 
+                                 onClick={() => handleTogglePin(msg.id, msg.is_pinned)} 
+                                 className="p-1.5 text-zinc-400 hover:text-[#9cf822] bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-900 rounded-full shadow-sm"
+                                 title={msg.is_pinned ? "Unpin message" : "Pin message"}
+                               >
+                                 <Pin size={12} className={msg.is_pinned ? 'fill-current' : ''} />
+                               </button>
+                             )}
+                             {isMe && (
+                               <button 
+                                 onClick={() => handleDeleteMessage(msg.id)} 
+                                 className="p-1.5 text-zinc-400 hover:text-red-500 bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-900 rounded-full shadow-sm"
+                                 title="Delete message"
+                               >
+                                 <Trash2 size={12} />
+                               </button>
+                             )}
+                          </div>
+
+                          {/* Message Bubble */}
+                          <div className={`p-4 rounded-2xl text-sm ${
+                            isMe 
+                              ? 'bg-[#9cf822] text-black rounded-tr-sm' 
+                              : 'bg-zinc-100 dark:bg-zinc-900 text-black dark:text-white rounded-tl-sm border border-zinc-200 dark:border-zinc-800'
+                          }`}>
+                            {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
+                            
+                            {/* Attachments rendering */}
+                            {msg.attachment_url && (
+                              <div className={`mt-2 ${msg.content ? 'pt-2 border-t border-black/10 dark:border-white/10' : ''}`}>
+                                {msg.attachment_type === 'image' ? (
+                                  <img 
+                                    src={msg.attachment_url} 
+                                    className="w-full max-w-[200px] rounded-xl cursor-pointer hover:opacity-90 border border-black/5 dark:border-white/5"
+                                    onClick={() => setSelectedMedia(msg.attachment_url)}
+                                    alt="Attachment" 
+                                  />
+                                ) : (
+                                  <a 
+                                    href={msg.attachment_url} target="_blank" 
+                                    className={`flex items-center gap-2 text-xs font-bold hover:underline ${isMe ? 'text-black/70 hover:text-black' : 'text-zinc-500 hover:text-[#9cf822]'}`}
+                                  >
+                                    <FileText size={14} /> {msg.attachment_name || 'Download File'}
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
+
                         <span className="text-[9px] text-zinc-400 font-medium mt-1 uppercase tracking-wider">
                           {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
                         </span>
