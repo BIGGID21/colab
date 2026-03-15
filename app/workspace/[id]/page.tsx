@@ -136,7 +136,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         .eq('project_id', projectId)
         .order('id', { ascending: true });
 
-      // 4. Fetch Messages
+      // 4. Fetch Messages (Explicitly pulling is_pinned)
       const { data: msgData } = await supabase
         .from('messages')
         .select('*, profiles:user_id(full_name, avatar_url)')
@@ -302,44 +302,54 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     }
   };
 
-  // Chat: Delete Message
+  // Chat: Delete Message (True Data Sync)
   const handleDeleteMessage = async (messageId: string) => {
-    // Optimistic UI update
-    setMessages(prev => prev.filter(m => m.id !== messageId));
+    // 1. Delete from Supabase Database
+    const { error } = await supabase.from('messages').delete().eq('id', messageId);
     
-    // DB deletion
-    await supabase.from('messages').delete().eq('id', messageId);
+    if (error) {
+      console.error("Failed to delete message:", error);
+      alert("Failed to delete message.");
+      return;
+    }
+
+    // 2. Optimistically update local state so UI feels instant
+    setMessages(prev => prev.filter(m => m.id !== messageId));
     triggerHaptic(10);
   };
 
-  // Chat: Toggle Pin Message (Founder Only)
+  // Chat: Toggle Pin Message (True Data Sync - Founder Only)
   const handleTogglePin = async (messageId: string, currentPinStatus: boolean) => {
     const newStatus = !currentPinStatus;
 
-    // Optimistic UI update
-    setMessages(prev => prev.map(m => ({
-      ...m,
-      // Unpin all other messages if we are pinning a new one
-      is_pinned: m.id === messageId ? newStatus : (newStatus ? false : m.is_pinned) 
-    })));
-
     try {
       if (newStatus) {
-        // Unpin others in the database first
+        // If pinning a NEW message, we must unpin all others in the DB first
         await supabase.from('messages')
           .update({ is_pinned: false })
           .eq('project_id', projectId)
           .neq('id', messageId);
       }
       
-      // Pin/Unpin the target message
-      await supabase.from('messages')
+      // Update the specific message in the database
+      const { error } = await supabase.from('messages')
         .update({ is_pinned: newStatus })
         .eq('id', messageId);
         
+      if (error) throw error;
+
+      // Optimistically update local UI immediately
+      setMessages(prev => prev.map(m => ({
+        ...m,
+        // If the new status is true, make this one true and all others false. 
+        // If false, just make this one false.
+        is_pinned: m.id === messageId ? newStatus : (newStatus ? false : m.is_pinned) 
+      })));
+
       triggerHaptic([10, 20]);
     } catch (error) {
       console.error("Failed to pin message:", error);
+      alert("Failed to update pin status.");
     }
   };
 
@@ -361,7 +371,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
   const completedMilestones = milestones.filter(m => m.status === 'completed').length;
   const progressPercentage = milestones.length > 0 ? Math.round((completedMilestones / milestones.length) * 100) : 0;
-  const pinnedMessage = messages.find(m => m.is_pinned);
+  
+  // Reliably find the pinned message from state
+  const pinnedMessage = messages.find(m => m.is_pinned === true);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-20 overflow-x-hidden text-left font-sans">
