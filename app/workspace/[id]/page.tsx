@@ -153,7 +153,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     fetchWorkspaceData();
   }, [projectId, supabase, router]);
 
-  // Real-time Chat Subscription
+  // Real-time Chat Subscription (This exclusively handles UI updates now)
   useEffect(() => {
     if (!isChatOpen) return;
     
@@ -302,54 +302,60 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     }
   };
 
-  // Chat: Delete Message (True Data Sync)
+  // Chat: Delete Message (Strict Real Data Sync)
   const handleDeleteMessage = async (messageId: string) => {
-    // 1. Delete from Supabase Database
-    const { error } = await supabase.from('messages').delete().eq('id', messageId);
+    // 1. Send delete command and select to confirm it actually worked
+    const { data, error } = await supabase.from('messages')
+      .delete()
+      .eq('id', messageId)
+      .select();
     
     if (error) {
-      console.error("Failed to delete message:", error);
-      alert("Failed to delete message.");
+      alert("Database Error: " + error.message);
       return;
     }
 
-    // 2. Optimistically update local state so UI feels instant
-    setMessages(prev => prev.filter(m => m.id !== messageId));
+    // 2. If data is empty, RLS blocked it.
+    if (!data || data.length === 0) {
+      alert("BLOCKED: Your database security rules (RLS) prevented the deletion. Please allow users to DELETE messages in your Supabase dashboard.");
+      return;
+    }
+
     triggerHaptic(10);
+    // Note: We DO NOT manually update state here. The postgres_changes listener will see the DB delete and remove it from the screen.
   };
 
-  // Chat: Toggle Pin Message (True Data Sync - Founder Only)
+  // Chat: Toggle Pin Message (Strict Real Data Sync)
   const handleTogglePin = async (messageId: string, currentPinStatus: boolean) => {
     const newStatus = !currentPinStatus;
 
     try {
       if (newStatus) {
-        // If pinning a NEW message, we must unpin all others in the DB first
+        // Unpin others in DB
         await supabase.from('messages')
           .update({ is_pinned: false })
           .eq('project_id', projectId)
           .neq('id', messageId);
       }
       
-      // Update the specific message in the database
-      const { error } = await supabase.from('messages')
+      // Update target and verify
+      const { data, error } = await supabase.from('messages')
         .update({ is_pinned: newStatus })
-        .eq('id', messageId);
+        .eq('id', messageId)
+        .select();
         
       if (error) throw error;
 
-      // Optimistically update local UI immediately
-      setMessages(prev => prev.map(m => ({
-        ...m,
-        // If the new status is true, make this one true and all others false. 
-        // If false, just make this one false.
-        is_pinned: m.id === messageId ? newStatus : (newStatus ? false : m.is_pinned) 
-      })));
+      if (!data || data.length === 0) {
+        alert("BLOCKED: Your database security rules (RLS) prevented this update, OR the 'is_pinned' column does not exist. Please check your Supabase dashboard.");
+        return;
+      }
 
       triggerHaptic([10, 20]);
-    } catch (error) {
+      // Note: We DO NOT manually update state here. The postgres_changes listener updates the UI when the DB confirms the change.
+    } catch (error: any) {
       console.error("Failed to pin message:", error);
-      alert("Failed to update pin status.");
+      alert("Database Error: " + (error.message || "Failed to update pin status."));
     }
   };
 
@@ -372,7 +378,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const completedMilestones = milestones.filter(m => m.status === 'completed').length;
   const progressPercentage = milestones.length > 0 ? Math.round((completedMilestones / milestones.length) * 100) : 0;
   
-  // Reliably find the pinned message from state
   const pinnedMessage = messages.find(m => m.is_pinned === true);
 
   return (
