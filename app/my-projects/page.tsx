@@ -207,8 +207,8 @@ export default function DashboardPage() {
           {activeTab === 'owned' && myProjects.map(p => (
             <div key={p.id} className="group bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800/60 rounded-2xl overflow-hidden hover:border-zinc-300 dark:hover:border-zinc-700 transition-all flex flex-col">
               <div className="aspect-[16/10] bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
-                {p.image_url ? (
-                  <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                {p.cover_image_url || p.image_url ? (
+                  <img src={p.cover_image_url || p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : <ImageIcon size={24} className="text-zinc-300 dark:text-zinc-800" />}
               </div>
               <div className="p-6">
