@@ -11,7 +11,6 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-// 1. Currency Helper
 const getCurrencySymbol = (currency: string) => {
   switch (currency?.toUpperCase()) {
     case 'EUR': return '€';
@@ -34,7 +33,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [userRole, setUserRole] = useState<'owner' | 'collaborator' | 'applicant' | 'guest'>('guest');
   const [collabStatus, setCollabStatus] = useState<string | null>(null);
   
-  // Interaction States
   const [isLiked, setIsLiked] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -220,8 +218,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       
       <nav className="sticky top-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-900 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <Link href="/discover" className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-black dark:hover:text-white transition-colors">
-            <ArrowLeft size={16} /> Back to Discover
+          {/* Dynamic Navigation Logic */}
+          <Link 
+            href={userRole === 'owner' ? '/dashboard' : '/discover'} 
+            className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
+          >
+            <ArrowLeft size={16} /> 
+            {userRole === 'owner' ? 'Back to Dashboard' : 'Back to Discover'}
           </Link>
           <div className="flex items-center gap-1">
             <button onClick={handleToggleLike} className={`p-2 transition-colors ${isLiked ? 'text-red-500' : 'text-zinc-400 hover:text-red-500'}`}>
