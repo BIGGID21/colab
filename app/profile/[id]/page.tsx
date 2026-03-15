@@ -270,7 +270,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[1px] sm:gap-6 pb-24">
                   {projects.map((p, i) => (
                     <div key={i} className="aspect-[4/3] bg-zinc-100 dark:bg-zinc-900 sm:rounded-[2rem] border-b sm:border border-zinc-200 dark:border-zinc-900 overflow-hidden relative group cursor-pointer shadow-sm">
-                       <img src={p.image_url || p.cover_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={p.title} />
+                       {p.cover_image_url || p.image_url ? (
+                         <img src={p.cover_image_url || p.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={p.title} />
+                       ) : (
+                         <div className="w-full h-full flex items-center justify-center">
+                           <ImageIcon size={32} className="text-zinc-300 dark:text-zinc-800" />
+                         </div>
+                       )}
                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
                           <p className="text-sm font-bold text-white">{p.title}</p>
                        </div>
