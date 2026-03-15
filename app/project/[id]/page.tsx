@@ -28,7 +28,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const router = useRouter();
 
   const [project, setProject] = useState<any>(null);
-  const [roles, setRoles] = useState<any[]>([]); // Added Roles state
+  const [roles, setRoles] = useState<any[]>([]); 
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<'owner' | 'collaborator' | 'applicant' | 'guest'>('guest');
@@ -54,13 +54,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     async function fetchProjectAndUserStatus() {
-      // 1. Get current logged-in user
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id || null;
       setCurrentUserId(uid);
 
-      // 2. Fetch project + founder profile + milestones
-      // Added budget, equity, cover_image_url to select
       const { data, error } = await supabase
         .from('projects')
         .select(`
@@ -74,14 +71,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       if (!error && data) {
         setProject(data);
         
-        // 3. Fetch Associated Roles (The Fix for missing roles)
         const { data: rolesData } = await supabase
           .from('project_roles')
           .select('*')
           .eq('project_id', projectId);
         setRoles(rolesData || []);
         
-        // 4. Determine User Relationship to Project
         if (uid) {
           if (data.user_id === uid) {
             setUserRole('owner');
@@ -91,7 +86,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               .select('status')
               .eq('project_id', projectId)
               .eq('user_id', uid)
-              .maybeSingle(); // Used maybeSingle to avoid 406 errors
+              .maybeSingle(); 
             
             if (collabData) {
               setCollabStatus(collabData.status);
@@ -216,7 +211,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     </div>
   );
 
-  // --- SMART FALLBACKS (The Fix for older project data) ---
   const displayImage = project.cover_image_url || project.image_url;
   const displayBudget = project.budget || project.valuation || 0;
   const displayEquity = project.equity || project.available_share || 0;
@@ -352,10 +346,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <div className="space-y-4">
                     {userRole === 'owner' ? (
                       <Link 
-                        href={`/founder/${projectId}`}
+                        href={`/studio/${projectId}`}
                         className="w-full py-4 bg-black text-white dark:bg-white dark:text-black rounded-2xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-xl"
                       >
-                        <LayoutDashboard size={18} /> Manage Founder Dashboard
+                        <LayoutDashboard size={18} /> Manage Project Studio
                       </Link>
                     ) : userRole === 'collaborator' ? (
                       <Link 
@@ -392,8 +386,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         <p className="text-sm font-bold dark:text-white">{role.title || role.role_name}</p>
                         <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{role.type}</p>
                       </div>
-                      <div className="px-3 py-1 bg-white dark:bg-black rounded-full text-[9px] font-black border border-zinc-200 dark:border-zinc-800 text-zinc-400 uppercase tracking-tighter">
-                        Open
+                      <div className={`px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-tighter ${role.status === 'filled' ? 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400' : 'bg-[#9cf822]/10 border-[#9cf822]/20 text-[#5a9a00] dark:text-[#9cf822]'}`}>
+                        {role.status || 'Open'}
                       </div>
                     </div>
                   )) : (
