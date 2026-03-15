@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { 
   Loader2, ArrowLeft, Users, CheckCircle, 
-  XCircle, User, Percent, Briefcase, ShieldCheck, ArrowRight
+  XCircle, User, Percent, Briefcase, ShieldCheck, ArrowRight,
+  Image as ImageIcon, FileText, Download
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -15,7 +16,7 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
   const router = useRouter();
 
   const [project, setProject] = useState<any>(null);
-  const [roles, setRoles] = useState<any[]>([]); // Added to fetch new roles table
+  const [roles, setRoles] = useState<any[]>([]); 
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -50,12 +51,11 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
         .single();
       
       if (projectError || projectData.user_id !== user.id) {
-        // Kick them out if they don't own this project
-        return router.push('/dashboard');
+        return router.push('/my-projects');
       }
       setProject(projectData);
 
-      // 3. Fetch Dynamic Roles (The Fix)
+      // 3. Fetch Dynamic Roles
       const { data: rolesData } = await supabase
         .from('project_roles')
         .select('*')
@@ -106,14 +106,14 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
         equity_share: equityNum
       }).eq('id', selectedApp.id);
 
-      // 2. Deduct Equity from Project Pool (Updates both old and new schema safely)
+      // 2. Deduct Equity from Project Pool 
       const newAvailableShare = currentEquity - equityNum;
       await supabase.from('projects').update({ 
         equity: newAvailableShare,
         available_share: newAvailableShare 
       }).eq('id', project.id);
 
-      // 3. Update the specific Role to 'filled' if it matches a DB role
+      // 3. Update the specific Role to 'filled' 
       const matchedRole = roles.find(r => (r.title || r.role_name) === assignedRole);
       if (matchedRole) {
         await supabase.from('project_roles').update({ status: 'filled' }).eq('id', matchedRole.id);
@@ -151,27 +151,37 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
   const pendingApps = applications.filter(app => app.status === 'pending');
   const activeTeam = applications.filter(app => app.status === 'accepted');
 
-  // Smart Fallback for Equity Display
   const displayEquity = project.equity || project.available_share || 0;
+  const displayImage = project.cover_image_url || project.image_url;
 
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-24">
       <div className="max-w-5xl mx-auto px-4 md:px-8 pt-12">
         
         {/* HEADER */}
-        <Link href="/dashboard" className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-black dark:hover:text-white transition-colors mb-8 w-fit">
-          <ArrowLeft size={16} /> Back to Dashboard
+        <Link href="/my-projects" className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-black dark:hover:text-white transition-colors mb-8 w-fit">
+          <ArrowLeft size={16} /> Back to My Projects
         </Link>
         
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-          <div>
-            <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-full text-[10px] font-bold tracking-widest uppercase mb-4 inline-block">
-              Venture Management
-            </span>
-            <h1 className="text-3xl font-medium text-black dark:text-white tracking-tight">{project.title}</h1>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+          
+          <div className="flex items-center gap-6">
+            <div className="w-20 h-20 md:w-28 md:h-28 rounded-2xl overflow-hidden bg-zinc-100 dark:bg-zinc-900 shrink-0 shadow-sm border border-zinc-200 dark:border-zinc-800">
+              {displayImage ? (
+                <img src={displayImage} className="w-full h-full object-cover" alt={project.title} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-zinc-300 dark:text-zinc-700"><ImageIcon size={32}/></div>
+              )}
+            </div>
+            <div>
+              <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 rounded-full text-[10px] font-bold tracking-widest uppercase mb-3 inline-block">
+                Project Management
+              </span>
+              <h1 className="text-2xl md:text-3xl font-medium text-black dark:text-white tracking-tight">{project.title}</h1>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4 bg-zinc-50 dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl">
+          <div className="flex items-center gap-4 bg-zinc-50 dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl shrink-0">
             <div>
               <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Available Equity</p>
               <p className="text-2xl font-semibold text-[#5a9a00] dark:text-[#9cf822]">{displayEquity}%</p>
@@ -246,52 +256,82 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
             )}
           </div>
 
-          {/* RIGHT: THE ACTIVE TEAM */}
-          <div className="space-y-6">
-            <h2 className="text-lg font-medium text-black dark:text-white flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-900 pb-4">
-              Active Team roster
-            </h2>
+          {/* RIGHT COLUMN: TEAM & ASSETS */}
+          <div className="space-y-12">
+            
+            {/* Active Team */}
+            <div className="space-y-6">
+              <h2 className="text-lg font-medium text-black dark:text-white flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-900 pb-4">
+                Active Team roster
+              </h2>
 
-            <div className="space-y-3">
-              {/* The Founder Card */}
-              <div className="p-4 bg-[#9cf822]/10 border border-[#9cf822]/20 rounded-2xl flex items-center gap-4">
-                 <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center shrink-0">
-                   <ShieldCheck className="text-[#9cf822]" size={20} />
-                 </div>
-                 <div>
-                   <p className="text-sm font-bold text-[#5a9a00] dark:text-[#9cf822] flex items-center gap-1">You <span className="text-[10px] uppercase tracking-widest opacity-70">(Project Lead)</span></p>
-                 </div>
-              </div>
-
-              {/* Accepted Members */}
-              {activeTeam.map(member => (
-                <div key={member.id} className="p-4 bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-2xl flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 shrink-0">
-                    {member.profiles?.avatar_url ? (
-                      <img src={member.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <User size={16} className="m-auto mt-2.5 text-zinc-400" />
-                    )}
-                  </div>
-                  <div className="flex-grow min-w-0">
-                    <p className="text-sm font-bold text-black dark:text-white truncate">{member.profiles?.full_name}</p>
-                    <p className="text-xs text-zinc-500 truncate">{member.assigned_role}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="text-sm font-bold text-black dark:text-white">{member.equity_share}%</span>
-                  </div>
+              <div className="space-y-3">
+                {/* The Founder Card */}
+                <div className="p-4 bg-[#9cf822]/10 border border-[#9cf822]/20 rounded-2xl flex items-center gap-4">
+                   <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center shrink-0">
+                     <ShieldCheck className="text-[#9cf822]" size={20} />
+                   </div>
+                   <div>
+                     <p className="text-sm font-bold text-[#5a9a00] dark:text-[#9cf822] flex items-center gap-1">You <span className="text-[10px] uppercase tracking-widest opacity-70">(Project Lead)</span></p>
+                   </div>
                 </div>
-              ))}
 
-              {activeTeam.length > 0 && (
-                <button 
-                  onClick={() => router.push(`/workspace/${project.id}`)}
-                  className="w-full mt-4 py-4 border border-zinc-200 dark:border-zinc-800 text-black dark:text-white rounded-2xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
-                >
-                  Enter Workspace <ArrowRight size={16} />
-                </button>
+                {/* Accepted Members */}
+                {activeTeam.map(member => (
+                  <div key={member.id} className="p-4 bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-2xl flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 shrink-0">
+                      {member.profiles?.avatar_url ? (
+                        <img src={member.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={16} className="m-auto mt-2.5 text-zinc-400" />
+                      )}
+                    </div>
+                    <div className="flex-grow min-w-0">
+                      <p className="text-sm font-bold text-black dark:text-white truncate">{member.profiles?.full_name}</p>
+                      <p className="text-xs text-zinc-500 truncate">{member.assigned_role}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-sm font-bold text-black dark:text-white">{member.equity_share}%</span>
+                    </div>
+                  </div>
+                ))}
+
+                {activeTeam.length > 0 && (
+                  <button 
+                    onClick={() => router.push(`/workspace/${project.id}`)}
+                    className="w-full mt-4 py-4 border border-zinc-200 dark:border-zinc-800 text-black dark:text-white rounded-2xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+                  >
+                    Enter Workspace <ArrowRight size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Project Assets / Files */}
+            <div className="space-y-6">
+              <h2 className="text-lg font-medium text-black dark:text-white flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-900 pb-4">
+                Project Assets
+              </h2>
+
+              {project.additional_files?.length > 0 ? (
+                <div className="space-y-3">
+                  {project.additional_files.map((file: string, idx: number) => (
+                    <a key={idx} href={file} target="_blank" className="flex items-center justify-between p-4 bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-[#9cf822] transition-colors group">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <FileText size={16} className="text-zinc-400 group-hover:text-[#9cf822] shrink-0" />
+                        <span className="text-sm font-semibold text-black dark:text-white truncate">Attachment_{idx + 1}</span>
+                      </div>
+                      <Download size={16} className="text-zinc-400 group-hover:text-[#9cf822] shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl text-center bg-zinc-50/50 dark:bg-zinc-950/50">
+                  <p className="text-sm font-medium text-zinc-500">No additional files uploaded.</p>
+                </div>
               )}
             </div>
+
           </div>
 
         </div>
