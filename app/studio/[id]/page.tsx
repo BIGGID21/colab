@@ -15,6 +15,7 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
   const router = useRouter();
 
   const [project, setProject] = useState<any>(null);
+  const [roles, setRoles] = useState<any[]>([]); // Added to fetch new roles table
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -54,7 +55,14 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
       }
       setProject(projectData);
 
-      // 3. Fetch Applications
+      // 3. Fetch Dynamic Roles (The Fix)
+      const { data: rolesData } = await supabase
+        .from('project_roles')
+        .select('*')
+        .eq('project_id', projectId);
+      setRoles(rolesData || []);
+
+      // 4. Fetch Applications
       const { data: appsData } = await supabase
         .from('collaborations')
         .select('*, profiles:user_id(full_name, avatar_url, role)')
@@ -83,7 +91,9 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
     if (!assignedRole || !assignedEquity) return alert("Please assign a role and equity share.");
     
     const equityNum = Number(assignedEquity);
-    if (equityNum > project.available_share) return alert("You cannot assign more equity than you have available.");
+    const currentEquity = project.equity || project.available_share || 0;
+
+    if (equityNum > currentEquity) return alert("You cannot assign more equity than you have available.");
     
     setIsProcessing(true);
     triggerHaptic(50);
@@ -96,13 +106,20 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
         equity_share: equityNum
       }).eq('id', selectedApp.id);
 
-      // 2. Deduct Equity from Project Pool
-      const newAvailableShare = project.available_share - equityNum;
+      // 2. Deduct Equity from Project Pool (Updates both old and new schema safely)
+      const newAvailableShare = currentEquity - equityNum;
       await supabase.from('projects').update({ 
+        equity: newAvailableShare,
         available_share: newAvailableShare 
       }).eq('id', project.id);
 
-      // 3. Notify the user they were accepted
+      // 3. Update the specific Role to 'filled' if it matches a DB role
+      const matchedRole = roles.find(r => (r.title || r.role_name) === assignedRole);
+      if (matchedRole) {
+        await supabase.from('project_roles').update({ status: 'filled' }).eq('id', matchedRole.id);
+      }
+
+      // 4. Notify the user they were accepted
       await supabase.from('notifications').insert({
         user_id: selectedApp.user_id,
         sender_id: project.user_id,
@@ -112,7 +129,7 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
       });
 
       // Update Local State
-      setProject({ ...project, available_share: newAvailableShare });
+      setProject({ ...project, equity: newAvailableShare, available_share: newAvailableShare });
       setApplications(apps => apps.map(app => 
         app.id === selectedApp.id 
           ? { ...app, status: 'accepted', assigned_role: assignedRole, equity_share: equityNum } 
@@ -134,6 +151,9 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
   const pendingApps = applications.filter(app => app.status === 'pending');
   const activeTeam = applications.filter(app => app.status === 'accepted');
 
+  // Smart Fallback for Equity Display
+  const displayEquity = project.equity || project.available_share || 0;
+
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-24">
       <div className="max-w-5xl mx-auto px-4 md:px-8 pt-12">
@@ -154,7 +174,7 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
           <div className="flex items-center gap-4 bg-zinc-50 dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl">
             <div>
               <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Available Equity</p>
-              <p className="text-2xl font-semibold text-[#5a9a00] dark:text-[#9cf822]">{project.available_share}%</p>
+              <p className="text-2xl font-semibold text-[#5a9a00] dark:text-[#9cf822]">{displayEquity}%</p>
             </div>
             <div className="w-px h-10 bg-zinc-200 dark:bg-zinc-800 mx-2" />
             <div>
@@ -300,8 +320,8 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
                     className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#9cf822] text-black dark:text-white appearance-none cursor-pointer"
                   >
                     <option value="" disabled>Choose from open roles...</option>
-                    {project.needed_roles?.map((role: string, i: number) => (
-                      <option key={i} value={role}>{role}</option>
+                    {roles.map((role: any) => (
+                      <option key={role.id} value={role.title || role.role_name}>{role.title || role.role_name}</option>
                     ))}
                     <option value="Custom Role">Other / Custom Role</option>
                   </select>
@@ -310,11 +330,11 @@ export default function ManageProjectPage({ params }: { params: Promise<{ id: st
                 <div>
                   <div className="flex justify-between items-end mb-2">
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5"><Percent size={12}/> Equity Share</label>
-                    <span className="text-xs text-zinc-500">Max available: {project.available_share}%</span>
+                    <span className="text-xs text-zinc-500">Max available: {displayEquity}%</span>
                   </div>
                   <input 
                     type="number" value={assignedEquity} onChange={(e) => setAssignedEquity(e.target.value)}
-                    placeholder="e.g. 10" max={project.available_share}
+                    placeholder="e.g. 10" max={displayEquity}
                     className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#9cf822] text-black dark:text-white"
                   />
                 </div>
