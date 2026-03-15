@@ -6,7 +6,7 @@ import {
   Loader2, Image as ImageIcon, Plus, Grid, 
   Linkedin, MapPin, Phone, ExternalLink, 
   Facebook, Instagram, Twitter, Video, Trash2, 
-  User, Camera, Calendar, Heart, MessageSquare, Repeat, X, BadgeCheck
+  User, Camera, Calendar, Heart, MessageSquare, Repeat, X, BadgeCheck, Send
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -185,7 +185,20 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               )}
               {isOwnProfile && <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white"><Camera size={24} /><span className="text-[10px] font-bold uppercase">Edit</span></div>}
             </div>
-            {isOwnProfile && <button onClick={() => setIsModalOpen(true)} className="px-5 py-2 md:px-6 md:py-2.5 bg-zinc-100 text-black dark:bg-zinc-900 dark:text-white rounded-xl border border-zinc-200 dark:border-zinc-800 transition-all font-medium text-sm mt-4">Edit profile</button>}
+            
+            {/* CTA Buttons */}
+            {isOwnProfile ? (
+              <button onClick={() => setIsModalOpen(true)} className="px-5 py-2 md:px-6 md:py-2.5 bg-zinc-100 text-black dark:bg-zinc-900 dark:text-white rounded-xl border border-zinc-200 dark:border-zinc-800 transition-all font-medium text-sm mt-4">
+                Edit profile
+              </button>
+            ) : (
+              <Link 
+                href={`/messages?compose=${userId}`} 
+                className="px-5 py-2 md:px-6 md:py-2.5 bg-black text-white dark:bg-white dark:text-black rounded-xl shadow-lg hover:scale-[1.02] transition-transform font-bold text-sm mt-4 flex items-center gap-2"
+              >
+                <Send size={16} /> Message
+              </Link>
+            )}
           </div>
 
           <div className="space-y-2 text-left">
