@@ -276,14 +276,16 @@ function InboxContent() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    <div className="min-h-[100dvh] bg-white dark:bg-black flex flex-col md:flex-row overflow-hidden font-sans">
+    // FIX: Changed from min-h-[100dvh] to fixed inset-0 h-[100dvh] w-full. 
+    // This totally disables body scrolling and forces the flex children to handle all scroll behaviors!
+    <div className="fixed inset-0 h-[100dvh] w-full bg-white dark:bg-black flex flex-col md:flex-row overflow-hidden font-sans">
       
       {/* ------------------------------------------------------------------ */}
       {/* LEFT SIDEBAR: Contacts List */}
       {/* ------------------------------------------------------------------ */}
-      <div className={`w-full md:w-80 lg:w-[400px] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black flex flex-col h-[100dvh] ${activeChatUser ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full md:w-80 lg:w-[400px] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black flex flex-col h-full ${activeChatUser ? 'hidden md:flex' : 'flex'}`}>
         
-        <div className="px-4 py-3 sticky top-0 bg-white/90 dark:bg-black/90 backdrop-blur-md z-10">
+        <div className="px-4 py-3 shrink-0 bg-white/90 dark:bg-black/90 backdrop-blur-md z-10">
           <div className="flex items-center justify-between mb-4 mt-2">
              <h1 className="text-xl font-bold text-black dark:text-white">Messages</h1>
              <div className="flex gap-2">
@@ -354,17 +356,17 @@ function InboxContent() {
       {/* RIGHT PANEL: Active Chat with Collaboration Wallpaper */}
       {/* ------------------------------------------------------------------ */}
       <div 
-        className={`flex-1 flex flex-col bg-zinc-50 dark:bg-[#0a0a0a] h-[100dvh] relative ${!activeChatUser ? 'hidden md:flex' : 'flex'}`}
+        className={`flex-1 flex flex-col bg-zinc-50 dark:bg-[#0a0a0a] h-full w-full relative ${!activeChatUser ? 'hidden md:flex' : 'flex'}`}
       >
         {!activeChatUser ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-l border-zinc-200 dark:border-zinc-800 relative z-10 bg-white dark:bg-black">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-l border-zinc-200 dark:border-zinc-800 relative z-10 bg-white dark:bg-black w-full">
             <h2 className="text-3xl font-bold text-black dark:text-white mb-2">Select a message</h2>
             <p className="text-zinc-500 text-[15px] max-w-sm">Choose from your existing conversations, or start a new one to begin collaborating.</p>
           </div>
         ) : (
           <>
-            {/* Active Chat Header */}
-            <div className="h-16 px-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-black/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20 sticky top-0">
+            {/* Active Chat Header - FIXED (shrink-0 keeps it from squishing) */}
+            <div className="w-full h-16 px-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-black/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
               <div className="flex items-center gap-4">
                 <button onClick={() => { setActiveChatUser(null); router.replace('/messages'); }} className="md:hidden p-2 -ml-2 text-black dark:text-white rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
                   <ArrowLeft size={20} />
@@ -389,9 +391,9 @@ function InboxContent() {
               </button>
             </div>
 
-            {/* Chat Messages Area + Custom Doodle Matrix */}
+            {/* Chat Messages Area - INDEPENDENT SCROLL */}
             <div 
-              className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 relative" 
+              className="flex-1 overflow-y-auto w-full p-4 md:p-6 space-y-6 relative" 
               ref={scrollRef}
               style={{
                 backgroundImage: `url("${CHAT_WALLPAPER_SVG}")`,
@@ -494,8 +496,8 @@ function InboxContent() {
               )}
             </div>
 
-            {/* Chat Input (Fully Aligned Pill Design) */}
-            <div className="p-3 bg-white/95 dark:bg-black/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shrink-0 z-20">
+            {/* Chat Input - FIXED (shrink-0 keeps it glued to bottom) */}
+            <div className="w-full p-3 bg-white/95 dark:bg-black/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shrink-0 z-20">
               
               {/* Replying Indicator */}
               {replyingTo && (
@@ -512,7 +514,7 @@ function InboxContent() {
               )}
 
               {/* The Pill Form */}
-              <form onSubmit={handleSendMessage} className={`relative z-10 flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-full px-2 py-1.5 shadow-sm border border-transparent focus-within:border-zinc-300 dark:focus-within:border-zinc-700 transition-colors ${replyingTo ? 'rounded-t-none border-x border-b border-zinc-200 dark:border-zinc-800' : ''}`}>
+              <form onSubmit={handleSendMessage} className={`relative z-10 flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-[24px] px-2 py-1.5 shadow-sm border border-transparent focus-within:border-zinc-300 dark:focus-within:border-zinc-700 transition-colors ${replyingTo ? 'rounded-t-none border-x border-b border-zinc-200 dark:border-zinc-800' : ''}`}>
                 
                 {/* File Upload Button (Left) */}
                 <input 
