@@ -119,7 +119,6 @@ function InboxContent() {
     initializeInbox();
   }, [urlUserId]);
 
-  // Robust Message Fetching with Failsafe
   const fetchMessages = async (myId: string, targetId: string) => {
     const { data, error } = await supabase
       .from('direct_messages')
@@ -129,7 +128,6 @@ function InboxContent() {
     
     if (error) {
       console.error("Advanced Fetch Failed. Executing Failsafe query:", error);
-      // Failsafe query in case the DB is missing the reply_to relationship
       const { data: fallbackData } = await supabase
         .from('direct_messages')
         .select('*')
@@ -145,7 +143,6 @@ function InboxContent() {
     setLoading(false);
   };
 
-  // Real-time listener
   useEffect(() => {
     if (!user) return;
     const channel = supabase.channel(`dms_${user.id}`)
@@ -165,8 +162,8 @@ function InboxContent() {
   }, [user]);
 
   const handleSelectContact = (contactUser: any) => {
-    if (activeChatUser?.id === contactUser.id) return; // Prevent unnecessary re-fetches
-    setLoading(true); // Show loader for a split second to assure user it's working
+    if (activeChatUser?.id === contactUser.id) return; 
+    setLoading(true); 
     router.push(`?u=${contactUser.id}`, { scroll: false });
   };
 
@@ -276,9 +273,8 @@ function InboxContent() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    // FIX: Changed from min-h-[100dvh] to fixed inset-0 h-[100dvh] w-full. 
-    // This totally disables body scrolling and forces the flex children to handle all scroll behaviors!
-    <div className="fixed inset-0 h-[100dvh] w-full bg-white dark:bg-black flex flex-col md:flex-row overflow-hidden font-sans">
+    // FIX 1: Hard height constraint calc(100dvh - 80px) to prevent underlapping the global bottom nav
+    <div className="flex flex-col md:flex-row w-full h-[calc(100dvh-80px)] md:h-[100dvh] bg-white dark:bg-black overflow-hidden font-sans">
       
       {/* ------------------------------------------------------------------ */}
       {/* LEFT SIDEBAR: Contacts List */}
@@ -309,7 +305,7 @@ function InboxContent() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           {contacts.length === 0 ? (
             <div className="p-8 text-center text-zinc-500">
               <p className="text-xl font-bold text-black dark:text-white mb-2">Welcome to your inbox!</p>
@@ -355,18 +351,19 @@ function InboxContent() {
       {/* ------------------------------------------------------------------ */}
       {/* RIGHT PANEL: Active Chat with Collaboration Wallpaper */}
       {/* ------------------------------------------------------------------ */}
-      <div 
-        className={`flex-1 flex flex-col bg-zinc-50 dark:bg-[#0a0a0a] h-full w-full relative ${!activeChatUser ? 'hidden md:flex' : 'flex'}`}
-      >
+      
+      {/* FIX 2: min-h-0 prevents the parent flex container from overflowing */}
+      <div className={`flex-1 flex flex-col bg-zinc-50 dark:bg-[#0a0a0a] h-full w-full relative min-h-0 ${!activeChatUser ? 'hidden md:flex' : 'flex'}`}>
+        
         {!activeChatUser ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-l border-zinc-200 dark:border-zinc-800 relative z-10 bg-white dark:bg-black w-full">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-l border-zinc-200 dark:border-zinc-800 relative z-10 bg-white dark:bg-black w-full min-h-0">
             <h2 className="text-3xl font-bold text-black dark:text-white mb-2">Select a message</h2>
             <p className="text-zinc-500 text-[15px] max-w-sm">Choose from your existing conversations, or start a new one to begin collaborating.</p>
           </div>
         ) : (
           <>
-            {/* Active Chat Header - FIXED (shrink-0 keeps it from squishing) */}
-            <div className="w-full h-16 px-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-black/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
+            {/* Active Chat Header - FIX 3: min-h-[64px] prevents shrinking */}
+            <div className="w-full h-16 min-h-[64px] px-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-black/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
               <div className="flex items-center gap-4">
                 <button onClick={() => { setActiveChatUser(null); router.replace('/messages'); }} className="md:hidden p-2 -ml-2 text-black dark:text-white rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
                   <ArrowLeft size={20} />
@@ -391,9 +388,9 @@ function InboxContent() {
               </button>
             </div>
 
-            {/* Chat Messages Area - INDEPENDENT SCROLL */}
+            {/* Chat Messages Area - FIX 4: min-h-0 guarantees this is the ONLY area that scrolls */}
             <div 
-              className="flex-1 overflow-y-auto w-full p-4 md:p-6 space-y-6 relative" 
+              className="flex-1 overflow-y-auto min-h-0 w-full p-4 md:p-6 space-y-6 relative" 
               ref={scrollRef}
               style={{
                 backgroundImage: `url("${CHAT_WALLPAPER_SVG}")`,
@@ -496,8 +493,8 @@ function InboxContent() {
               )}
             </div>
 
-            {/* Chat Input - FIXED (shrink-0 keeps it glued to bottom) */}
-            <div className="w-full p-3 bg-white/95 dark:bg-black/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shrink-0 z-20">
+            {/* Chat Input - FIX 5: min-h-[72px] guarantees the footer doesn't get crushed */}
+            <div className="w-full p-3 min-h-[72px] bg-white/95 dark:bg-black/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shrink-0 z-20">
               
               {/* Replying Indicator */}
               {replyingTo && (
