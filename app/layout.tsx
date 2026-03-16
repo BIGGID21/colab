@@ -223,8 +223,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const isMarketingPage = pathname === '/' || pathname === '/about' || pathname === '/terms' || pathname === '/privacy' || pathname === '/blog';
   const showSidebar = !isAuthPage && !isMarketingPage;
 
-  // LOGIC: Only trigger scroll-hide effect on the Community Feed
+  // LOGIC: Check specific pages for UI conditionals
   const isCommunityFeed = pathname === '/community';
+  const isMessagesPage = pathname?.startsWith('/messages');
 
   const navItems = [
     { name: 'Search', icon: Search, onClick: () => setActiveModal('search'), showOnMobileBar: false },
@@ -250,17 +251,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {showSidebar && !isAppLoading && (
             <>
               {/* MOBILE TOP BAR (Slides UP on scroll down ONLY on community) */}
-              <div 
-                className={`md:hidden flex items-center justify-between p-4 h-16 backdrop-blur-md border-b fixed top-0 w-full z-[100] bg-white/90 dark:bg-black/90 border-zinc-200 dark:border-zinc-900 transition-transform duration-300 ease-in-out ${
-                  (isCommunityFeed && !isMobileNavVisible) ? '-translate-y-full' : 'translate-y-0'
-                }`}
-              >
-                <BrandLogo isMobile />
-                <div className="flex items-center gap-4 text-zinc-500 dark:text-zinc-400">
-                  <button onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
-                  <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu"><Menu size={24} /></button>
+              {!isMessagesPage && (
+                <div 
+                  className={`md:hidden flex items-center justify-between p-4 h-16 backdrop-blur-md border-b fixed top-0 w-full z-[100] bg-white/90 dark:bg-black/90 border-zinc-200 dark:border-zinc-900 transition-transform duration-300 ease-in-out ${
+                    (isCommunityFeed && !isMobileNavVisible) ? '-translate-y-full' : 'translate-y-0'
+                  }`}
+                >
+                  <BrandLogo isMobile />
+                  <div className="flex items-center gap-4 text-zinc-500 dark:text-zinc-400">
+                    <button onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
+                    <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu"><Menu size={24} /></button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* DESKTOP SIDEBAR */}
               <aside className={`fixed md:sticky left-0 top-0 h-screen border-r flex flex-col z-[110] transition-all duration-300 bg-[#F3F2F1] dark:bg-[#0a0a0a] border-zinc-200 dark:border-zinc-900
@@ -431,7 +434,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           )}
 
           {/* MAIN CONTENT AREA */}
-          <main className={`flex-grow w-full transition-all duration-500 bg-white dark:bg-black ${showSidebar && !isAppLoading ? 'px-4 md:px-10 pb-24 md:pb-10 pt-20 md:pt-10' : ''}`}>
+          <main className={`flex-grow w-full transition-all duration-500 bg-white dark:bg-black ${showSidebar && !isAppLoading ? (isMessagesPage ? 'pb-24 md:pb-10' : 'px-4 md:px-10 pb-24 md:pb-10 pt-20 md:pt-10') : ''}`}>
             {!isAppLoading && children}
           </main>
 
