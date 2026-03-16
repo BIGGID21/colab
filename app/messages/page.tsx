@@ -6,10 +6,13 @@ import { createBrowserClient } from '@supabase/ssr';
 import { 
   Loader2, ArrowLeft, Send, Search, User, 
   MessageSquare, BadgeCheck, Lock, Sparkles, X, Crown,
-  Trash2, Reply, Info, Paperclip, FileText, Image as ImageIcon
+  Trash2, Reply, Info, Paperclip, FileText
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+
+// Custom WhatsApp-style collaboration doodle background
+const CHAT_WALLPAPER_SVG = `data:image/svg+xml,%3Csvg width='150' height='150' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='rgba(128,128,128,0.06)' stroke-width='2' fill='none' fill-rule='evenodd' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M25 25h10v10H25zM110 30c0-5.52 4.48-10 10-10s10 4.48 10 10-4.48 10-10 10-10-4.48-10-10zM30 110l10-10 10 10M115 110h-10v-10h10v10zm-15-5h-10m-5 0h-5m25-5v-10m0-5v-5M45 45l10-10 10 10m-10-10v20M95 95a15 15 0 1 0 0-30 15 15 0 0 0 0 30zM90 80h10M95 75v10M25 85a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM120 70l10-10 10 10M55 125v-10h10v10H55z'/%3E%3C/g%3E%3C/svg%3E`;
 
 function InboxContent() {
   const router = useRouter();
@@ -50,85 +53,108 @@ function InboxContent() {
     activeChatUserRef.current = activeChatUser;
   }, [activeChatUser]);
 
+  // Bulletproof Initialization Sequence
   useEffect(() => {
-    fetchInboxData(true);
-  }, [urlUserId]);
-
-  const fetchInboxData = async (isInitialLoad = false) => {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) return router.push('/login');
-
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
-    const currentUser = { ...authUser, ...profile };
-    setUser(currentUser);
-
-    const { data: dms } = await supabase
-      .from('direct_messages')
-      .select(`
-        *,
-        sender:sender_id(id, full_name, avatar_url, is_verified),
-        receiver:receiver_id(id, full_name, avatar_url, is_verified)
-      `)
-      .or(`sender_id.eq.${authUser.id},receiver_id.eq.${authUser.id}`)
-      .order('created_at', { ascending: false });
-
-    const contactMap = new Map();
-    const uniqueSentReceivers = new Set();
-
-    (dms || []).forEach(dm => {
-      const isMeSender = dm.sender_id === authUser.id;
-      const otherUser = isMeSender ? dm.receiver : dm.sender;
+    const initializeInbox = async () => {
+      setLoading(true);
       
-      if (isMeSender) uniqueSentReceivers.add(otherUser.id);
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return router.push('/login');
+      setUser(authUser);
 
-      if (!contactMap.has(otherUser.id)) {
-        contactMap.set(otherUser.id, {
-          user: otherUser,
-          lastMessage: dm,
-          unread: !isMeSender && !dm.is_read
-        });
-      }
-    });
+      // 1. Fetch Contact List Data
+      const { data: dms, error: dmsError } = await supabase
+        .from('direct_messages')
+        .select(`*, sender:sender_id(id, full_name, avatar_url, is_verified), receiver:receiver_id(id, full_name, avatar_url, is_verified)`)
+        .or(`sender_id.eq.${authUser.id},receiver_id.eq.${authUser.id}`)
+        .order('created_at', { ascending: false });
 
-    setInitiatedCount(uniqueSentReceivers.size);
-    const sortedContacts = Array.from(contactMap.values());
-    setContacts(sortedContacts);
+      if (dmsError) console.error("Database sync error (Contacts):", dmsError);
 
-    if (isInitialLoad) {
+      const contactMap = new Map();
+      const uniqueSentReceivers = new Set();
+
+      (dms || []).forEach(dm => {
+        const isMeSender = dm.sender_id === authUser.id;
+        const otherUser = isMeSender ? dm.receiver : dm.sender;
+        if (isMeSender) uniqueSentReceivers.add(otherUser.id);
+
+        if (!contactMap.has(otherUser.id)) {
+          contactMap.set(otherUser.id, {
+            user: otherUser,
+            lastMessage: dm,
+            unread: !isMeSender && !dm.is_read
+          });
+        }
+      });
+
+      setInitiatedCount(uniqueSentReceivers.size);
+      const sortedContacts = Array.from(contactMap.values());
+      setContacts(sortedContacts);
+
+      // 2. Resolve Active Chat User
+      let currentActiveUser = null;
       if (urlUserId) {
         const existingContact = sortedContacts.find(c => c.user.id === urlUserId);
         if (existingContact) {
-          handleSelectContact(existingContact.user, false, currentUser); 
+          currentActiveUser = existingContact.user;
         } else {
-          const { data: targetProfile } = await supabase.from('profiles').select('id, full_name, avatar_url, is_verified').eq('id', urlUserId).single();
-          if (targetProfile) {
-            setActiveChatUser(targetProfile);
-            setMessages([]);
-          }
-          setLoading(false); 
+          const { data: targetProfile } = await supabase.from('profiles').select('*').eq('id', urlUserId).single();
+          if (targetProfile) currentActiveUser = targetProfile;
         }
       } else if (sortedContacts.length > 0 && window.innerWidth > 768) {
-        handleSelectContact(sortedContacts[0].user, true, currentUser);
+        currentActiveUser = sortedContacts[0].user;
+        router.replace(`?u=${currentActiveUser.id}`, { scroll: false });
+      }
+
+      // 3. Fetch Messages for the Resolved User
+      if (currentActiveUser) {
+        setActiveChatUser(currentActiveUser);
+        await fetchMessages(authUser.id, currentActiveUser.id);
       } else {
         setLoading(false);
       }
+    };
+
+    initializeInbox();
+  }, [urlUserId]);
+
+  // Robust Message Fetching with Failsafe
+  const fetchMessages = async (myId: string, targetId: string) => {
+    const { data, error } = await supabase
+      .from('direct_messages')
+      .select(`*, reply_to:reply_to_id(id, content, sender_id, file_name)`)
+      .or(`and(sender_id.eq.${myId},receiver_id.eq.${targetId}),and(sender_id.eq.${targetId},receiver_id.eq.${myId})`)
+      .order('created_at', { ascending: true });
+    
+    if (error) {
+      console.error("Advanced Fetch Failed. Executing Failsafe query:", error);
+      // Failsafe query in case the DB is missing the reply_to relationship
+      const { data: fallbackData } = await supabase
+        .from('direct_messages')
+        .select('*')
+        .or(`and(sender_id.eq.${myId},receiver_id.eq.${targetId}),and(sender_id.eq.${targetId},receiver_id.eq.${myId})`)
+        .order('created_at', { ascending: true });
+      
+      setMessages(fallbackData || []);
     } else {
-      setLoading(false);
+      setMessages(data || []);
     }
+    
+    scrollToBottom();
+    setLoading(false);
   };
 
+  // Real-time listener
   useEffect(() => {
     if (!user) return;
     const channel = supabase.channel(`dms_${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, (payload) => {
-        fetchInboxData(false); 
-        
         if (payload.eventType === 'INSERT') {
           if (activeChatUserRef.current && (activeChatUserRef.current.id === payload.new.sender_id || user.id === payload.new.sender_id)) {
-             fetchMessagesForActiveChat(activeChatUserRef.current.id, user); 
+             fetchMessages(user.id, activeChatUserRef.current.id); 
           }
         }
-
         if (payload.eventType === 'DELETE') {
           setMessages(prev => prev.filter(m => m.id !== payload.old.id));
         }
@@ -138,32 +164,10 @@ function InboxContent() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
-  const fetchMessagesForActiveChat = async (targetUserId: string, activeAuthUser?: any) => {
-    const validUser = activeAuthUser || user;
-    if (!validUser) return;
-    
-    const { data } = await supabase
-      .from('direct_messages')
-      .select(`
-        *,
-        reply_to:reply_to_id(id, content, sender_id, file_name)
-      `)
-      .or(`and(sender_id.eq.${validUser.id},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${validUser.id})`)
-      .order('created_at', { ascending: true });
-    
-    setMessages(data || []);
-    scrollToBottom();
-    setLoading(false);
-  };
-
-  const handleSelectContact = (contactUser: any, updateUrl = true, activeAuthUser?: any) => {
-    setActiveChatUser(contactUser);
-    setReplyingTo(null);
-    fetchMessagesForActiveChat(contactUser.id, activeAuthUser);
-    
-    if (updateUrl) {
-      router.replace(`?u=${contactUser.id}`, { scroll: false });
-    }
+  const handleSelectContact = (contactUser: any) => {
+    if (activeChatUser?.id === contactUser.id) return; // Prevent unnecessary re-fetches
+    setLoading(true); // Show loader for a split second to assure user it's working
+    router.push(`?u=${contactUser.id}`, { scroll: false });
   };
 
   const scrollToBottom = () => {
@@ -218,12 +222,9 @@ function InboxContent() {
     });
 
     if (error) {
-      console.error("Supabase Insert Error:", error);
-      alert("Failed to send message. Make sure you ran the Supabase SQL script!");
+      console.error("Database Insert Error:", error);
+      alert("Message failed to sync with database.");
       setMessages(prev => prev.filter(m => m.id !== tempId)); 
-    } else {
-      triggerHaptic(10);
-      fetchInboxData(false); 
     }
     
     setIsSending(false);
@@ -245,28 +246,24 @@ function InboxContent() {
       .upload(filePath, file);
 
     if (uploadError) {
-      alert("Error uploading file. Make sure the storage bucket exists.");
+      alert("Error uploading file. Make sure the storage bucket exists in Supabase.");
       setIsUploading(false);
       return;
     }
 
     const { data: { publicUrl } } = supabase.storage.from('chat_attachments').getPublicUrl(filePath);
 
-    // Auto-send the message with the file attached
     await handleSendMessage(undefined, publicUrl, file.name, file.type);
     
     setIsUploading(false);
-    if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = ''; 
   };
 
   const handleDeleteMessage = async (msgId: string) => {
     if (!confirm("Delete this message?")) return;
-    
     triggerHaptic(10);
-    setMessages(prev => prev.filter(m => m.id !== msgId)); // Optimistic UI
-    
+    setMessages(prev => prev.filter(m => m.id !== msgId)); 
     await supabase.from('direct_messages').delete().eq('id', msgId).eq('sender_id', user?.id);
-    fetchInboxData(false);
   };
 
   const handleUpgradeToPro = async () => {
@@ -357,10 +354,10 @@ function InboxContent() {
       {/* RIGHT PANEL: Active Chat with Collaboration Wallpaper */}
       {/* ------------------------------------------------------------------ */}
       <div 
-        className={`flex-1 flex flex-col bg-white dark:bg-black h-[100dvh] relative ${!activeChatUser ? 'hidden md:flex' : 'flex'}`}
+        className={`flex-1 flex flex-col bg-zinc-50 dark:bg-[#0a0a0a] h-[100dvh] relative ${!activeChatUser ? 'hidden md:flex' : 'flex'}`}
       >
         {!activeChatUser ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-l border-zinc-200 dark:border-zinc-800 relative z-10">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-l border-zinc-200 dark:border-zinc-800 relative z-10 bg-white dark:bg-black">
             <h2 className="text-3xl font-bold text-black dark:text-white mb-2">Select a message</h2>
             <p className="text-zinc-500 text-[15px] max-w-sm">Choose from your existing conversations, or start a new one to begin collaborating.</p>
           </div>
@@ -392,14 +389,14 @@ function InboxContent() {
               </button>
             </div>
 
-            {/* Chat Messages Area + Wallpaper Matrix */}
+            {/* Chat Messages Area + Custom Doodle Matrix */}
             <div 
               className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 relative" 
               ref={scrollRef}
               style={{
-                // Subtle WhatsApp-style tech blueprint grid wallpaper
-                backgroundImage: `radial-gradient(circle at 2px 2px, rgba(156, 248, 34, 0.15) 1px, transparent 0)`,
-                backgroundSize: `24px 24px`
+                backgroundImage: `url("${CHAT_WALLPAPER_SVG}")`,
+                backgroundSize: '300px',
+                backgroundRepeat: 'repeat',
               }}
             >
               {messages.length === 0 ? (
@@ -407,7 +404,7 @@ function InboxContent() {
                    <div className="w-16 h-16 rounded-full overflow-hidden mb-4 shadow-lg">
                       {activeChatUser.avatar_url ? <img src={activeChatUser.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-zinc-200" />}
                    </div>
-                   <p className="text-[15px] text-black dark:text-white bg-white/50 dark:bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm">
+                   <p className="text-[15px] text-black dark:text-white bg-white/80 dark:bg-black/80 px-4 py-2 rounded-full backdrop-blur-md border border-zinc-200 dark:border-zinc-800">
                      This is the beginning of your direct message history with <span className="font-bold">{activeChatUser.full_name}</span>.
                    </p>
                 </div>
@@ -420,7 +417,7 @@ function InboxContent() {
                     <React.Fragment key={msg.id}>
                       {showDate && (
                         <div className="flex justify-center my-6 relative z-10">
-                          <span className="text-[12px] font-bold text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded-full shadow-sm border border-zinc-200 dark:border-zinc-800">
+                          <span className="text-[12px] font-bold text-zinc-600 dark:text-zinc-400 bg-white/90 dark:bg-black/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-zinc-200 dark:border-zinc-800">
                             {new Date(msg.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                           </span>
                         </div>
@@ -429,11 +426,11 @@ function InboxContent() {
                       <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} group relative z-10`}>
                         {/* Hover Actions */}
                         <div className={`absolute top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'right-full mr-2' : 'left-full ml-2'}`}>
-                           <button onClick={() => setReplyingTo(msg)} className="p-1.5 text-zinc-500 hover:text-black dark:hover:text-white hover:bg-white dark:hover:bg-zinc-800 rounded-full transition-colors shadow-sm" title="Reply">
+                           <button onClick={() => setReplyingTo(msg)} className="p-1.5 text-zinc-500 hover:text-black dark:hover:text-white bg-white dark:bg-zinc-800 rounded-full transition-colors shadow-sm" title="Reply">
                              <Reply size={14} />
                            </button>
                            {isMe && (
-                             <button onClick={() => handleDeleteMessage(msg.id)} className="p-1.5 text-zinc-500 hover:text-red-500 hover:bg-white dark:hover:bg-zinc-800 rounded-full transition-colors shadow-sm" title="Delete">
+                             <button onClick={() => handleDeleteMessage(msg.id)} className="p-1.5 text-zinc-500 hover:text-red-500 bg-white dark:bg-zinc-800 rounded-full transition-colors shadow-sm" title="Delete">
                                <Trash2 size={14} />
                              </button>
                            )}
@@ -443,10 +440,10 @@ function InboxContent() {
                           
                           {/* Replied Message Context */}
                           {msg.reply_to && (
-                            <div className="mb-1 flex items-center gap-1.5 opacity-80 cursor-pointer">
+                            <div className="mb-1 flex items-center gap-1.5 opacity-90 cursor-pointer">
                               <Reply size={12} className="text-zinc-500" />
-                              <div className="text-[12px] text-zinc-600 dark:text-zinc-300 line-clamp-1 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 max-w-[250px]">
-                                <span className="font-bold mr-1">{msg.reply_to.sender_id === user?.id ? 'You' : activeChatUser.full_name}:</span>
+                              <div className="text-[12px] text-zinc-600 dark:text-zinc-300 line-clamp-1 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 max-w-[250px] shadow-sm">
+                                <span className="font-bold mr-1 text-black dark:text-white">{msg.reply_to.sender_id === user?.id ? 'You' : activeChatUser.full_name}:</span>
                                 {msg.reply_to.file_name ? '📎 Attachment' : msg.reply_to.content}
                               </div>
                             </div>
@@ -486,7 +483,7 @@ function InboxContent() {
                           </div>
                           
                           {/* Timestamp */}
-                          <span className="text-[10px] font-bold text-zinc-400 mt-1.5 px-1 uppercase tracking-wider">
+                          <span className="text-[10px] font-bold text-zinc-500 mt-1.5 px-1 uppercase tracking-wider bg-white/50 dark:bg-black/50 rounded-full backdrop-blur-sm">
                             {new Date(msg.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
                           </span>
                         </div>
@@ -497,12 +494,12 @@ function InboxContent() {
               )}
             </div>
 
-            {/* Chat Input */}
+            {/* Chat Input (Fully Aligned Pill Design) */}
             <div className="p-3 bg-white/95 dark:bg-black/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shrink-0 z-20">
               
               {/* Replying Indicator */}
               {replyingTo && (
-                <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 px-4 py-2 rounded-t-2xl border-x border-t border-zinc-200 dark:border-zinc-800 -mb-2 pb-4">
+                <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 px-4 py-2 rounded-t-2xl border-x border-t border-zinc-200 dark:border-zinc-800 -mb-4 pb-6">
                   <div className="flex items-center gap-2 overflow-hidden text-sm">
                     <Reply size={14} className="text-[#9cf822] shrink-0" />
                     <span className="font-bold text-black dark:text-white shrink-0">Replying to {replyingTo.sender_id === user?.id ? 'yourself' : activeChatUser.full_name}:</span>
@@ -514,9 +511,10 @@ function InboxContent() {
                 </div>
               )}
 
-              <form onSubmit={handleSendMessage} className={`flex items-end gap-2 bg-zinc-100 dark:bg-zinc-900 rounded-3xl p-2 ${replyingTo ? 'rounded-t-none border border-zinc-200 dark:border-zinc-800' : ''}`}>
+              {/* The Pill Form */}
+              <form onSubmit={handleSendMessage} className={`relative z-10 flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-full px-2 py-1.5 shadow-sm border border-transparent focus-within:border-zinc-300 dark:focus-within:border-zinc-700 transition-colors ${replyingTo ? 'rounded-t-none border-x border-b border-zinc-200 dark:border-zinc-800' : ''}`}>
                 
-                {/* File Upload Button */}
+                {/* File Upload Button (Left) */}
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -528,31 +526,28 @@ function InboxContent() {
                   type="button" 
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
-                  className="p-3 text-zinc-500 hover:text-black dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors disabled:opacity-50"
+                  className="p-2 text-zinc-500 hover:text-black dark:hover:text-white transition-colors disabled:opacity-50 ml-1"
                   title="Attach File"
                 >
-                  {isUploading ? <Loader2 size={20} className="animate-spin" /> : <Paperclip size={20} />}
+                  <Paperclip size={20} className="-rotate-45" />
                 </button>
 
-                <textarea
+                {/* Single Line Text Input (Center) */}
+                <input
+                  type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Start a new message"
-                  className="flex-1 bg-transparent text-[15px] text-black dark:text-white px-2 py-2.5 max-h-32 min-h-[40px] resize-none focus:outline-none placeholder:text-zinc-500"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage(e);
-                    }
-                  }}
+                  className="flex-1 bg-transparent text-[15px] text-black dark:text-white px-2 py-2 focus:outline-none placeholder:text-zinc-500 min-w-0"
                 />
                 
+                {/* Send Button (Right) */}
                 <button 
                   type="submit"
-                  disabled={isSending || isUploading || (!newMessage.trim())}
-                  className="p-3 bg-black text-[#9cf822] dark:bg-white dark:text-black rounded-full hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 shrink-0 flex items-center justify-center shadow-md"
+                  disabled={isSending || isUploading || (!newMessage.trim() && !isUploading)}
+                  className="w-10 h-10 rounded-full bg-zinc-500 hover:bg-zinc-600 dark:bg-zinc-600 flex items-center justify-center text-[#9cf822] transition-colors shrink-0 disabled:opacity-50 ml-1"
                 >
-                  <Send size={18} className="-ml-0.5" />
+                  {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} className="ml-0.5" />}
                 </button>
               </form>
             </div>
