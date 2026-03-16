@@ -62,14 +62,35 @@ function InboxContent() {
       if (!authUser) return router.push('/login');
       setUser(authUser);
 
-      // 1. Fetch Contact List Data
-      const { data: dms, error: dmsError } = await supabase
+      // 1. Fetch Contact List Data (Fixed explicit profile references)
+      let { data: dms, error: dmsError } = await supabase
         .from('direct_messages')
-        .select(`*, sender:sender_id(id, full_name, avatar_url, is_verified), receiver:receiver_id(id, full_name, avatar_url, is_verified)`)
+        .select(`*, sender:profiles!sender_id(id, full_name, avatar_url, is_verified), receiver:profiles!receiver_id(id, full_name, avatar_url, is_verified)`)
         .or(`sender_id.eq.${authUser.id},receiver_id.eq.${authUser.id}`)
         .order('created_at', { ascending: false });
 
-      if (dmsError) console.error("Database sync error (Contacts):", dmsError);
+      // UNBREAKABLE FAILSAFE: If the relational join fails, grab messages and map manually
+      if (dmsError || !dms) {
+        console.error("Advanced Contacts Fetch Failed. Executing Failsafe:", dmsError);
+        const { data: rawDms } = await supabase
+          .from('direct_messages')
+          .select('*')
+          .or(`sender_id.eq.${authUser.id},receiver_id.eq.${authUser.id}`)
+          .order('created_at', { ascending: false });
+
+        if (rawDms && rawDms.length > 0) {
+          const uniqueUserIds = Array.from(new Set(rawDms.flatMap(dm => [dm.sender_id, dm.receiver_id])));
+          const { data: profiles } = await supabase.from('profiles').select('id, full_name, avatar_url, is_verified').in('id', uniqueUserIds);
+          
+          dms = rawDms.map(dm => ({
+            ...dm,
+            sender: profiles?.find(p => p.id === dm.sender_id) || { id: dm.sender_id, full_name: 'User' },
+            receiver: profiles?.find(p => p.id === dm.receiver_id) || { id: dm.receiver_id, full_name: 'User' }
+          }));
+        } else {
+          dms = [];
+        }
+      }
 
       const contactMap = new Map();
       const uniqueSentReceivers = new Set();
@@ -77,6 +98,10 @@ function InboxContent() {
       (dms || []).forEach(dm => {
         const isMeSender = dm.sender_id === authUser.id;
         const otherUser = isMeSender ? dm.receiver : dm.sender;
+        
+        // Prevent crashes if otherUser somehow fails to load
+        if (!otherUser || !otherUser.id) return;
+
         if (isMeSender) uniqueSentReceivers.add(otherUser.id);
 
         if (!contactMap.has(otherUser.id)) {
