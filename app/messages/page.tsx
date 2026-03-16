@@ -101,6 +101,8 @@ function InboxContent() {
             setActiveChatUser(targetProfile);
             setMessages([]);
           }
+          // THIS WAS THE FIX: Tell the spinner to stop loading for new chats!
+          setLoading(false); 
         }
       } else if (sortedContacts.length > 0 && window.innerWidth > 768) {
         handleSelectContact(sortedContacts[0].user, true);
@@ -121,7 +123,7 @@ function InboxContent() {
         
         if (payload.eventType === 'INSERT') {
           if (activeChatUserRef.current && (activeChatUserRef.current.id === payload.new.sender_id || user.id === payload.new.sender_id)) {
-             fetchMessagesForActiveChat(activeChatUserRef.current.id); // Re-fetch to get reply joins
+             fetchMessagesForActiveChat(activeChatUserRef.current.id); 
           }
         }
 
