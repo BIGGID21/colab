@@ -1,0 +1,447 @@
+'use client';
+
+import React, { useEffect, useState, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
+import { 
+  Loader2, ArrowLeft, Send, Search, User, 
+  MessageSquare, BadgeCheck, Lock, Sparkles, X, Crown
+} from 'lucide-react';
+import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
+
+function InboxContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const composeId = searchParams.get('compose');
+
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  
+  // Chat State
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [activeChatUser, setActiveChatUser] = useState<any>(null);
+  const activeChatUserRef = useRef<any>(null); // Ref keeps track of active user for the real-time listener
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Paywall State
+  const [showProModal, setShowProModal] = useState(false);
+  const [initiatedCount, setInitiatedCount] = useState(0);
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const triggerHaptic = (pattern: number | number[] = 10) => {
+    if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(pattern);
+  };
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    activeChatUserRef.current = activeChatUser;
+  }, [activeChatUser]);
+
+  useEffect(() => {
+    fetchInboxData(true); // true = is initial load
+  }, [composeId]);
+
+  const fetchInboxData = async (isInitialLoad = false) => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return router.push('/login');
+
+    // Fetch user profile
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
+    const currentUser = { ...authUser, ...profile };
+    setUser(currentUser);
+
+    // Fetch all DMs involving the user
+    const { data: dms } = await supabase
+      .from('direct_messages')
+      .select(`
+        *,
+        sender:sender_id(id, full_name, avatar_url, is_verified),
+        receiver:receiver_id(id, full_name, avatar_url, is_verified)
+      `)
+      .or(`sender_id.eq.${authUser.id},receiver_id.eq.${authUser.id}`)
+      .order('created_at', { ascending: false });
+
+    const contactMap = new Map();
+    const uniqueSentReceivers = new Set();
+
+    (dms || []).forEach(dm => {
+      const isMeSender = dm.sender_id === authUser.id;
+      const otherUser = isMeSender ? dm.receiver : dm.sender;
+      
+      if (isMeSender) uniqueSentReceivers.add(otherUser.id);
+
+      if (!contactMap.has(otherUser.id)) {
+        contactMap.set(otherUser.id, {
+          user: otherUser,
+          lastMessage: dm,
+          unread: !isMeSender && !dm.is_read
+        });
+      }
+    });
+
+    setInitiatedCount(uniqueSentReceivers.size);
+    const sortedContacts = Array.from(contactMap.values());
+    setContacts(sortedContacts);
+
+    // ONLY auto-select chats on the very first load. This prevents the "disappearing message" refresh bug.
+    if (isInitialLoad) {
+      if (composeId) {
+        const existingContact = sortedContacts.find(c => c.user.id === composeId);
+        if (existingContact) {
+          handleSelectContact(existingContact.user);
+        } else {
+          const { data: targetProfile } = await supabase.from('profiles').select('id, full_name, avatar_url, is_verified').eq('id', composeId).single();
+          if (targetProfile) {
+            setActiveChatUser(targetProfile);
+            setMessages([]);
+          }
+        }
+      } else if (sortedContacts.length > 0) {
+        if (window.innerWidth > 768) {
+          handleSelectContact(sortedContacts[0].user);
+        }
+      }
+    }
+
+    setLoading(false);
+  };
+
+  // Real-time listener (Twitter-style instant incoming messages)
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase.channel(`dms_${user.id}`)
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'direct_messages',
+        filter: `receiver_id=eq.${user.id}`
+      }, (payload) => {
+        fetchInboxData(false); // Update sidebar silently
+        
+        // If the message is from the person we are currently looking at, put it on screen instantly!
+        if (activeChatUserRef.current && activeChatUserRef.current.id === payload.new.sender_id) {
+          setMessages(prev => {
+            if (prev.some(m => m.id === payload.new.id)) return prev; // Prevent duplicates
+            return [...prev, payload.new];
+          });
+          scrollToBottom();
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
+  const fetchMessagesForActiveChat = async (targetUserId: string) => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('direct_messages')
+      .select('*')
+      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${user.id})`)
+      .order('created_at', { ascending: true });
+    
+    setMessages(data || []);
+    scrollToBottom();
+  };
+
+  const handleSelectContact = (contactUser: any) => {
+    setActiveChatUser(contactUser);
+    fetchMessagesForActiveChat(contactUser.id);
+    
+    if (composeId) {
+      router.replace('/messages', { scroll: false });
+    }
+  };
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, 50);
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !activeChatUser || !user) return;
+
+    // --- PAYWALL LOGIC ---
+    const hasMessagedBefore = contacts.some(c => c.user.id === activeChatUser.id && c.lastMessage.sender_id === user.id);
+    if (!user.is_pro && !hasMessagedBefore && initiatedCount >= 3) {
+      setShowProModal(true);
+      triggerHaptic([10, 30, 10]);
+      return;
+    }
+
+    setIsSending(true);
+    const messageContent = newMessage.trim();
+    setNewMessage(''); 
+
+    // 1. Optimistic UI update (Instant display)
+    const tempId = Math.random().toString();
+    const tempMessage = {
+      id: tempId,
+      sender_id: user.id,
+      receiver_id: activeChatUser.id,
+      content: messageContent,
+      created_at: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, tempMessage]);
+    scrollToBottom();
+
+    // 2. Actual DB Insert
+    const { data: actualMessage, error } = await supabase.from('direct_messages').insert({
+      sender_id: user.id,
+      receiver_id: activeChatUser.id,
+      content: messageContent
+    }).select().single();
+
+    if (error) {
+      alert("Failed to send message.");
+      setMessages(prev => prev.filter(m => m.id !== tempId)); 
+    } else {
+      triggerHaptic(10);
+      // Replace the temp message with the actual DB message behind the scenes
+      setMessages(prev => prev.map(m => m.id === tempId ? actualMessage : m));
+      fetchInboxData(false); // Update sidebar silently without wiping active chat
+    }
+    
+    setIsSending(false);
+  };
+
+  const handleUpgradeToPro = async () => {
+    await supabase.from('profiles').update({ is_pro: true }).eq('id', user.id);
+    setUser({ ...user, is_pro: true });
+    setShowProModal(false);
+    alert("🎉 You are now a Pro Member! Unlimited messaging unlocked.");
+  };
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
+
+  return (
+    <div className="min-h-[100dvh] bg-zinc-50 dark:bg-black flex flex-col md:flex-row overflow-hidden font-sans">
+      
+      {/* ------------------------------------------------------------------ */}
+      {/* LEFT SIDEBAR: Contacts List */}
+      {/* ------------------------------------------------------------------ */}
+      <div className={`w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-900 bg-white dark:bg-[#0a0a0a] flex flex-col h-[100dvh] ${activeChatUser ? 'hidden md:flex' : 'flex'}`}>
+        
+        {/* Sidebar Header */}
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-900 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="p-2 bg-zinc-100 dark:bg-zinc-900 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
+              <ArrowLeft size={16} className="text-black dark:text-white" />
+            </Link>
+            <h1 className="text-xl font-bold text-black dark:text-white">Messages</h1>
+          </div>
+          {user?.is_pro ? (
+            <Crown size={20} className="text-[#9cf822]" />
+          ) : (
+            <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded-full uppercase tracking-widest border border-zinc-200 dark:border-zinc-800">
+              {initiatedCount}/3 Free
+            </span>
+          )}
+        </div>
+
+        {/* Contacts List */}
+        <div className="flex-1 overflow-y-auto">
+          {contacts.length === 0 ? (
+            <div className="p-8 text-center text-zinc-500">
+              <MessageSquare className="mx-auto mb-3 opacity-20" size={32} />
+              <p className="text-sm font-medium">No messages yet</p>
+            </div>
+          ) : (
+            contacts.map((contact) => (
+              <button
+                key={contact.user.id}
+                onClick={() => handleSelectContact(contact.user)}
+                className={`w-full text-left p-4 flex items-center gap-3 border-b border-zinc-100 dark:border-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors ${activeChatUser?.id === contact.user.id ? 'bg-zinc-50 dark:bg-zinc-900/50' : ''}`}
+              >
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 shrink-0 relative">
+                  {contact.user.avatar_url ? (
+                    <img src={contact.user.avatar_url} className="w-full h-full object-cover" alt="" />
+                  ) : (
+                    <User size={20} className="m-auto mt-3 text-zinc-400" />
+                  )}
+                  {contact.unread && <div className="absolute top-0 right-0 w-3 h-3 bg-[#9cf822] border-2 border-white dark:border-[#0a0a0a] rounded-full" />}
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold text-sm text-black dark:text-white truncate flex items-center gap-1">
+                      {contact.user.full_name}
+                      {contact.user.is_verified && <BadgeCheck size={14} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 shrink-0">
+                      {formatDistanceToNow(new Date(contact.lastMessage.created_at), { addSuffix: false }).replace('about ', '')}
+                    </span>
+                  </div>
+                  <p className={`text-xs truncate ${contact.unread ? 'font-bold text-black dark:text-white' : 'text-zinc-500'}`}>
+                    {contact.lastMessage.sender_id === user.id ? 'You: ' : ''}{contact.lastMessage.content}
+                  </p>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* RIGHT PANEL: Active Chat */}
+      {/* ------------------------------------------------------------------ */}
+      <div className={`flex-1 flex flex-col bg-zinc-50 dark:bg-black h-[100dvh] relative ${!activeChatUser ? 'hidden md:flex' : 'flex'}`}>
+        
+        {!activeChatUser ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+            <MessageSquare size={48} className="text-zinc-300 dark:text-zinc-800 mb-4" />
+            <h2 className="text-xl font-bold text-black dark:text-white mb-2">Your Messages</h2>
+            <p className="text-zinc-500 text-sm max-w-sm">Select a conversation from the sidebar or start a new one from a user's profile to collaborate.</p>
+          </div>
+        ) : (
+          <>
+            {/* Active Chat Header */}
+            <div className="h-16 px-6 border-b border-zinc-200 dark:border-zinc-900 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-md flex items-center gap-4 shrink-0 z-10">
+              <button onClick={() => setActiveChatUser(null)} className="md:hidden p-2 -ml-2 text-zinc-500 hover:text-black dark:hover:text-white">
+                <ArrowLeft size={20} />
+              </button>
+              
+              <Link href={`/profile/${activeChatUser.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800">
+                  {activeChatUser.avatar_url ? (
+                    <img src={activeChatUser.avatar_url} className="w-full h-full object-cover" alt="" />
+                  ) : (
+                    <User size={16} className="m-auto mt-2.5 text-zinc-400" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-black dark:text-white flex items-center gap-1">
+                    {activeChatUser.full_name}
+                    {activeChatUser.is_verified && <BadgeCheck size={14} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
+                  </h3>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">View Profile</p>
+                </div>
+              </Link>
+            </div>
+
+            {/* Chat Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4" ref={scrollRef}>
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
+                   <p className="text-sm font-medium text-black dark:text-white">Start the conversation</p>
+                   <p className="text-xs text-zinc-500 mt-1">Send a message to discuss projects and milestones.</p>
+                </div>
+              ) : (
+                messages.map((msg, idx) => {
+                  const isMe = msg.sender_id === user.id;
+                  const showDate = idx === 0 || new Date(msg.created_at).getDate() !== new Date(messages[idx-1].created_at).getDate();
+
+                  return (
+                    <React.Fragment key={msg.id}>
+                      {showDate && (
+                        <div className="flex justify-center my-4">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded-full">
+                            {new Date(msg.created_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                      )}
+                      <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] p-4 text-sm ${
+                          isMe 
+                            ? 'bg-[#9cf822] text-black rounded-2xl rounded-tr-sm' 
+                            : 'bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-900 text-black dark:text-white rounded-2xl rounded-tl-sm'
+                        }`}>
+                          <p className="whitespace-pre-wrap">{msg.content}</p>
+                          <p className={`text-[9px] mt-1.5 font-semibold uppercase ${isMe ? 'text-black/50 text-right' : 'text-zinc-400'}`}>
+                            {new Date(msg.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Chat Input */}
+            <form onSubmit={handleSendMessage} className="p-4 bg-white dark:bg-[#0a0a0a] border-t border-zinc-200 dark:border-zinc-900 shrink-0">
+              <div className="flex items-end gap-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-2 focus-within:border-[#9cf822] transition-colors">
+                <textarea
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 bg-transparent text-sm text-black dark:text-white p-3 max-h-32 min-h-[44px] resize-none focus:outline-none placeholder:text-zinc-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage(e);
+                    }
+                  }}
+                />
+                <button 
+                  type="submit"
+                  disabled={isSending || !newMessage.trim()}
+                  className="p-3 bg-black text-white dark:bg-white dark:text-black rounded-xl hover:opacity-80 transition-opacity disabled:opacity-50 shrink-0"
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* PAYWALL MODAL */}
+      {/* ------------------------------------------------------------------ */}
+      {showProModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#0a0a0a] w-full max-w-md rounded-[2rem] border border-zinc-200 dark:border-zinc-800 p-8 relative shadow-2xl overflow-hidden">
+             
+             <button onClick={() => setShowProModal(false)} className="absolute top-6 right-6 p-2 bg-zinc-100 dark:bg-zinc-900 text-zinc-500 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors z-10">
+               <X size={16} />
+             </button>
+
+             <div className="w-16 h-16 bg-black dark:bg-white rounded-2xl flex items-center justify-center mb-6 shadow-lg relative">
+               <Sparkles className="text-[#9cf822] absolute -top-2 -right-2 animate-pulse" size={24} />
+               <Lock className="text-white dark:text-black" size={28} />
+             </div>
+
+             <h2 className="text-2xl font-bold text-black dark:text-white mb-2">Unlock Unlimited Networking</h2>
+             <p className="text-zinc-600 dark:text-zinc-400 text-sm mb-8 leading-relaxed">
+               You've reached your free limit of 3 new conversations. Upgrade to CoLab Pro to send unlimited messages, close more deals, and scale your income.
+             </p>
+
+             <div className="space-y-3 mb-8">
+                <div className="flex items-center gap-3 text-sm font-bold text-black dark:text-white"><BadgeCheck size={18} className="text-[#9cf822]"/> Unlimited Direct Messages</div>
+                <div className="flex items-center gap-3 text-sm font-bold text-black dark:text-white"><BadgeCheck size={18} className="text-[#9cf822]"/> Apply to Pro-tier Projects</div>
+                <div className="flex items-center gap-3 text-sm font-bold text-black dark:text-white"><BadgeCheck size={18} className="text-[#9cf822]"/> Pro Badge on Profile</div>
+             </div>
+
+             <button 
+               onClick={handleUpgradeToPro}
+               className="w-full py-4 bg-[#9cf822] text-black rounded-xl font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-[#9cf822]/20"
+             >
+               Upgrade Now - ₦5,000/mo
+             </button>
+             <p className="text-center text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-4">Cancel anytime</p>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+export default function InboxPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#9cf822]" /></div>}>
+      <InboxContent />
+    </Suspense>
+  );
+}
