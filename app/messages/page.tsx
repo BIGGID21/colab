@@ -56,7 +56,7 @@ function InboxContent() {
 
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
     const currentUser = { ...authUser, ...profile };
-    setUser(currentUser);
+    setUser(currentUser); // React state queues this, but we will pass currentUser directly below!
 
     const { data: dms } = await supabase
       .from('direct_messages')
@@ -94,18 +94,18 @@ function InboxContent() {
       if (urlUserId) {
         const existingContact = sortedContacts.find(c => c.user.id === urlUserId);
         if (existingContact) {
-          handleSelectContact(existingContact.user, false);
+          // Pass currentUser explicitly to avoid the React state delay
+          handleSelectContact(existingContact.user, false, currentUser); 
         } else {
           const { data: targetProfile } = await supabase.from('profiles').select('id, full_name, avatar_url, is_verified').eq('id', urlUserId).single();
           if (targetProfile) {
             setActiveChatUser(targetProfile);
             setMessages([]);
           }
-          // THIS WAS THE FIX: Tell the spinner to stop loading for new chats!
           setLoading(false); 
         }
       } else if (sortedContacts.length > 0 && window.innerWidth > 768) {
-        handleSelectContact(sortedContacts[0].user, true);
+        handleSelectContact(sortedContacts[0].user, true, currentUser);
       } else {
         setLoading(false);
       }
@@ -114,7 +114,6 @@ function InboxContent() {
     }
   };
 
-  // Real-time listener for INSERTS and DELETES
   useEffect(() => {
     if (!user) return;
     const channel = supabase.channel(`dms_${user.id}`)
@@ -123,7 +122,7 @@ function InboxContent() {
         
         if (payload.eventType === 'INSERT') {
           if (activeChatUserRef.current && (activeChatUserRef.current.id === payload.new.sender_id || user.id === payload.new.sender_id)) {
-             fetchMessagesForActiveChat(activeChatUserRef.current.id); 
+             fetchMessagesForActiveChat(activeChatUserRef.current.id, user); 
           }
         }
 
@@ -136,15 +135,18 @@ function InboxContent() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
-  const fetchMessagesForActiveChat = async (targetUserId: string) => {
-    if (!user) return;
+  // Added activeAuthUser parameter to bypass state delays
+  const fetchMessagesForActiveChat = async (targetUserId: string, activeAuthUser?: any) => {
+    const validUser = activeAuthUser || user;
+    if (!validUser) return;
+    
     const { data } = await supabase
       .from('direct_messages')
       .select(`
         *,
         reply_to:reply_to_id(id, content, sender_id)
       `)
-      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${user.id})`)
+      .or(`and(sender_id.eq.${validUser.id},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${validUser.id})`)
       .order('created_at', { ascending: true });
     
     setMessages(data || []);
@@ -152,10 +154,10 @@ function InboxContent() {
     setLoading(false);
   };
 
-  const handleSelectContact = (contactUser: any, updateUrl = true) => {
+  const handleSelectContact = (contactUser: any, updateUrl = true, activeAuthUser?: any) => {
     setActiveChatUser(contactUser);
     setReplyingTo(null);
-    fetchMessagesForActiveChat(contactUser.id);
+    fetchMessagesForActiveChat(contactUser.id, activeAuthUser);
     
     if (updateUrl) {
       router.replace(`?u=${contactUser.id}`, { scroll: false });
@@ -362,7 +364,7 @@ function InboxContent() {
                 </div>
               ) : (
                 messages.map((msg, idx) => {
-                  const isMe = msg.sender_id === user.id;
+                  const isMe = msg.sender_id === user?.id;
                   const showDate = idx === 0 || new Date(msg.created_at).getDate() !== new Date(messages[idx-1].created_at).getDate();
 
                   return (
@@ -395,7 +397,7 @@ function InboxContent() {
                             <div className="mb-1 flex items-center gap-1.5 opacity-70 cursor-pointer" onClick={() => {/* Optional: scroll to reply */}}>
                               <Reply size={12} className="text-zinc-500" />
                               <span className="text-[12px] text-zinc-500 line-clamp-1 bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded-full max-w-[200px]">
-                                {msg.reply_to.sender_id === user.id ? 'You' : activeChatUser.full_name}: {msg.reply_to.content}
+                                {msg.reply_to.sender_id === user?.id ? 'You' : activeChatUser.full_name}: {msg.reply_to.content}
                               </span>
                             </div>
                           )}
@@ -429,7 +431,7 @@ function InboxContent() {
                 <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 px-4 py-2 rounded-t-2xl border-x border-t border-zinc-200 dark:border-zinc-800 -mb-2 pb-4">
                   <div className="flex items-center gap-2 overflow-hidden text-sm">
                     <Reply size={14} className="text-[#9cf822] shrink-0" />
-                    <span className="font-bold text-black dark:text-white shrink-0">Replying to {replyingTo.sender_id === user.id ? 'yourself' : activeChatUser.full_name}:</span>
+                    <span className="font-bold text-black dark:text-white shrink-0">Replying to {replyingTo.sender_id === user?.id ? 'yourself' : activeChatUser.full_name}:</span>
                     <span className="text-zinc-500 truncate">{replyingTo.content}</span>
                   </div>
                   <button onClick={() => setReplyingTo(null)} className="p-1 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 transition-colors">
