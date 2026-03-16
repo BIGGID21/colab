@@ -4,57 +4,84 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { Loader2, Mail, Lock, User, ArrowRight, CheckCircle2, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Mail, ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
-export default function SignUpPage() {
+export default function SignupPage() {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
-  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
+  // Initialize the Supabase client
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  // 1. FUNCTIONAL: Google Signup
+  const handleGoogleSignup = async () => {
+    setOauthLoading('google');
+    setError(null);
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    
+    if (authError) {
+      setError(authError.message);
+      setOauthLoading(null);
+    }
+  };
+
+  // 2. FUNCTIONAL: GitHub Signup
+  const handleGitHubSignup = async () => {
+    setOauthLoading('github');
+    setError(null);
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    
+    if (authError) {
+      setError(authError.message);
+      setOauthLoading(null);
+    }
+  };
+
+  // 3. FUNCTIONAL: Email Magic Link Signup
+  const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email) {
+      setError("Please enter your email");
+      return;
+    }
+    
     setLoading(true);
     setError(null);
-
-    const { data, error: signUpError } = await supabase.auth.signUp({
+    
+    const { error: authError } = await supabase.auth.signInWithOtp({
       email,
-      password,
       options: {
-        data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/auth/callback`
-      }
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        shouldCreateUser: true, // Specifically tells Supabase to create a new user
+      },
     });
 
-    if (signUpError) {
-      setError(signUpError.message);
+    if (authError) {
+      setError(authError.message);
       setLoading(false);
-      return;
-    }
-
-    if (data.user && data.user.identities && data.user.identities.length === 0) {
-      setError("An account with this email already exists.");
+    } else {
+      setSuccess(true);
       setLoading(false);
-      return;
     }
-
-    setSuccess(true);
-    setLoading(false);
   };
 
   const logoSrc = mounted && resolvedTheme === 'dark' ? '/white.png' : '/logo.png';
@@ -120,7 +147,7 @@ export default function SignUpPage() {
       </div>
 
       {/* ========================================================= */}
-      {/* RIGHT PANEL: The Sign Up Form */}
+      {/* RIGHT PANEL: The Signup Form */}
       {/* ========================================================= */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative">
         
@@ -137,7 +164,7 @@ export default function SignUpPage() {
             <h2 className="text-3xl font-bold text-black dark:text-white mb-3">Create an account</h2>
             <div className="flex items-center justify-center lg:justify-start gap-4">
                <span className="h-px bg-zinc-200 dark:bg-zinc-800 flex-1 lg:hidden"></span>
-               <p className="text-zinc-500 dark:text-zinc-400 text-sm">Sign up with your email</p>
+               <p className="text-zinc-500 dark:text-zinc-400 text-sm">Join CoLab Studio today</p>
                <span className="h-px bg-zinc-200 dark:bg-zinc-800 flex-1 lg:max-w-[100px]"></span>
             </div>
           </div>
@@ -147,97 +174,89 @@ export default function SignUpPage() {
               <CheckCircle2 size={48} className="text-green-500 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-green-700 dark:text-green-400 mb-2">Check your email</h3>
               <p className="text-green-600 dark:text-green-500/80 text-sm">
-                We sent a verification link to <span className="font-bold">{email}</span>. Click the link to activate your account.
+                We sent a secure sign-up link to <span className="font-bold">{email}</span>. Click the link to instantly create your account.
               </p>
               <button 
                 onClick={() => setSuccess(false)}
                 className="mt-6 text-sm font-bold text-green-700 dark:text-green-400 hover:underline"
               >
-                Back to sign up
+                Use a different email
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSignUp} className="space-y-5">
+            <div className="space-y-6">
               
-              {/* Full Name Input */}
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Full Name</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <User size={18} className="text-zinc-400" />
+              {/* Magic Link Form */}
+              <form onSubmit={handleEmailSignup} className="space-y-5">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Email Address</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Mail size={18} className="text-zinc-400" />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-[#F4F4F5] dark:bg-zinc-900 border border-transparent focus:border-zinc-300 dark:focus:border-zinc-700 text-black dark:text-white rounded-xl py-3.5 pl-11 pr-4 sm:text-sm focus:outline-none transition-all placeholder:text-zinc-400"
+                      placeholder="name@example.com"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-[#F4F4F5] dark:bg-zinc-900 border border-transparent focus:border-zinc-300 dark:focus:border-zinc-700 text-black dark:text-white rounded-xl py-3.5 pl-11 pr-4 sm:text-sm focus:outline-none transition-all placeholder:text-zinc-400"
-                    placeholder="Steve Dave"
-                  />
                 </div>
-              </div>
 
-              {/* Email Input */}
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Email Address</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Mail size={18} className="text-zinc-400" />
+                {error && (
+                  <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm font-medium">
+                    {error}
                   </div>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-[#F4F4F5] dark:bg-zinc-900 border border-transparent focus:border-zinc-300 dark:focus:border-zinc-700 text-black dark:text-white rounded-xl py-3.5 pl-11 pr-4 sm:text-sm focus:outline-none transition-all placeholder:text-zinc-400"
-                    placeholder="name@example.com"
-                  />
-                </div>
-              </div>
-
-              {/* Password Input */}
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock size={18} className="text-zinc-400" />
-                  </div>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#F4F4F5] dark:bg-zinc-900 border border-transparent focus:border-zinc-300 dark:focus:border-zinc-700 text-black dark:text-white rounded-xl py-3.5 pl-11 pr-12 sm:text-sm focus:outline-none transition-all placeholder:text-zinc-400"
-                    placeholder="••••••••"
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Error Message */}
-              {error && (
-                <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm font-medium">
-                  {error}
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-[#9cf822] hover:bg-[#8ae01b] text-black font-bold py-3.5 rounded-xl transition-all disabled:opacity-70 mt-6"
-              >
-                {loading ? <Loader2 size={20} className="animate-spin" /> : (
-                  <>Create Account <ArrowRight size={18} /></>
                 )}
-              </button>
+
+                <button
+                  type="submit"
+                  disabled={loading || oauthLoading !== null}
+                  className="w-full flex items-center justify-center gap-2 bg-[#9cf822] hover:bg-[#8ae01b] text-black font-bold py-3.5 rounded-xl transition-all disabled:opacity-70"
+                >
+                  {loading ? <Loader2 size={20} className="animate-spin" /> : (
+                    <>Send Magic Link <ArrowRight size={18} /></>
+                  )}
+                </button>
+              </form>
+
+              {/* OR Divider */}
+              <div className="relative py-2 flex items-center">
+                <div className="flex-grow border-t border-zinc-200 dark:border-zinc-800"></div>
+                <span className="px-3 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">OR</span>
+                <div className="flex-grow border-t border-zinc-200 dark:border-zinc-800"></div>
+              </div>
+
+              {/* Social Signup Buttons */}
+              <div className="space-y-3">
+                <button 
+                  onClick={handleGoogleSignup}
+                  disabled={loading || oauthLoading !== null}
+                  className="w-full flex items-center justify-center gap-3 py-3.5 bg-white dark:bg-[#161616] border border-zinc-200 dark:border-zinc-800/50 rounded-xl text-black dark:text-zinc-300 text-sm font-bold hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                >
+                  {oauthLoading === 'google' ? (
+                    <Loader2 size={18} className="animate-spin text-zinc-400" />
+                  ) : (
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width={18} alt="Google" />
+                  )}
+                  Sign up with Google
+                </button>
+                
+                <button 
+                  onClick={handleGitHubSignup}
+                  disabled={loading || oauthLoading !== null}
+                  className="w-full flex items-center justify-center gap-3 py-3.5 bg-zinc-900 text-white dark:bg-white dark:text-black rounded-xl text-sm font-bold hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                >
+                  {oauthLoading === 'github' ? (
+                    <Loader2 size={18} className="animate-spin text-zinc-400" />
+                  ) : (
+                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" width={18} alt="GitHub" className="dark:invert" />
+                  )}
+                  Sign up with GitHub
+                </button>
+              </div>
 
               <p className="text-center text-zinc-500 dark:text-zinc-400 text-sm mt-8">
                 Already have an account?{' '}
@@ -246,7 +265,7 @@ export default function SignUpPage() {
                 </Link>
               </p>
 
-            </form>
+            </div>
           )}
         </div>
       </div>
