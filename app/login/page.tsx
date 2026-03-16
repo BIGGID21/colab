@@ -1,116 +1,211 @@
 'use client';
 
-import React, { useState } from 'react';
-import Image from 'next/image';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-// CORRECT IMPORT: This fixes the "Export not found" crash
+import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
+import { Loader2, Mail, Lock, ArrowRight, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { useTheme } from 'next-themes';
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Initialize the Supabase client
+  useEffect(() => setMounted(true), []);
+
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // 1. FUNCTIONAL: Google Login
-  const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/discover`,
-      },
-    });
-    if (error) alert(error.message);
-  };
-
-  // 2. FUNCTIONAL: Email "Next" Button (Magic Link)
-  const handleEmailLogin = async () => {
-    if (!email) return alert("Please enter your email");
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
-    
-    const { error } = await supabase.auth.signInWithOtp({
+    setError(null);
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      password,
     });
 
-    setLoading(true); // Keep loading state until redirected or error
-    if (error) {
-      alert(error.message);
+    if (signInError) {
+      setError(signInError.message);
       setLoading(false);
-    } else {
-      alert("Check your email for the login link!");
+      return;
     }
+
+    router.push('/discover');
+    router.refresh();
   };
+
+  const logoSrc = mounted && resolvedTheme === 'dark' ? '/white.png' : '/logo.png';
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      <div className="bg-[#0a0a0a] rounded-[32px] border border-zinc-900 flex flex-col md:flex-row overflow-hidden max-w-4xl w-full min-h-[480px]">
+    <div className="min-h-screen w-full flex bg-white dark:bg-black font-sans">
+      
+      {/* ========================================================= */}
+      {/* LEFT PANEL: Branding & Graphics (Hidden on Mobile) */}
+      {/* ========================================================= */}
+      <div className="hidden lg:flex w-1/2 relative bg-[#F9F9F8] dark:bg-[#0a0a0a] border-r border-zinc-200 dark:border-zinc-800 flex-col items-center justify-center overflow-hidden">
         
-        {/* Left Side: Brand */}
-        <div className="w-full md:w-1/2 p-10 flex flex-col justify-center border-b md:border-b-0 md:border-r border-zinc-900/50">
-          <Image src="/icon.png" alt="Logo" width={42} height={42} className="mb-6 opacity-90" />
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Sign In</h1>
-          <p className="text-zinc-500 text-sm">Welcome back to CoLab Studio</p>
+        {/* Background Decorative Pattern */}
+        <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.02]" 
+             style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, black 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+        
+        {/* Abstract Glowing Orb */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#9cf822] rounded-full blur-[150px] opacity-10 dark:opacity-5 pointer-events-none" />
+
+        {/* Floating Element 1 - Top Left */}
+        <div className="absolute top-[25%] left-[15%] animate-[bounce_6s_infinite] bg-white dark:bg-zinc-900 p-3 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3 z-10">
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold overflow-hidden">
+            <img src="https://i.pravatar.cc/150?u=1" alt="user" className="w-full h-full object-cover" />
+          </div>
+          <div className="pr-2">
+            <p className="text-sm font-bold text-black dark:text-white leading-tight">Steve Dave</p>
+            <div className="flex items-center gap-1 text-[#5c960f] dark:text-[#9cf822] text-[10px] font-bold uppercase tracking-wider mt-0.5">
+               <Sparkles size={10} /> Top Rated
+            </div>
+          </div>
         </div>
 
-        {/* Right Side: Form */}
-        <div className="w-full md:w-1/2 p-10 bg-[#0d0d0d] flex flex-col justify-center">
-          <div className="space-y-6 w-full max-w-xs mx-auto">
-            
-            {/* INPUT + NEXT BUTTON */}
-            <div className="relative">
-              <input 
-                type="email" 
-                placeholder="Email" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-zinc-900/50 border border-zinc-800 rounded-xl focus:border-[#9cf822] outline-none text-white text-sm"
-              />
-              <button 
-                onClick={handleEmailLogin}
-                disabled={loading}
-                className="absolute right-2 top-2 px-4 py-1.5 bg-[#9cf822] text-black rounded-lg text-xs font-black hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
-              >
-                {loading ? '...' : 'Next'}
-              </button>
-            </div>
-
-            <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest px-1">
-              <button className="text-zinc-600 hover:text-zinc-400">Forgot email?</button>
-              <Link href="/signup" className="text-[#9cf822] hover:text-white transition-colors">
-                Create Account
-              </Link>
-            </div>
-
-            <div className="relative py-2 flex items-center">
-              <div className="flex-grow border-t border-zinc-900"></div>
-              <span className="px-3 text-[9px] font-black text-zinc-700 uppercase tracking-widest">OR</span>
-              <div className="flex-grow border-t border-zinc-900"></div>
-            </div>
-
-            {/* SOCIAL BUTTONS */}
-            <div className="space-y-3">
-              <button 
-                onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center gap-3 py-3 bg-[#161616] border border-zinc-800/50 rounded-xl text-zinc-300 text-sm font-medium hover:bg-zinc-800"
-              >
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width={16} alt="G" />
-                Continue with Google
-              </button>
-              
-              <button className="w-full flex items-center justify-center gap-3 py-3 bg-white text-black rounded-xl text-sm font-bold hover:bg-zinc-200">
-                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" width={16} alt="GH" className="invert" />
-                Continue with GitHub
-              </button>
-            </div>
-
+        {/* Floating Element 2 - Bottom Right */}
+        <div className="absolute bottom-[30%] right-[15%] animate-[bounce_8s_infinite_reverse] bg-white dark:bg-zinc-900 p-3 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3 z-10">
+           <div className="pr-2 text-right">
+            <p className="text-xs text-zinc-500 font-medium leading-tight mb-0.5">I got my first 6</p>
+            <p className="text-sm font-bold text-black dark:text-white leading-tight">figure job on CoLab</p>
           </div>
+          <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center overflow-hidden">
+            <img src="https://i.pravatar.cc/150?u=5" alt="user" className="w-full h-full object-cover" />
+          </div>
+        </div>
+
+        {/* Central Text Content */}
+        <div className="relative z-20 text-center max-w-lg px-8 flex flex-col items-center">
+          <div className="w-16 h-16 mb-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 flex items-center justify-center p-3">
+             {mounted && <img src={logoSrc} alt="CoLab" className="w-full h-full object-contain" />}
+          </div>
+          
+          <h1 className="text-5xl font-bold text-zinc-900 dark:text-white leading-[1.15] tracking-tight">
+            Productivity <br />
+            <span className="relative inline-block mt-2">
+              <span className="relative z-10 text-black bg-[#9cf822] px-4 py-1.5 rounded-xl shadow-sm transform -rotate-2 inline-block">
+                multiplied.
+              </span>
+            </span>
+          </h1>
+          
+          <p className="text-zinc-500 dark:text-zinc-400 mt-8 text-lg leading-relaxed max-w-md">
+            Welcome back to the ecosystem where top-tier professionals collaborate, launch projects, and scale their income.
+          </p>
+        </div>
+      </div>
+
+      {/* ========================================================= */}
+      {/* RIGHT PANEL: The Login Form */}
+      {/* ========================================================= */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative">
+        
+        {/* Mobile Logo (Only shows on small screens) */}
+        <div className="absolute top-8 left-8 lg:hidden flex items-center gap-2">
+          <div className="w-8 h-8 flex items-center justify-center">
+             {mounted && <img src={logoSrc} alt="CoLab" className="w-full h-full object-contain" />}
+          </div>
+          <span className="font-bold text-xl">CoLab</span>
+        </div>
+
+        <div className="w-full max-w-[420px] mt-12 lg:mt-0">
+          <div className="text-center lg:text-left mb-10">
+            <h2 className="text-3xl font-bold text-black dark:text-white mb-3">Welcome back</h2>
+            <div className="flex items-center justify-center lg:justify-start gap-4">
+               <span className="h-px bg-zinc-200 dark:bg-zinc-800 flex-1 lg:hidden"></span>
+               <p className="text-zinc-500 dark:text-zinc-400 text-sm">Login with your email</p>
+               <span className="h-px bg-zinc-200 dark:bg-zinc-800 flex-1 lg:max-w-[100px]"></span>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            
+            {/* Email Input */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Email Address</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Mail size={18} className="text-zinc-400" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-[#F4F4F5] dark:bg-zinc-900 border border-transparent focus:border-zinc-300 dark:focus:border-zinc-700 text-black dark:text-white rounded-xl py-3.5 pl-11 pr-4 sm:text-sm focus:outline-none transition-all placeholder:text-zinc-400"
+                  placeholder="name@example.com"
+                />
+              </div>
+            </div>
+
+            {/* Password Input */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Password</label>
+                <Link href="/forgot-password" className="text-xs font-bold text-zinc-500 hover:text-[#9cf822] transition-colors">
+                  Forgot Password?
+                </Link>
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Lock size={18} className="text-zinc-400" />
+                </div>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-[#F4F4F5] dark:bg-zinc-900 border border-transparent focus:border-zinc-300 dark:focus:border-zinc-700 text-black dark:text-white rounded-xl py-3.5 pl-11 pr-12 sm:text-sm focus:outline-none transition-all placeholder:text-zinc-400"
+                  placeholder="••••••••"
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm font-medium">
+                {error}
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-[#9cf822] hover:bg-[#8ae01b] text-black font-bold py-3.5 rounded-xl transition-all disabled:opacity-70 mt-6"
+            >
+              {loading ? <Loader2 size={20} className="animate-spin" /> : (
+                <>Sign In <ArrowRight size={18} /></>
+              )}
+            </button>
+
+            <p className="text-center text-zinc-500 dark:text-zinc-400 text-sm mt-8">
+              Don't have an account?{' '}
+              <Link href="/signup" className="font-bold text-black dark:text-white hover:text-[#9cf822] dark:hover:text-[#9cf822] transition-colors">
+                Register here
+              </Link>
+            </p>
+
+          </form>
         </div>
       </div>
     </div>
