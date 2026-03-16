@@ -273,7 +273,7 @@ function InboxContent() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    <div className="flex flex-col md:flex-row w-full h-[calc(100dvh-80px)] md:h-[100dvh] bg-white dark:bg-black overflow-hidden font-sans">
+    <div className="flex flex-col md:flex-row w-full h-[calc(100dvh-50px-env(safe-area-inset-bottom,0px))] md:h-[100dvh] bg-white dark:bg-black overflow-hidden font-sans">
       
       {/* ------------------------------------------------------------------ */}
       {/* LEFT SIDEBAR: Contacts List */}
@@ -351,13 +351,12 @@ function InboxContent() {
       {/* RIGHT PANEL: Active Chat with Collaboration Wallpaper */}
       {/* ------------------------------------------------------------------ */}
       
-      {/* FIX: On mobile, this overlays the ENTIRE app starting at top-0, stopping right above your bottom nav! */}
       <div 
         className={`
           flex-col bg-zinc-50 dark:bg-[#0a0a0a] min-h-0 w-full
           ${!activeChatUser 
             ? 'hidden md:flex flex-1 relative h-full' 
-            : 'flex fixed inset-x-0 top-0 z-[70] h-[calc(100dvh-75px)] md:relative md:flex-1 md:h-full md:z-auto'
+            : 'flex fixed inset-x-0 top-0 z-[70] h-[calc(100dvh-50px-env(safe-area-inset-bottom,0px))] md:relative md:flex-1 md:h-full md:z-auto'
           }
         `}
       >
