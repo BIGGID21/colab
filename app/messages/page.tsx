@@ -273,7 +273,6 @@ function InboxContent() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    // FIX 1: Hard height constraint calc(100dvh - 80px) to prevent underlapping the global bottom nav
     <div className="flex flex-col md:flex-row w-full h-[calc(100dvh-80px)] md:h-[100dvh] bg-white dark:bg-black overflow-hidden font-sans">
       
       {/* ------------------------------------------------------------------ */}
@@ -352,8 +351,16 @@ function InboxContent() {
       {/* RIGHT PANEL: Active Chat with Collaboration Wallpaper */}
       {/* ------------------------------------------------------------------ */}
       
-      {/* FIX 2: min-h-0 prevents the parent flex container from overflowing */}
-      <div className={`flex-1 flex flex-col bg-zinc-50 dark:bg-[#0a0a0a] h-full w-full relative min-h-0 ${!activeChatUser ? 'hidden md:flex' : 'flex'}`}>
+      {/* FIX: On mobile, this overlays the ENTIRE app starting at top-0, stopping right above your bottom nav! */}
+      <div 
+        className={`
+          flex-col bg-zinc-50 dark:bg-[#0a0a0a] min-h-0 w-full
+          ${!activeChatUser 
+            ? 'hidden md:flex flex-1 relative h-full' 
+            : 'flex fixed inset-x-0 top-0 z-[70] h-[calc(100dvh-75px)] md:relative md:flex-1 md:h-full md:z-auto'
+          }
+        `}
+      >
         
         {!activeChatUser ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-l border-zinc-200 dark:border-zinc-800 relative z-10 bg-white dark:bg-black w-full min-h-0">
@@ -362,7 +369,7 @@ function InboxContent() {
           </div>
         ) : (
           <>
-            {/* Active Chat Header - FIX 3: min-h-[64px] prevents shrinking */}
+            {/* Active Chat Header */}
             <div className="w-full h-16 min-h-[64px] px-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-black/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
               <div className="flex items-center gap-4">
                 <button onClick={() => { setActiveChatUser(null); router.replace('/messages'); }} className="md:hidden p-2 -ml-2 text-black dark:text-white rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
@@ -388,7 +395,7 @@ function InboxContent() {
               </button>
             </div>
 
-            {/* Chat Messages Area - FIX 4: min-h-0 guarantees this is the ONLY area that scrolls */}
+            {/* Chat Messages Area */}
             <div 
               className="flex-1 overflow-y-auto min-h-0 w-full p-4 md:p-6 space-y-6 relative" 
               ref={scrollRef}
@@ -493,7 +500,7 @@ function InboxContent() {
               )}
             </div>
 
-            {/* Chat Input - FIX 5: min-h-[72px] guarantees the footer doesn't get crushed */}
+            {/* Chat Input */}
             <div className="w-full p-3 min-h-[72px] bg-white/95 dark:bg-black/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shrink-0 z-20">
               
               {/* Replying Indicator */}
