@@ -35,7 +35,9 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Timer for OTP countdown
   useEffect(() => {
@@ -66,7 +68,6 @@ export default function SignupPage() {
 
     setLoading(true);
 
-    // Register the user with Supabase
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -86,7 +87,6 @@ export default function SignupPage() {
       return;
     }
 
-    // Move to OTP step
     setStep('otp');
     setLoading(false);
   };
@@ -108,13 +108,14 @@ export default function SignupPage() {
       return;
     }
 
-    // Success! Route them to their new profile setup
     if (data.user) {
       router.push(`/profile?setupProfile=true`);
     }
   };
 
-  const logoSrc = mounted && resolvedTheme === 'dark' ? '/white.png' : '/logo.png';
+  if (!mounted) return null;
+
+  const logoSrc = resolvedTheme === 'dark' ? '/white.png' : '/logo.png';
   const isFormValid = firstName && lastName && email && password && confirmPassword && country && agreeTerms;
 
   return (
@@ -122,16 +123,12 @@ export default function SignupPage() {
       
       <div className="w-full max-w-lg bg-white dark:bg-[#121212] rounded-3xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-8 sm:p-10 overflow-hidden relative">
         
-        {/* Logo Header (Matches Chaise OTP screen style) */}
         <div className="flex justify-center mb-10">
           <div className="h-8 flex items-center justify-center">
-             {mounted && <img src={logoSrc} alt="CoLab" className="h-full object-contain" />}
+             <img src={logoSrc} alt="CoLab" className="h-full object-contain" />
           </div>
         </div>
 
-        {/* ========================================= */}
-        {/* STEP 1: REGISTRATION FORM */}
-        {/* ========================================= */}
         {step === 'form' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center gap-4 mb-8">
@@ -141,8 +138,6 @@ export default function SignupPage() {
             </div>
 
             <form onSubmit={handleSignup} className="space-y-5">
-              
-              {/* Name Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">First Name</label>
@@ -162,7 +157,6 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* Email */}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Email Address</label>
                 <input
@@ -172,7 +166,6 @@ export default function SignupPage() {
                 />
               </div>
 
-              {/* Password */}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Password</label>
                 <div className="relative">
@@ -187,7 +180,6 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* Confirm Password */}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Re-enter password</label>
                 <div className="relative">
@@ -202,7 +194,6 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* Country */}
               <div className="space-y-1.5 pb-2">
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Country</label>
                 <select 
@@ -217,7 +208,6 @@ export default function SignupPage() {
                 </select>
               </div>
 
-              {/* Checkboxes */}
               <div className="space-y-3">
                 <label className="flex items-start gap-3 cursor-pointer group">
                   <div className="mt-0.5 w-4 h-4 rounded border border-zinc-300 dark:border-zinc-600 flex items-center justify-center group-hover:border-[#9cf822] transition-colors">
@@ -225,7 +215,7 @@ export default function SignupPage() {
                     {agreeTerms && <div className="w-2.5 h-2.5 rounded-sm bg-[#9cf822]"></div>}
                   </div>
                   <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    I've read and agree to CoLab <Link href="/terms" className="text-[#9cf822] hover:underline">Terms</lassName> and <Link href="/privacy" className="text-[#9cf822] hover:underline">Privacy</Link> Policy
+                    I've read and agree to CoLab <Link href="/terms" className="text-[#9cf822] hover:underline">Terms</Link> and <Link href="/privacy" className="text-[#9cf822] hover:underline">Privacy</Link> Policy
                   </span>
                 </label>
                 
@@ -244,7 +234,6 @@ export default function SignupPage() {
                 <div className="text-red-500 text-sm font-medium text-center">{error}</div>
               )}
 
-              {/* Register Button */}
               <button
                 type="submit"
                 disabled={!isFormValid || loading}
@@ -263,9 +252,6 @@ export default function SignupPage() {
           </div>
         )}
 
-        {/* ========================================= */}
-        {/* STEP 2: OTP VERIFICATION */}
-        {/* ========================================= */}
         {step === 'otp' && (
           <div className="animate-in slide-in-from-right-8 duration-500 text-center">
             <h2 className="text-3xl font-bold text-black dark:text-white mb-2">Please check your email.</h2>
@@ -302,7 +288,8 @@ export default function SignupPage() {
                 <p className="font-bold text-zinc-500">0:{timer.toString().padStart(2, '0')}</p>
               ) : (
                 <button 
-                  onClick={() => { setTimer(60); /* Logic to resend OTP goes here */ }} 
+                  type="button"
+                  onClick={() => { setTimer(60); }} 
                   className="text-sm font-bold text-[#9cf822] hover:underline"
                 >
                   Resend Code
