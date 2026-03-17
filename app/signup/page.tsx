@@ -100,8 +100,9 @@ export default function SignupPage() {
       return;
     }
 
+    // FIXED: Redirecting to the dynamic [id] path instead of a static /profile
     if (data.user) {
-      router.push(`/profile?setupProfile=true`);
+      router.push(`/profile/${data.user.id}?setupProfile=true`);
     }
   };
 
@@ -113,19 +114,12 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen w-full flex bg-white dark:bg-black font-sans">
       
-      {/* ========================================================= */}
-      {/* LEFT PANEL: Branding & Graphics (Chaise Style) */}
-      {/* ========================================================= */}
+      {/* LEFT PANEL: Branding & Graphics */}
       <div className="hidden lg:flex w-1/2 relative bg-[#F9F9F8] dark:bg-[#0a0a0a] border-r border-zinc-200 dark:border-zinc-800 flex-col items-center justify-center overflow-hidden">
-        
-        {/* Background Decorative Pattern */}
         <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.02]" 
              style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, black 1px, transparent 0)', backgroundSize: '24px 24px' }} />
-        
-        {/* Abstract Glowing Orb */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#9cf822] rounded-full blur-[150px] opacity-10 dark:opacity-5 pointer-events-none" />
 
-        {/* Floating Ecosystem Profiles */}
         <div className="absolute top-12 xl:top-[15%] left-4 xl:left-[10%] scale-75 xl:scale-100 origin-top-left animate-[bounce_6s_infinite] bg-white dark:bg-zinc-900 p-3 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3 z-10">
           <img src="https://i.pravatar.cc/150?u=1" className="w-10 h-10 rounded-full" alt="Steve" />
           <div className="pr-2">
@@ -146,7 +140,6 @@ export default function SignupPage() {
           <img src="https://i.pravatar.cc/150?u=12" className="w-10 h-10 rounded-full" alt="Amara" />
         </div>
 
-        {/* Central Text Content */}
         <div className="relative z-20 text-center max-w-lg px-8 flex flex-col items-center">
           <div className="w-16 h-16 mb-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 flex items-center justify-center p-3">
              <img src={logoSrc} alt="CoLab" className="w-full h-full object-contain" />
@@ -165,19 +158,14 @@ export default function SignupPage() {
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* RIGHT PANEL: The Signup Card */}
-      {/* ========================================================= */}
+      {/* RIGHT PANEL: Signup Card */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 bg-zinc-50 dark:bg-black relative">
-        
-        {/* Mobile Logo Only */}
         <div className="absolute top-8 left-8 lg:hidden flex items-center gap-2">
            <img src={logoSrc} alt="CoLab" className="w-8 h-8 object-contain" />
            <span className="font-bold text-xl">CoLab</span>
         </div>
 
         <div className="w-full max-w-lg bg-white dark:bg-[#121212] rounded-3xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-8 sm:p-10">
-          
           {step === 'form' ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="mb-8">
