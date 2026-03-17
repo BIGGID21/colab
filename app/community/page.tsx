@@ -7,31 +7,9 @@ import {
   Loader2, Send, MapPin, Coffee, Image as ImageIcon, 
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
-  BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown, MoreHorizontal
+  BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell
 } from 'lucide-react';
 import Link from 'next/link';
-
-// --- Expandable Text Component ---
-function ExpandableText({ text, limit = 280 }: { text: string, limit?: number }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const shouldTruncate = text.length > limit;
-
-  return (
-    <div className="mt-2">
-      <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap text-[15px] leading-relaxed">
-        {shouldTruncate && !isExpanded ? `${text.substring(0, limit)}...` : text}
-      </p>
-      {shouldTruncate && (
-        <button 
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="text-[#9cf822] text-sm font-bold mt-1 hover:underline transition-all"
-        >
-          {isExpanded ? 'show less' : '...see more'}
-        </button>
-      )}
-    </div>
-  );
-}
 
 // Custom component to handle video play states and the "Watch Again" overlay
 function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
@@ -57,7 +35,7 @@ function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
         <div 
           className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center transition-all z-10"
           onClick={(e) => {
-            e.stopPropagation(); 
+            e.stopPropagation(); // Prevent opening the modal
             setIsEnded(false);
             if (videoRef.current) {
               videoRef.current.currentTime = 0;
@@ -85,9 +63,11 @@ export default function CommunityFeedPage() {
   const [posts, setPosts] = useState<any[]>([]);
   const [newPost, setNewPost] = useState('');
   
+  // Real Data States
   const [trendingTags, setTrendingTags] = useState<{tag: string, count: number}[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   
+  // Media States
   const [postMedia, setPostMedia] = useState<{url: string, type: string}[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [expandedMedia, setExpandedMedia] = useState<{url: string, type: string} | null>(null);
@@ -95,12 +75,15 @@ export default function CommunityFeedPage() {
   const [isPosting, setIsPosting] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Nav Visibility States (Kept for the FAB button logic)
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
+  // Edit States
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
 
+  // Comment States
   const [activeCommentPost, setActiveCommentPost] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -115,6 +98,7 @@ export default function CommunityFeedPage() {
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(pattern);
   };
 
+  // Scroll logic for hiding/showing the Floating Action Button
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -173,6 +157,7 @@ export default function CommunityFeedPage() {
         })).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       }));
 
+      // Sort: Official posts first, then by date
       const sortedPosts = formattedPosts.sort((a, b) => {
         const aOfficial = a.profiles?.role === 'official' ? 1 : 0;
         const bOfficial = b.profiles?.role === 'official' ? 1 : 0;
@@ -189,6 +174,7 @@ export default function CommunityFeedPage() {
       });
       setTrendingTags(Object.entries(tagMap).map(([tag, count]) => ({tag, count})).sort((a,b) => b.count - a.count).slice(0,3));
       
+      // Update recent activity with posts that actually have content to avoid empty lines
       const recentPostsWithContent = formattedPosts.filter(p => p.content?.trim().length > 0).slice(0, 5);
       setRecentActivity(recentPostsWithContent);
       
@@ -244,6 +230,7 @@ export default function CommunityFeedPage() {
         });
       });
       
+      // Only update recent activity if the post actually has text content
       if (formattedInserted.content?.trim().length > 0) {
           setRecentActivity(prev => [formattedInserted, ...prev.slice(0, 4)]);
       }
@@ -286,7 +273,10 @@ export default function CommunityFeedPage() {
     if (!editContent.trim()) return;
     triggerHaptic(10);
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, content: editContent } : p));
+    
+    // Update the recent activity sidebar if the edited post is in it
     setRecentActivity(prev => prev.map(p => p.id === postId ? { ...p, content: editContent } : p));
+    
     setEditingPostId(null);
     await supabase.from('posts').update({ content: editContent }).match({ id: postId, user_id: user.id });
   };
@@ -303,7 +293,7 @@ export default function CommunityFeedPage() {
     setIsSubmittingComment(true);
     const { data: insertedComment } = await supabase.from('comments').insert({ 
       post_id: postId, user_id: user.id, content: commentText.trim(), parent_id: replyTo?.commentId || null 
-    }).select('*, profiles:user_id(full_name, avatar_url, is_verified, role)').single();
+    }).select('*, profiles:user_id(full_name, avatar_url, is_verified)').single();
     if (insertedComment) {
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: [...(p.comments || []), insertedComment] } : p));
       setCommentText('');
@@ -314,55 +304,36 @@ export default function CommunityFeedPage() {
 
   const renderComments = (postId: string, comments: any[], parentId: string | null = null, depth = 0) => {
     return comments.filter(c => c.parent_id === parentId).map(c => (
-      <div key={c.id} className={`flex gap-3 ${depth > 0 ? 'ml-10 mt-3' : 'mt-4 text-left'}`}>
+      <div key={c.id} className={`flex gap-3 text-sm ${depth > 0 ? 'ml-8 mt-3' : 'mt-4 text-left'}`}>
         <Link href={`/profile/${c.user_id}`} className="shrink-0">
-          <div className="w-10 h-10 rounded-full overflow-hidden border border-zinc-100 dark:border-zinc-800 hover:opacity-80 transition-opacity bg-zinc-100">
+          <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 dark:border-zinc-800 hover:opacity-80 transition-opacity">
             {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
           </div>
         </Link>
         <div className="flex-grow min-w-0">
-          {/* LINKEDIN STYLE BUBBLE */}
-          <div className="bg-[#f2f2f2] dark:bg-zinc-900/50 px-3 py-2 rounded-lg rounded-tl-none inline-block max-w-full">
-            <div className="flex justify-between items-start gap-6">
-                <div className="flex flex-col">
-                  <Link href={`/profile/${c.user_id}`} className="hover:underline flex items-center gap-1 group">
-                      <span className="font-bold text-[13px] text-black dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-[#9cf822]">{c.profiles?.full_name}</span>
-                      {c.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
-                  </Link>
-                  {c.profiles?.role && <span className="text-[10px] text-zinc-500 truncate max-w-[150px]">{c.profiles.role}</span>}
-                </div>
-                <span className="text-[10px] text-zinc-400 font-medium whitespace-nowrap pt-0.5">
-                    {formatDistanceToNowShort(new Date(c.created_at))}
-                </span>
-            </div>
-            <p className="text-[14px] text-zinc-800 dark:text-zinc-300 break-words leading-relaxed mt-1.5">{c.content}</p>
+          <div className="bg-zinc-100 dark:bg-zinc-900 p-2.5 rounded-xl rounded-tl-none inline-block max-w-full overflow-hidden">
+            <Link href={`/profile/${c.user_id}`} className="hover:underline flex items-center gap-1 mb-0.5">
+              <span className="font-bold block text-xs text-black dark:text-white truncate">{c.profiles?.full_name}</span>
+              {c.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
+            </Link>
+            <span className="text-zinc-800 dark:text-zinc-300 break-words">{c.content}</span>
           </div>
-          
-          <div className="flex items-center gap-4 mt-1 ml-1 text-[12px] font-bold text-zinc-500">
-            <button className="hover:text-black dark:hover:text-[#9cf822] transition-colors">Like</button>
-            <div className="w-0.5 h-0.5 bg-zinc-400 rounded-full" />
+          <div className="flex items-center gap-4 mt-1.5 ml-1 text-xs font-bold text-zinc-500">
             <button 
               onClick={() => {
                 setReplyTo({ commentId: c.id, userName: c.profiles?.full_name });
                 document.getElementById(`comment-input-${postId}`)?.focus();
               }} 
-              className="hover:text-black dark:hover:text-[#9cf822] transition-colors"
+              className="hover:text-black dark:hover:text-white transition-colors"
             >
               Reply
             </button>
+            <span className="text-[10px] text-zinc-400 font-medium">{new Date(c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
           </div>
           {renderComments(postId, comments, c.id, depth + 1)}
         </div>
       </div>
     ));
-  };
-
-  const formatDistanceToNowShort = (date: Date) => {
-    const diff = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    if (diff < 60) return 'now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-    return `${Math.floor(diff / 86400)}d`;
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
@@ -398,7 +369,7 @@ export default function CommunityFeedPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-bold text-black dark:text-white truncate">{activity.profiles?.full_name}</p>
-                <p className="text-[9px] text-zinc-500 truncate line-clamp-1">{activity.content}</p>
+                <p className="text-[9px] text-zinc-500 truncate line-clamp-1">{activity.content}</p> {/* DYNAMIC CONTENT INJECTED HERE */}
               </div>
             </div>
           ))}
@@ -414,13 +385,13 @@ export default function CommunityFeedPage() {
             <form onSubmit={handlePost}>
               <div className="flex gap-4">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 dark:border-zinc-800">
-                  <img src={profile?.avatar_url} className="w-full h-full object-cover" alt="User profile" />
+                  <img src={profile?.avatar_url} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-grow">
                   <textarea 
                     ref={textAreaRef}
                     value={newPost} onChange={(e) => setNewPost(e.target.value)}
-                    placeholder="Start a post"
+                    placeholder="What are you building today?"
                     className="w-full bg-transparent resize-none text-black dark:text-white text-lg focus:outline-none min-h-[80px]"
                   />
                   
@@ -455,7 +426,7 @@ export default function CommunityFeedPage() {
                   <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-[#9cf822] hover:bg-[#9cf822]/10 rounded-full transition-colors"><ImageIcon size={20} /></button>
                 </div>
                 <button type="submit" disabled={isPosting || (!newPost.trim() && postMedia.length === 0)} className="px-8 py-3 bg-[#9cf822] text-black font-normal text-xs rounded-2xl transition-all active:scale-95 shadow-lg shadow-[#9cf822]/20 tracking-tight">
-                  Post
+                  Post update
                 </button>
               </div>
             </form>
@@ -478,6 +449,7 @@ export default function CommunityFeedPage() {
                 >
                   {isOfficial && <div className="absolute top-0 left-0 w-full h-1.5 bg-[#9cf822]"></div>}
 
+                  {/* REPOST HEADER */}
                   {isRepost && (
                     <div className="flex items-center gap-2 mb-3 text-zinc-400 font-normal text-[10px] tracking-tight ml-12">
                       <Repeat size={12} strokeWidth={2} /> New member reshared
@@ -485,6 +457,7 @@ export default function CommunityFeedPage() {
                   )}
 
                   <div className="flex items-start gap-4">
+                    {/* User Avatar: Locked if Official */}
                     {isOfficial ? (
                       <div className="shrink-0 mt-1">
                         <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 border-[#9cf822]">
@@ -513,6 +486,7 @@ export default function CommunityFeedPage() {
                               {post.profiles?.is_verified && <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black" />}
                             </Link>
                           )}
+                          <span className="text-[10px] text-zinc-400 font-normal tracking-tight"></span>
                         </div>
                         
                         {user?.id === post.user_id && (
@@ -539,9 +513,10 @@ export default function CommunityFeedPage() {
                           </div>
                         </div>
                       ) : (
-                        <ExpandableText text={post.content} />
+                        <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap text-[15px] leading-relaxed mt-2">{post.content}</p>
                       )}
                       
+                      {/* POST MEDIA / REPOSTED CONTENT */}
                       {isRepost && post.repost ? (
                         <div className="mt-4 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-black/40">
                           <div className="flex items-center gap-2 mb-2">
@@ -550,7 +525,7 @@ export default function CommunityFeedPage() {
                              </div>
                              <span className="font-bold text-xs text-black dark:text-white">{post.repost.profiles?.full_name}</span>
                           </div>
-                          <ExpandableText text={post.repost.content} limit={150} />
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-3">{post.repost.content}</p>
                           {post.repost.media?.length > 0 && <div className="mt-2 text-[10px] text-[#9cf822] font-black uppercase flex items-center gap-1"><ImageIcon size={10}/> Attached Media</div>}
                         </div>
                       ) : (
@@ -570,30 +545,25 @@ export default function CommunityFeedPage() {
                         )
                       )}
 
-                      {/* POST ACTION BAR - ICONS ONLY */}
-                      <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 px-8">
-                        <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center transition-colors ${post._hasLiked ? 'text-rose-500' : 'text-zinc-500 hover:text-[#9cf822]'}`}>
-                           <Heart size={22} fill={post._hasLiked ? 'currentColor' : 'none'} />
+                      <div className="flex items-center gap-8 mt-6">
+                        <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-2 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
+                           <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} />
+                           <span className="text-xs font-bold">{post.likes_count}</span>
                         </button>
-                        <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className={`flex items-center transition-colors ${activeCommentPost === post.id ? 'text-[#9cf822]' : 'text-zinc-500 hover:text-[#9cf822]'}`}>
-                           <MessageSquare size={22} />
+                        <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className="flex items-center gap-2 text-zinc-400">
+                           <MessageSquare size={20} />
+                           <span className="text-xs font-bold">{post.comments?.length || 0}</span>
                         </button>
-                        <button onClick={() => handleRepost(post.id)} className="flex items-center text-zinc-500 hover:text-[#9cf822] transition-colors">
-                           <Repeat size={22} />
-                        </button>
-                        <button className="flex items-center text-zinc-500 hover:text-[#9cf822] transition-colors">
-                           <Share2 size={22} />
+                        <button onClick={() => handleRepost(post.id)} className="flex items-center gap-2 text-zinc-400 hover:text-[#9cf822] transition-colors">
+                           <Repeat size={20} />
+                           <span className="text-xs font-normal">Reshare</span>
                         </button>
                       </div>
 
                       {activeCommentPost === post.id && (
-                        <div className="mt-4 pt-4 animate-in slide-in-from-top-2">
-                          
-                          {/* COMMENT INPUT WITH USER IMAGE */}
-                          <div className="flex gap-3 items-start mb-6">
-                            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 bg-zinc-100">
-                               {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
-                            </div>
+                        <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-900 animate-in slide-in-from-top-2">
+                          <div className="mb-4">{renderComments(post.id, post.comments)}</div>
+                          <div className="flex gap-2 items-end">
                             <div className="flex-grow flex flex-col gap-2">
                               {replyTo && (
                                 <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg text-xs w-fit">
@@ -601,26 +571,16 @@ export default function CommunityFeedPage() {
                                   <button onClick={() => setReplyTo(null)} className="ml-3 text-zinc-400 hover:text-black dark:hover:text-white transition-colors"><X size={12}/></button>
                                 </div>
                               )}
-                              <div className="relative">
-                                <input 
-                                  id={`comment-input-${post.id}`}
-                                  type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
-                                  onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
-                                  placeholder="Add a comment..." 
-                                  className="w-full bg-transparent rounded-full px-5 py-2.5 text-sm outline-none border border-zinc-200 dark:border-zinc-800 focus:border-[#9cf822] text-black dark:text-white"
-                                />
-                                <button 
-                                  onClick={() => submitComment(post.id)} 
-                                  disabled={!commentText.trim()} 
-                                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 transition-all ${commentText.trim() ? 'text-[#9cf822]' : 'text-zinc-400'}`}
-                                >
-                                  <Send size={18} />
-                                </button>
-                              </div>
+                              <input 
+                                id={`comment-input-${post.id}`}
+                                type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
+                                placeholder="Write a comment..." 
+                                className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-full px-4 py-2.5 text-sm outline-none border border-transparent focus:border-[#9cf822] text-black dark:text-white"
+                              />
                             </div>
+                            <button onClick={() => submitComment(post.id)} disabled={!commentText.trim()} className="text-[#9cf822] p-2 self-end mb-1"><Send size={18} /></button>
                           </div>
-
-                          <div className="space-y-1">{renderComments(post.id, post.comments)}</div>
                         </div>
                       )}
                     </div>
@@ -649,18 +609,18 @@ export default function CommunityFeedPage() {
               </div>
             </div>
             <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-sm">
-                <h4 className="text-[10px] font-normal text-[#9cf822] tracking-tight mb-6 flex items-center gap-2"><Clock size={12} /> What is happening</h4>
-                <div className="space-y-6">
-                   {recentActivity.slice(0, 4).map((activity, i) => (
+               <h4 className="text-[10px] font-normal text-[#9cf822] tracking-tight mb-6 flex items-center gap-2"><Clock size={12} /> What is happening</h4>
+               <div className="space-y-6">
+                  {recentActivity.slice(0, 4).map((activity, i) => (
                     <div key={i} className="flex items-start gap-4 group cursor-pointer" onClick={() => activity.profiles?.role !== 'official' && router.push(`/profile/${activity.user_id}`)}>
                       <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 group-hover:border-[#9cf822] transition-colors"><img src={activity.profiles?.avatar_url} className="w-full h-full object-cover" /></div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1"><p className="text-sm font-black text-black dark:text-white truncate group-hover:text-[#9cf822]">{activity.profiles?.full_name}</p>{activity.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white shrink-0" />}</div>
-                        <p className="text-[11px] text-zinc-500 line-clamp-1">{activity.content}</p>
+                        <p className="text-[11px] text-zinc-500 line-clamp-1">{activity.content}</p> {/* DYNAMIC CONTENT INJECTED HERE */}
                       </div>
                     </div>
                   ))}
-                </div>
+               </div>
             </div>
           </div>
         </div>
