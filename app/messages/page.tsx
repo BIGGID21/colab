@@ -62,16 +62,14 @@ function InboxContent() {
       if (!authUser) return router.push('/login');
       setUser(authUser);
 
-      // 1. Fetch Contact List Data (Fixed explicit profile references)
+      // 1. Fetch Contact List Data
       let { data: dms, error: dmsError } = await supabase
         .from('direct_messages')
         .select(`*, sender:profiles!sender_id(id, full_name, avatar_url, is_verified), receiver:profiles!receiver_id(id, full_name, avatar_url, is_verified)`)
         .or(`sender_id.eq.${authUser.id},receiver_id.eq.${authUser.id}`)
         .order('created_at', { ascending: false });
 
-      // UNBREAKABLE FAILSAFE: If the relational join fails, grab messages and map manually
       if (dmsError || !dms) {
-        console.error("Advanced Contacts Fetch Failed. Executing Failsafe:", dmsError);
         const { data: rawDms } = await supabase
           .from('direct_messages')
           .select('*')
@@ -99,9 +97,7 @@ function InboxContent() {
         const isMeSender = dm.sender_id === authUser.id;
         const otherUser = isMeSender ? dm.receiver : dm.sender;
         
-        // Prevent crashes if otherUser somehow fails to load
         if (!otherUser || !otherUser.id) return;
-
         if (isMeSender) uniqueSentReceivers.add(otherUser.id);
 
         if (!contactMap.has(otherUser.id)) {
@@ -127,7 +123,7 @@ function InboxContent() {
           const { data: targetProfile } = await supabase.from('profiles').select('*').eq('id', urlUserId).single();
           if (targetProfile) currentActiveUser = targetProfile;
         }
-      } else if (sortedContacts.length > 0 && window.innerWidth > 768) {
+      } else if (sortedContacts.length > 0 && typeof window !== 'undefined' && window.innerWidth > 768) {
         currentActiveUser = sortedContacts[0].user;
         router.replace(`?u=${currentActiveUser.id}`, { scroll: false });
       }
@@ -152,7 +148,6 @@ function InboxContent() {
       .order('created_at', { ascending: true });
     
     if (error) {
-      console.error("Advanced Fetch Failed. Executing Failsafe query:", error);
       const { data: fallbackData } = await supabase
         .from('direct_messages')
         .select('*')
@@ -244,8 +239,6 @@ function InboxContent() {
     });
 
     if (error) {
-      console.error("Database Insert Error:", error);
-      alert("Message failed to sync with database.");
       setMessages(prev => prev.filter(m => m.id !== tempId)); 
     }
     
@@ -268,13 +261,11 @@ function InboxContent() {
       .upload(filePath, file);
 
     if (uploadError) {
-      alert("Error uploading file. Make sure the storage bucket exists in Supabase.");
       setIsUploading(false);
       return;
     }
 
     const { data: { publicUrl } } = supabase.storage.from('chat_attachments').getPublicUrl(filePath);
-
     await handleSendMessage(undefined, publicUrl, file.name, file.type);
     
     setIsUploading(false);
@@ -292,19 +283,15 @@ function InboxContent() {
     await supabase.from('profiles').update({ is_pro: true }).eq('id', user.id);
     setUser({ ...user, is_pro: true });
     setShowProModal(false);
-    alert("🎉 You are now a Pro Member! Unlimited messaging unlocked.");
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    <div className="flex flex-col md:flex-row w-full h-[calc(100dvh-50px-env(safe-area-inset-bottom,0px))] md:h-[100dvh] bg-white dark:bg-black overflow-hidden font-sans">
+    <div className="flex flex-col md:flex-row w-full h-screen bg-white dark:bg-black overflow-hidden font-sans">
       
-      {/* ------------------------------------------------------------------ */}
-      {/* LEFT SIDEBAR: Contacts List */}
-      {/* ------------------------------------------------------------------ */}
+      {/* LEFT SIDEBAR */}
       <div className={`w-full md:w-80 lg:w-[400px] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black flex flex-col h-full ${activeChatUser ? 'hidden md:flex' : 'flex'}`}>
-        
         <div className="px-4 py-3 shrink-0 bg-white/90 dark:bg-black/90 backdrop-blur-md z-10">
           <div className="flex items-center justify-between mb-4 mt-2">
              <h1 className="text-xl font-bold text-black dark:text-white">Messages</h1>
@@ -318,7 +305,6 @@ function InboxContent() {
                )}
              </div>
           </div>
-          
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
             <input 
@@ -350,7 +336,6 @@ function InboxContent() {
                   )}
                   {contact.unread && <div className="absolute top-0 right-0 w-3 h-3 bg-[#9cf822] border-2 border-white dark:border-black rounded-full" />}
                 </div>
-                
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-[15px] text-black dark:text-white truncate flex items-center gap-1">
@@ -372,22 +357,18 @@ function InboxContent() {
         </div>
       </div>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* RIGHT PANEL: Active Chat with Collaboration Wallpaper */}
-      {/* ------------------------------------------------------------------ */}
-      
+      {/* RIGHT PANEL */}
       <div 
         className={`
-          flex-col bg-zinc-50 dark:bg-[#0a0a0a] min-h-0 w-full
+          flex-col bg-zinc-50 dark:bg-[#0a0a0a] min-h-0 w-full h-full
           ${!activeChatUser 
-            ? 'hidden md:flex flex-1 relative h-full' 
-            : 'flex fixed inset-x-0 top-0 z-[70] h-[calc(100dvh-50px-env(safe-area-inset-bottom,0px))] md:relative md:flex-1 md:h-full md:z-auto'
+            ? 'hidden md:flex flex-1 relative' 
+            : 'flex fixed inset-0 z-[70] md:relative md:flex-1 md:z-auto'
           }
         `}
       >
-        
         {!activeChatUser ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-l border-zinc-200 dark:border-zinc-800 relative z-10 bg-white dark:bg-black w-full min-h-0">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black w-full h-full">
             <h2 className="text-3xl font-bold text-black dark:text-white mb-2">Select a message</h2>
             <p className="text-zinc-500 text-[15px] max-w-sm">Choose from your existing conversations, or start a new one to begin collaborating.</p>
           </div>
@@ -399,7 +380,6 @@ function InboxContent() {
                 <button onClick={() => { setActiveChatUser(null); router.replace('/messages'); }} className="md:hidden p-2 -ml-2 text-black dark:text-white rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
                   <ArrowLeft size={20} />
                 </button>
-                
                 <Link href={`/profile/${activeChatUser.id}`} className="flex items-center gap-3 group">
                   <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 relative">
                     {activeChatUser.avatar_url ? (
@@ -454,7 +434,6 @@ function InboxContent() {
                       )}
                       
                       <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} group relative z-10`}>
-                        {/* Hover Actions */}
                         <div className={`absolute top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'right-full mr-2' : 'left-full ml-2'}`}>
                            <button onClick={() => setReplyingTo(msg)} className="p-1.5 text-zinc-500 hover:text-black dark:hover:text-white bg-white dark:bg-zinc-800 rounded-full transition-colors shadow-sm" title="Reply">
                              <Reply size={14} />
@@ -467,8 +446,6 @@ function InboxContent() {
                         </div>
 
                         <div className={`max-w-[75%] md:max-w-[60%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                          
-                          {/* Replied Message Context */}
                           {msg.reply_to && (
                             <div className="mb-1 flex items-center gap-1.5 opacity-90 cursor-pointer">
                               <Reply size={12} className="text-zinc-500" />
@@ -479,14 +456,11 @@ function InboxContent() {
                             </div>
                           )}
 
-                          {/* Chat Bubble & File Attachment */}
                           <div className={`shadow-sm overflow-hidden ${
                             isMe 
                               ? 'bg-[#9cf822] text-black rounded-2xl rounded-br-sm' 
                               : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-black dark:text-white rounded-2xl rounded-bl-sm'
                           }`}>
-                            
-                            {/* Render Image or File */}
                             {msg.file_url && (
                               <div className="p-1">
                                 {msg.file_type?.startsWith('image/') ? (
@@ -503,16 +477,12 @@ function InboxContent() {
                                 )}
                               </div>
                             )}
-
-                            {/* Text Content */}
                             {msg.content && (
                               <div className="px-4 py-2.5 text-[15px] leading-relaxed">
                                 <p className="whitespace-pre-wrap">{msg.content}</p>
                               </div>
                             )}
                           </div>
-                          
-                          {/* Timestamp */}
                           <span className="text-[10px] font-bold text-zinc-500 mt-1.5 px-1 uppercase tracking-wider bg-white/50 dark:bg-black/50 rounded-full backdrop-blur-sm">
                             {new Date(msg.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
                           </span>
@@ -524,10 +494,9 @@ function InboxContent() {
               )}
             </div>
 
-            {/* Chat Input */}
-            <div className="w-full p-3 min-h-[72px] bg-white/95 dark:bg-black/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shrink-0 z-20">
+            {/* Optimized Chat Input Container */}
+            <div className="w-full bg-white/95 dark:bg-black/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shrink-0 z-20 px-3 pt-3 pb-[calc(12px+env(safe-area-inset-bottom,0px))]">
               
-              {/* Replying Indicator */}
               {replyingTo && (
                 <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 px-4 py-2 rounded-t-2xl border-x border-t border-zinc-200 dark:border-zinc-800 -mb-4 pb-6">
                   <div className="flex items-center gap-2 overflow-hidden text-sm">
@@ -541,10 +510,7 @@ function InboxContent() {
                 </div>
               )}
 
-              {/* The Pill Form */}
               <form onSubmit={handleSendMessage} className={`relative z-10 flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-[24px] px-2 py-1.5 shadow-sm border border-transparent focus-within:border-zinc-300 dark:focus-within:border-zinc-700 transition-colors ${replyingTo ? 'rounded-t-none border-x border-b border-zinc-200 dark:border-zinc-800' : ''}`}>
-                
-                {/* File Upload Button (Left) */}
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -557,12 +523,10 @@ function InboxContent() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
                   className="p-2 text-zinc-500 hover:text-black dark:hover:text-white transition-colors disabled:opacity-50 ml-1"
-                  title="Attach File"
                 >
                   <Paperclip size={20} className="-rotate-45" />
                 </button>
 
-                {/* Single Line Text Input (Center) */}
                 <input
                   type="text"
                   value={newMessage}
@@ -571,7 +535,6 @@ function InboxContent() {
                   className="flex-1 bg-transparent text-[15px] text-black dark:text-white px-2 py-2 focus:outline-none placeholder:text-zinc-500 min-w-0"
                 />
                 
-                {/* Send Button (Right) */}
                 <button 
                   type="submit"
                   disabled={isSending || isUploading || (!newMessage.trim() && !isUploading)}
@@ -585,26 +548,24 @@ function InboxContent() {
         )}
       </div>
 
-      {/* ------------------------------------------------------------------ */}
       {/* PAYWALL MODAL */}
-      {/* ------------------------------------------------------------------ */}
       {showProModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-[#0a0a0a] w-full max-w-md rounded-[2rem] border border-zinc-200 dark:border-zinc-800 p-8 relative shadow-2xl overflow-hidden">
-             <button onClick={() => setShowProModal(false)} className="absolute top-6 right-6 p-2 bg-zinc-100 dark:bg-zinc-900 text-zinc-500 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors z-10">
-               <X size={16} />
-             </button>
-             <div className="w-16 h-16 bg-black dark:bg-white rounded-2xl flex items-center justify-center mb-6 shadow-lg relative">
-               <Sparkles className="text-[#9cf822] absolute -top-2 -right-2 animate-pulse" size={24} />
-               <Lock className="text-white dark:text-black" size={28} />
-             </div>
-             <h2 className="text-2xl font-bold text-black dark:text-white mb-2">Unlock Unlimited Networking</h2>
-             <p className="text-zinc-600 dark:text-zinc-400 text-sm mb-8 leading-relaxed">
-               You've reached your free limit of 3 new conversations. Upgrade to CoLab Pro to send unlimited messages, close more deals, and scale your income.
-             </p>
-             <button onClick={handleUpgradeToPro} className="w-full py-4 bg-[#9cf822] text-black rounded-xl font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-[#9cf822]/20">
-               Upgrade Now - ₦5,000/mo
-             </button>
+              <button onClick={() => setShowProModal(false)} className="absolute top-6 right-6 p-2 bg-zinc-100 dark:bg-zinc-900 text-zinc-500 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors z-10">
+                <X size={16} />
+              </button>
+              <div className="w-16 h-16 bg-black dark:bg-white rounded-2xl flex items-center justify-center mb-6 shadow-lg relative">
+                <Sparkles className="text-[#9cf822] absolute -top-2 -right-2 animate-pulse" size={24} />
+                <Lock className="text-white dark:text-black" size={28} />
+              </div>
+              <h2 className="text-2xl font-bold text-black dark:text-white mb-2">Unlock Unlimited Networking</h2>
+              <p className="text-zinc-600 dark:text-zinc-400 text-sm mb-8 leading-relaxed">
+                You've reached your free limit of 3 new conversations. Upgrade to CoLab Pro to send unlimited messages, close more deals, and scale your income.
+              </p>
+              <button onClick={handleUpgradeToPro} className="w-full py-4 bg-[#9cf822] text-black rounded-xl font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-xl shadow-[#9cf822]/20">
+                Upgrade Now - ₦5,000/mo
+              </button>
           </div>
         </div>
       )}
