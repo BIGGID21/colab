@@ -1,14 +1,17 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { type CookieOptions, createServerClient } from '@supabase/ssr';
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  // Use "next" param to determine the destination, defaulting to /discover
+  
+  // Default redirect path if it's a standard login
   const next = searchParams.get('next') ?? '/discover';
 
   if (code) {
-    const response = NextResponse.redirect(`${origin}${next}`);
+    // FIX: Await the cookies() function for Next.js 14.2/15 compatibility
+    const cookieStore = await cookies();
     
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,28 +19,37 @@ export async function GET(request: NextRequest) {
       {
         cookies: {
           get(name: string) {
-            return request.cookies.get(name)?.value;
+            return cookieStore.get(name)?.value;
           },
           set(name: string, value: string, options: CookieOptions) {
-            response.cookies.set({ name, value, ...options });
+            cookieStore.set({ name, value, ...options });
           },
           remove(name: string, options: CookieOptions) {
-            // Using the official Next.js delete method instead of an empty string
-            response.cookies.delete({ name, ...options });
+            cookieStore.set({ name, value: '', ...options });
           },
         },
       }
     );
 
-    // Exchange the temporary code for a permanent session
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (!error) {
-      return response;
+    if (!error && data?.user) {
+      // MAGIC TRICK: Check if this is a brand new user 
+      // (Account created within the last 2 minutes)
+      const createdAt = new Date(data.user.created_at).getTime();
+      const now = new Date().getTime();
+      const isNewUser = (now - createdAt) < 120000; // 120,000 milliseconds = 2 mins
+
+      if (isNewUser) {
+        // FIX: Redirect to the user's personal profile page with the trigger attached!
+        return NextResponse.redirect(`${origin}/profile/${data.user.id}?setupProfile=true`);
+      }
+
+      // Route existing returning users to the home/discover feed
+      return NextResponse.redirect(`${origin}${next}`);
     }
   }
 
-  // FAILSAFE: If auth fails, redirect to login with a specific error 
-  // rather than letting the user hit a 404 on a broken callback URL.
-  return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`);
+  // If the link is expired or something fails, send them back to login with an error
+  return NextResponse.redirect(`${origin}/login?error=auth_failed`);
 }
