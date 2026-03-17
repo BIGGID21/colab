@@ -26,7 +26,7 @@ function ExpandableText({ text, limit = 280 }: { text: string, limit?: number })
           onClick={() => setIsExpanded(!isExpanded)}
           className="text-[#9cf822] text-sm font-bold mt-1 hover:underline transition-all"
         >
-          {isExpanded ? '...see more' : 'show less'}
+          {isExpanded ? 'show less' : '...see more'}
         </button>
       )}
     </div>
@@ -303,7 +303,7 @@ export default function CommunityFeedPage() {
     setIsSubmittingComment(true);
     const { data: insertedComment } = await supabase.from('comments').insert({ 
       post_id: postId, user_id: user.id, content: commentText.trim(), parent_id: replyTo?.commentId || null 
-    }).select('*, profiles:user_id(full_name, avatar_url, is_verified)').single();
+    }).select('*, profiles:user_id(full_name, avatar_url, is_verified, role)').single();
     if (insertedComment) {
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: [...(p.comments || []), insertedComment] } : p));
       setCommentText('');
@@ -322,22 +322,25 @@ export default function CommunityFeedPage() {
         </Link>
         <div className="flex-grow min-w-0">
           {/* LINKEDIN STYLE BUBBLE */}
-          <div className="bg-[#f2f2f2] dark:bg-zinc-900 px-3 py-2 rounded-lg rounded-tl-none inline-block max-w-full">
-            <div className="flex justify-between items-start gap-4">
-                <Link href={`/profile/${c.user_id}`} className="hover:underline flex items-center gap-1 group">
-                    <span className="font-bold text-[13px] text-black dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-[#9cf822]">{c.profiles?.full_name}</span>
-                    {c.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
-                </Link>
-                <span className="text-[10px] text-zinc-400 font-medium whitespace-nowrap">
+          <div className="bg-[#f2f2f2] dark:bg-zinc-900/50 px-3 py-2 rounded-lg rounded-tl-none inline-block max-w-full">
+            <div className="flex justify-between items-start gap-6">
+                <div className="flex flex-col">
+                  <Link href={`/profile/${c.user_id}`} className="hover:underline flex items-center gap-1 group">
+                      <span className="font-bold text-[13px] text-black dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-[#9cf822]">{c.profiles?.full_name}</span>
+                      {c.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
+                  </Link>
+                  {c.profiles?.role && <span className="text-[10px] text-zinc-500 truncate max-w-[150px]">{c.profiles.role}</span>}
+                </div>
+                <span className="text-[10px] text-zinc-400 font-medium whitespace-nowrap pt-0.5">
                     {formatDistanceToNowShort(new Date(c.created_at))}
                 </span>
             </div>
-            <p className="text-[14px] text-zinc-800 dark:text-zinc-300 break-words leading-relaxed mt-1">{c.content}</p>
+            <p className="text-[14px] text-zinc-800 dark:text-zinc-300 break-words leading-relaxed mt-1.5">{c.content}</p>
           </div>
           
           <div className="flex items-center gap-4 mt-1 ml-1 text-[12px] font-bold text-zinc-500">
             <button className="hover:text-black dark:hover:text-[#9cf822] transition-colors">Like</button>
-            <div className="w-1 h-1 bg-zinc-300 rounded-full" />
+            <div className="w-0.5 h-0.5 bg-zinc-400 rounded-full" />
             <button 
               onClick={() => {
                 setReplyTo({ commentId: c.id, userName: c.profiles?.full_name });
@@ -410,7 +413,6 @@ export default function CommunityFeedPage() {
           <div className="bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border border-zinc-200 dark:border-zinc-800 shadow-sm text-left">
             <form onSubmit={handlePost}>
               <div className="flex gap-4">
-                {/* User profile image near textbox */}
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 dark:border-zinc-800">
                   <img src={profile?.avatar_url} className="w-full h-full object-cover" alt="User profile" />
                 </div>
@@ -568,28 +570,24 @@ export default function CommunityFeedPage() {
                         )
                       )}
 
-                      {/* POST ACTION BAR - LINKEDIN STYLE */}
-                      <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 px-2">
-                        <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-1.5 transition-colors font-bold text-sm ${post._hasLiked ? 'text-[#9cf822]' : 'text-zinc-500'}`}>
-                           <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} />
-                           <span>Like</span>
+                      {/* POST ACTION BAR - ICONS ONLY */}
+                      <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 px-8">
+                        <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center transition-colors ${post._hasLiked ? 'text-rose-500' : 'text-zinc-500 hover:text-[#9cf822]'}`}>
+                           <Heart size={22} fill={post._hasLiked ? 'currentColor' : 'none'} />
                         </button>
-                        <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className={`flex items-center gap-1.5 transition-colors font-bold text-sm ${activeCommentPost === post.id ? 'text-[#9cf822]' : 'text-zinc-500'}`}>
-                           <MessageSquare size={20} />
-                           <span>Comment</span>
+                        <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className={`flex items-center transition-colors ${activeCommentPost === post.id ? 'text-[#9cf822]' : 'text-zinc-500 hover:text-[#9cf822]'}`}>
+                           <MessageSquare size={22} />
                         </button>
-                        <button onClick={() => handleRepost(post.id)} className="flex items-center gap-1.5 text-zinc-500 hover:text-[#9cf822] transition-colors font-bold text-sm">
-                           <Repeat size={20} />
-                           {/* Icon only as requested */}
+                        <button onClick={() => handleRepost(post.id)} className="flex items-center text-zinc-500 hover:text-[#9cf822] transition-colors">
+                           <Repeat size={22} />
                         </button>
-                        <button className="flex items-center gap-1.5 text-zinc-500 hover:text-[#9cf822] transition-colors font-bold text-sm">
-                           <Share2 size={20} />
-                           <span>Share</span>
+                        <button className="flex items-center text-zinc-500 hover:text-[#9cf822] transition-colors">
+                           <Share2 size={22} />
                         </button>
                       </div>
 
                       {activeCommentPost === post.id && (
-                        <div className="mt-6 pt-6 animate-in slide-in-from-top-2">
+                        <div className="mt-4 pt-4 animate-in slide-in-from-top-2">
                           
                           {/* COMMENT INPUT WITH USER IMAGE */}
                           <div className="flex gap-3 items-start mb-6">
@@ -609,7 +607,7 @@ export default function CommunityFeedPage() {
                                   type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
                                   onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
                                   placeholder="Add a comment..." 
-                                  className="w-full bg-transparent rounded-full px-5 py-2.5 text-sm outline-none border border-zinc-300 dark:border-zinc-700 focus:border-[#9cf822] text-black dark:text-white"
+                                  className="w-full bg-transparent rounded-full px-5 py-2.5 text-sm outline-none border border-zinc-200 dark:border-zinc-800 focus:border-[#9cf822] text-black dark:text-white"
                                 />
                                 <button 
                                   onClick={() => submitComment(post.id)} 
