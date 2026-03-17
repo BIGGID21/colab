@@ -218,12 +218,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const modalContent: Record<string, { title: string, content: React.ReactNode }> = {};
 
   const isAuthPage = pathname === '/login' || pathname === '/signup';
-  
-  // LOGIC UPDATE: Hide sidebar on the landing page AND the new marketing/legal pages
   const isMarketingPage = pathname === '/' || pathname === '/about' || pathname === '/terms' || pathname === '/privacy' || pathname === '/blog';
   const showSidebar = !isAuthPage && !isMarketingPage;
 
-  // LOGIC: Check specific pages for UI conditionals
   const isCommunityFeed = pathname === '/community';
   const isMessagesPage = pathname?.startsWith('/messages');
 
@@ -233,7 +230,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true },
     { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true },
     { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true },
-    { name: 'Wallet', icon: Wallet, href: '/wallet', showOnMobileBar: false }, // Added Wallet to Navigation
+    { name: 'Wallet', icon: Wallet, href: '/wallet', showOnMobileBar: false },
     { name: 'Notifications', icon: Bell, href: '/notifications', count: unreadCount, showOnMobileBar: true },
     { name: 'Manage', icon: Settings, href: '/manage', showOnMobileBar: false },
   ];
@@ -250,7 +247,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           {showSidebar && !isAppLoading && (
             <>
-              {/* MOBILE TOP BAR (Slides UP on scroll down ONLY on community) */}
+              {/* MOBILE TOP BAR - Hidden on Messages */}
               {!isMessagesPage && (
                 <div 
                   className={`md:hidden flex items-center justify-between p-4 h-16 backdrop-blur-md border-b fixed top-0 w-full z-[100] bg-white/90 dark:bg-black/90 border-zinc-200 dark:border-zinc-900 transition-transform duration-300 ease-in-out ${
@@ -322,7 +319,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   })}
                 </nav>
 
-                {/* QUICK-VIEW WALLET WIDGET */}
+                {/* QUICK-VIEW WALLET WIDGET - Updated to Naira */}
                 {(!isCollapsed || isMobileMenuOpen) && (
                   <div className="px-4 mt-auto mb-2 relative z-10">
                     <Link href="/wallet" className="block bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors group shadow-sm">
@@ -333,12 +330,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         <ArrowUpRight size={14} className="text-zinc-400 dark:text-zinc-500 group-hover:text-black dark:group-hover:text-[#9cf822] transition-colors" />
                       </div>
                       <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-medium text-zinc-900 dark:text-white">$4,250</span>
+                        <span className="text-2xl font-medium text-zinc-900 dark:text-white">₦4,250</span>
                         <span className="text-xs text-zinc-500 font-medium">.00</span>
                       </div>
                       <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                         <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">In Escrow</span>
-                        <span className="text-xs font-medium text-green-600 dark:text-[#9cf822]">$1,200</span>
+                        <span className="text-xs font-medium text-green-600 dark:text-[#9cf822]">₦1,200</span>
                       </div>
                     </Link>
                   </div>
@@ -397,37 +394,39 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </aside>
 
-              {/* MOBILE BOTTOM NAV */}
-              <nav className={`md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))] transition-transform duration-300 ease-in-out ${
-                  (isCommunityFeed && !isMobileNavVisible) ? 'translate-y-full' : 'translate-y-0'
-                }`}>
-                {navItems.filter(item => item.showOnMobileBar).map((item) => (
-                  <Link key={item.name} href={item.href!} className="flex flex-col items-center justify-center w-full py-1">
-                    <div className="relative flex items-center justify-center">
-                      <div className={`${pathname === item.href ? 'text-black dark:text-white' : 'text-zinc-500'}`}>
-                        <item.icon size={22} strokeWidth={pathname === item.href ? 2.5 : 2} />
+              {/* MOBILE BOTTOM NAV - Hidden on Messages */}
+              {!isMessagesPage && (
+                <nav className={`md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))] transition-transform duration-300 ease-in-out ${
+                    (isCommunityFeed && !isMobileNavVisible) ? 'translate-y-full' : 'translate-y-0'
+                  }`}>
+                  {navItems.filter(item => item.showOnMobileBar).map((item) => (
+                    <Link key={item.name} href={item.href!} className="flex flex-col items-center justify-center w-full py-1">
+                      <div className="relative flex items-center justify-center">
+                        <div className={`${pathname === item.href ? 'text-black dark:text-white' : 'text-zinc-500'}`}>
+                          <item.icon size={22} strokeWidth={pathname === item.href ? 2.5 : 2} />
+                        </div>
+                        {(item.count !== undefined && item.count > 0) && (
+                          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center bg-red-500 text-[9px] font-black text-white rounded-full border-2 border-white dark:border-[#0a0a0a]">
+                            {item.count > 9 ? '9+' : item.count}
+                          </span>
+                        )}
                       </div>
-                      {(item.count !== undefined && item.count > 0) && (
-                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center bg-red-500 text-[9px] font-black text-white rounded-full border-2 border-white dark:border-[#0a0a0a]">
-                          {item.count > 9 ? '9+' : item.count}
-                        </span>
+                    </Link>
+                  ))}
+                  {/* Profile Avatar on Far Right */}
+                  <Link href={`/profile/${user?.id}`} className="flex flex-col items-center justify-center w-full py-1">
+                    <div className={`w-6 h-6 rounded-full overflow-hidden border-2 ${pathname.includes('/profile/') ? 'border-[#9cf822]' : 'border-transparent'}`}>
+                      {avatarUrl ? (
+                        <img src={avatarUrl} className="w-full h-full object-cover" alt="Profile" />
+                      ) : (
+                        <div className="w-full h-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
+                          <User size={12} />
+                        </div>
                       )}
                     </div>
                   </Link>
-                ))}
-                {/* Profile Avatar on Far Right */}
-                <Link href={`/profile/${user?.id}`} className="flex flex-col items-center justify-center w-full py-1">
-                  <div className={`w-6 h-6 rounded-full overflow-hidden border-2 ${pathname.includes('/profile/') ? 'border-[#9cf822]' : 'border-transparent'}`}>
-                    {avatarUrl ? (
-                      <img src={avatarUrl} className="w-full h-full object-cover" alt="Profile" />
-                    ) : (
-                      <div className="w-full h-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
-                        <User size={12} />
-                      </div>
-                    )}
-                  </div>
-                </Link>
-              </nav>
+                </nav>
+              )}
 
               {isMobileMenuOpen && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] md:hidden" onClick={() => setIsMobileMenuOpen(false)} />}
             </>
