@@ -10,7 +10,6 @@ export async function GET(request: Request) {
   const next = searchParams.get('next') ?? '/discover';
 
   if (code) {
-    // FIX: Await the cookies() function for Next.js 14.2/15 compatibility
     const cookieStore = await cookies();
     
     const supabase = createServerClient(
@@ -34,15 +33,13 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data?.user) {
-      // MAGIC TRICK: Check if this is a brand new user 
-      // (Account created within the last 2 minutes)
       const createdAt = new Date(data.user.created_at).getTime();
       const now = new Date().getTime();
-      const isNewUser = (now - createdAt) < 120000; // 120,000 milliseconds = 2 mins
+      const isNewUser = (now - createdAt) < 120000; // 2 mins
 
       if (isNewUser) {
-        // FIX: Redirect to the user's personal profile page with the trigger attached!
-        return NextResponse.redirect(`${origin}/profile/${data.user.id}?setupProfile=true`);
+        // THE FIX IS HERE: We strictly route to /profile without the user ID
+        return NextResponse.redirect(`${origin}/profile?setupProfile=true`);
       }
 
       // Route existing returning users to the home/discover feed
