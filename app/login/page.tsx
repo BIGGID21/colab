@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { Loader2, Mail, ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Loader2, Mail, ArrowRight, Sparkles, CheckCircle2, BadgeCheck } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
 export default function LoginPage() {
@@ -87,8 +87,8 @@ export default function LoginPage() {
         {/* Abstract Glowing Orb */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#9cf822] rounded-full blur-[150px] opacity-10 dark:opacity-5 pointer-events-none" />
 
-        {/* Floating Element 1 - Top Left */}
-        <div className="absolute top-[25%] left-[15%] animate-[bounce_6s_infinite] bg-white dark:bg-zinc-900 p-3 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3 z-10">
+        {/* Floating Element 1 - Top Left (Steve) */}
+        <div className="absolute top-12 xl:top-[15%] left-4 xl:left-[10%] scale-75 xl:scale-100 origin-top-left animate-[bounce_6s_infinite] bg-white dark:bg-zinc-900 p-3 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3 z-10">
           <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold overflow-hidden">
             <img src="https://i.pravatar.cc/150?u=1" alt="user" className="w-full h-full object-cover" />
           </div>
@@ -100,8 +100,34 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Floating Element 2 - Bottom Right */}
-        <div className="absolute bottom-[30%] right-[15%] animate-[bounce_8s_infinite_reverse] bg-white dark:bg-zinc-900 p-3 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3 z-10">
+        {/* Floating Element 2 - Top Right (New Hire) */}
+        <div className="absolute top-32 xl:top-[25%] right-4 xl:right-[5%] scale-75 xl:scale-100 origin-top-right animate-[bounce_7s_infinite_reverse] bg-white dark:bg-zinc-900 p-3 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3 z-10">
+           <div className="pr-2 text-right">
+            <p className="text-xs text-zinc-500 font-medium leading-tight mb-0.5">Just hired a</p>
+            <p className="text-sm font-bold text-black dark:text-white leading-tight">Brilliant Developer!</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center overflow-hidden">
+            <img src="https://i.pravatar.cc/150?u=9" alt="user" className="w-full h-full object-cover" />
+          </div>
+        </div>
+
+        {/* Floating Element 3 - Bottom Left (Amara) */}
+        <div className="absolute bottom-28 xl:bottom-[22%] left-4 xl:left-[6%] scale-75 xl:scale-100 origin-bottom-left animate-[bounce_9s_infinite] bg-white dark:bg-zinc-900 p-3 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3 z-10">
+          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center overflow-hidden">
+            <img src="https://i.pravatar.cc/150?u=12" alt="user" className="w-full h-full object-cover" />
+          </div>
+          <div className="pr-2">
+            <p className="text-sm font-bold text-black dark:text-white leading-tight flex items-center gap-1">
+              Amara D. <BadgeCheck size={14} fill="#9cf822" className="text-white dark:text-zinc-900" />
+            </p>
+            <div className="flex items-center gap-1 text-zinc-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">
+               UI/UX Designer
+            </div>
+          </div>
+        </div>
+
+        {/* Floating Element 4 - Bottom Right (6 Figure Review) */}
+        <div className="absolute bottom-12 xl:bottom-[12%] right-4 xl:right-[10%] scale-75 xl:scale-100 origin-bottom-right animate-[bounce_8s_infinite_reverse] bg-white dark:bg-zinc-900 p-3 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3 z-10">
            <div className="pr-2 text-right">
             <p className="text-xs text-zinc-500 font-medium leading-tight mb-0.5">I got my first 6</p>
             <p className="text-sm font-bold text-black dark:text-white leading-tight">figure job on CoLab</p>
@@ -126,7 +152,7 @@ export default function LoginPage() {
             </span>
           </h1>
           
-          <p className="text-zinc-500 dark:text-zinc-400 mt-8 text-lg leading-relaxed max-w-md">
+          <p className="text-zinc-500 dark:text-zinc-400 mt-8 text-lg leading-relaxed max-w-md bg-[#F9F9F8]/80 dark:bg-[#0a0a0a]/80 backdrop-blur-sm rounded-xl p-2">
             Welcome back to the ecosystem where top-tier professionals collaborate, launch projects, and scale their income.
           </p>
         </div>
