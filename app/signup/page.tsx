@@ -100,7 +100,6 @@ export default function SignupPage() {
       return;
     }
 
-    // FIXED: Redirecting to the dynamic [id] path instead of a static /profile
     if (data.user) {
       router.push(`/profile/${data.user.id}?setupProfile=true`);
     }
@@ -125,7 +124,7 @@ export default function SignupPage() {
           <div className="pr-2">
             <p className="text-sm font-bold text-black dark:text-white leading-tight">Steve Dave</p>
             <div className="flex items-center gap-1 text-[#5c960f] dark:text-[#9cf822] text-[10px] font-bold uppercase tracking-wider mt-0.5">
-               <Sparkles size={10} /> Top Rated
+                <Sparkles size={10} /> Top Rated
             </div>
           </div>
         </div>
@@ -160,10 +159,7 @@ export default function SignupPage() {
 
       {/* RIGHT PANEL: Signup Card */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 bg-zinc-50 dark:bg-black relative">
-        <div className="absolute top-8 left-8 lg:hidden flex items-center gap-2">
-           <img src={logoSrc} alt="CoLab" className="w-8 h-8 object-contain" />
-           <span className="font-bold text-xl">CoLab</span>
-        </div>
+        {/* Mobile floating logo removed */}
 
         <div className="w-full max-w-lg bg-white dark:bg-[#121212] rounded-3xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-8 sm:p-10">
           {step === 'form' ? (
@@ -177,23 +173,23 @@ export default function SignupPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">First Name</label>
-                    <input type="text" required value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20" placeholder="John" />
+                    <input type="text" required value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-base focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20" placeholder="John" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">Last Name</label>
-                    <input type="text" required value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20" placeholder="Doe" />
+                    <input type="text" required value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-base focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20" placeholder="Doe" />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">Email Address</label>
-                  <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20" placeholder="john@example.com" />
+                  <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-base focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20" placeholder="john@example.com" />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">Password</label>
                   <div className="relative">
-                    <input type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20" placeholder="••••••••" />
+                    <input type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 pl-4 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20" placeholder="••••••••" />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-4 flex items-center text-zinc-400">
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -202,15 +198,16 @@ export default function SignupPage() {
 
                 <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">Confirm Password</label>
-                    <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20" placeholder="••••••••" />
+                    <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-base focus:outline-none focus:ring-2 focus:ring-[#9cf822]/20" placeholder="••••••••" />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">Country</label>
-                  <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-sm focus:outline-none appearance-none">
+                  <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl py-3 px-4 text-base focus:outline-none appearance-none">
                     <option value="Nigeria">Nigeria</option>
                     <option value="United States">United States</option>
                     <option value="United Kingdom">United Kingdom</option>
+                    <option value="United Kingdom">Canada</option>
                   </select>
                 </div>
 
