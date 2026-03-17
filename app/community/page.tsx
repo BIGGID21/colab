@@ -7,7 +7,7 @@ import {
   Loader2, Send, MapPin, Coffee, Image as ImageIcon, 
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
-  BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown
+  BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown, MoreHorizontal
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -26,7 +26,7 @@ function ExpandableText({ text, limit = 280 }: { text: string, limit?: number })
           onClick={() => setIsExpanded(!isExpanded)}
           className="text-[#9cf822] text-sm font-bold mt-1 hover:underline transition-all"
         >
-          {isExpanded ? 'Show less' : 'See more'}
+          {isExpanded ? '...see more' : 'show less'}
         </button>
       )}
     </div>
@@ -316,21 +316,28 @@ export default function CommunityFeedPage() {
     return comments.filter(c => c.parent_id === parentId).map(c => (
       <div key={c.id} className={`flex gap-3 ${depth > 0 ? 'ml-10 mt-3' : 'mt-4 text-left'}`}>
         <Link href={`/profile/${c.user_id}`} className="shrink-0">
-          <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 dark:border-zinc-800 hover:opacity-80 transition-opacity bg-zinc-100">
+          <div className="w-10 h-10 rounded-full overflow-hidden border border-zinc-100 dark:border-zinc-800 hover:opacity-80 transition-opacity bg-zinc-100">
             {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
           </div>
         </Link>
         <div className="flex-grow min-w-0">
-          {/* FACEBOOK STYLE BUBBLE */}
-          <div className="bg-zinc-100 dark:bg-zinc-900 px-4 py-2 rounded-2xl inline-block max-w-full">
-            <Link href={`/profile/${c.user_id}`} className="hover:underline flex items-center gap-1">
-              <span className="font-bold text-[13px] text-black dark:text-white truncate">{c.profiles?.full_name}</span>
-              {c.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
-            </Link>
-            <p className="text-[14px] text-zinc-800 dark:text-zinc-300 break-words leading-relaxed">{c.content}</p>
+          {/* LINKEDIN STYLE BUBBLE */}
+          <div className="bg-[#f2f2f2] dark:bg-zinc-900 px-3 py-2 rounded-lg rounded-tl-none inline-block max-w-full">
+            <div className="flex justify-between items-start gap-4">
+                <Link href={`/profile/${c.user_id}`} className="hover:underline flex items-center gap-1 group">
+                    <span className="font-bold text-[13px] text-black dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-[#9cf822]">{c.profiles?.full_name}</span>
+                    {c.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
+                </Link>
+                <span className="text-[10px] text-zinc-400 font-medium whitespace-nowrap">
+                    {formatDistanceToNowShort(new Date(c.created_at))}
+                </span>
+            </div>
+            <p className="text-[14px] text-zinc-800 dark:text-zinc-300 break-words leading-relaxed mt-1">{c.content}</p>
           </div>
           
-          <div className="flex items-center gap-4 mt-1 ml-2 text-[11px] font-bold text-zinc-500">
+          <div className="flex items-center gap-4 mt-1 ml-1 text-[12px] font-bold text-zinc-500">
+            <button className="hover:text-black dark:hover:text-[#9cf822] transition-colors">Like</button>
+            <div className="w-1 h-1 bg-zinc-300 rounded-full" />
             <button 
               onClick={() => {
                 setReplyTo({ commentId: c.id, userName: c.profiles?.full_name });
@@ -340,9 +347,6 @@ export default function CommunityFeedPage() {
             >
               Reply
             </button>
-            <span className="text-[10px] text-zinc-400 font-medium lowercase">
-              {formatDistanceToNowShort(new Date(c.created_at))}
-            </span>
           </div>
           {renderComments(postId, comments, c.id, depth + 1)}
         </div>
@@ -350,7 +354,6 @@ export default function CommunityFeedPage() {
     ));
   };
 
-  // Small helper for date shortening
   const formatDistanceToNowShort = (date: Date) => {
     const diff = Math.floor((new Date().getTime() - date.getTime()) / 1000);
     if (diff < 60) return 'now';
@@ -407,14 +410,15 @@ export default function CommunityFeedPage() {
           <div className="bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border border-zinc-200 dark:border-zinc-800 shadow-sm text-left">
             <form onSubmit={handlePost}>
               <div className="flex gap-4">
+                {/* User profile image near textbox */}
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 dark:border-zinc-800">
-                  <img src={profile?.avatar_url} className="w-full h-full object-cover" />
+                  <img src={profile?.avatar_url} className="w-full h-full object-cover" alt="User profile" />
                 </div>
                 <div className="flex-grow">
                   <textarea 
                     ref={textAreaRef}
                     value={newPost} onChange={(e) => setNewPost(e.target.value)}
-                    placeholder="What are you building today?"
+                    placeholder="Start a post"
                     className="w-full bg-transparent resize-none text-black dark:text-white text-lg focus:outline-none min-h-[80px]"
                   />
                   
@@ -449,7 +453,7 @@ export default function CommunityFeedPage() {
                   <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-[#9cf822] hover:bg-[#9cf822]/10 rounded-full transition-colors"><ImageIcon size={20} /></button>
                 </div>
                 <button type="submit" disabled={isPosting || (!newPost.trim() && postMedia.length === 0)} className="px-8 py-3 bg-[#9cf822] text-black font-normal text-xs rounded-2xl transition-all active:scale-95 shadow-lg shadow-[#9cf822]/20 tracking-tight">
-                  Post update
+                  Post
                 </button>
               </div>
             </form>
@@ -564,28 +568,32 @@ export default function CommunityFeedPage() {
                         )
                       )}
 
-                      <div className="flex items-center gap-8 mt-6">
-                        <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-2 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
+                      {/* POST ACTION BAR - LINKEDIN STYLE */}
+                      <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 px-2">
+                        <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-1.5 transition-colors font-bold text-sm ${post._hasLiked ? 'text-[#9cf822]' : 'text-zinc-500'}`}>
                            <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} />
-                           <span className="text-xs font-bold">{post.likes_count}</span>
+                           <span>Like</span>
                         </button>
-                        <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className={`flex items-center gap-2 transition-colors ${activeCommentPost === post.id ? 'text-[#9cf822]' : 'text-zinc-400'}`}>
+                        <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className={`flex items-center gap-1.5 transition-colors font-bold text-sm ${activeCommentPost === post.id ? 'text-[#9cf822]' : 'text-zinc-500'}`}>
                            <MessageSquare size={20} />
-                           <span className="text-xs font-bold">{post.comments?.length || 0}</span>
+                           <span>Comment</span>
                         </button>
-                        <button onClick={() => handleRepost(post.id)} className="flex items-center gap-2 text-zinc-400 hover:text-[#9cf822] transition-colors">
+                        <button onClick={() => handleRepost(post.id)} className="flex items-center gap-1.5 text-zinc-500 hover:text-[#9cf822] transition-colors font-bold text-sm">
                            <Repeat size={20} />
-                           <span className="text-xs font-normal">Reshare</span>
+                           {/* Icon only as requested */}
+                        </button>
+                        <button className="flex items-center gap-1.5 text-zinc-500 hover:text-[#9cf822] transition-colors font-bold text-sm">
+                           <Share2 size={20} />
+                           <span>Share</span>
                         </button>
                       </div>
 
                       {activeCommentPost === post.id && (
-                        <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-900 animate-in slide-in-from-top-2">
-                          <div className="mb-4">{renderComments(post.id, post.comments)}</div>
+                        <div className="mt-6 pt-6 animate-in slide-in-from-top-2">
                           
                           {/* COMMENT INPUT WITH USER IMAGE */}
-                          <div className="flex gap-3 items-start mt-4">
-                            <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 bg-zinc-100">
+                          <div className="flex gap-3 items-start mb-6">
+                            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 bg-zinc-100">
                                {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
                             </div>
                             <div className="flex-grow flex flex-col gap-2">
@@ -600,19 +608,21 @@ export default function CommunityFeedPage() {
                                   id={`comment-input-${post.id}`}
                                   type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
                                   onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
-                                  placeholder="Write a comment..." 
-                                  className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-[1.5rem] px-5 py-3 text-sm outline-none border border-transparent focus:border-[#9cf822] text-black dark:text-white"
+                                  placeholder="Add a comment..." 
+                                  className="w-full bg-transparent rounded-full px-5 py-2.5 text-sm outline-none border border-zinc-300 dark:border-zinc-700 focus:border-[#9cf822] text-black dark:text-white"
                                 />
                                 <button 
                                   onClick={() => submitComment(post.id)} 
                                   disabled={!commentText.trim()} 
-                                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all ${commentText.trim() ? 'text-[#9cf822] scale-110' : 'text-zinc-400'}`}
+                                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 transition-all ${commentText.trim() ? 'text-[#9cf822]' : 'text-zinc-400'}`}
                                 >
                                   <Send size={18} />
                                 </button>
                               </div>
                             </div>
                           </div>
+
+                          <div className="space-y-1">{renderComments(post.id, post.comments)}</div>
                         </div>
                       )}
                     </div>
