@@ -1,19 +1,22 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { 
   Wallet, ArrowUpRight, ArrowDownRight, Clock, 
   ShieldCheck, FileText, Download, Building, 
-  CheckCircle2, AlertCircle, ChevronRight, Share2, PlusCircle, X, CreditCard
+  CheckCircle2, AlertCircle, ChevronRight, Share2, PlusCircle, X, CreditCard,
+  Plus, Loader2
 } from 'lucide-react';
 
 // --- Fallback Mock Data ---
 const FALLBACK_TRANSACTIONS = [
-  { id: 'tx-1', type: 'credit', title: 'Milestone 2: UI Kit Approved', project: 'CAVIE Tech Platform', amount: 850.00, date: 'Today, 10:42 AM', status: 'completed' },
-  { id: 'tx-2', type: 'withdrawal', title: 'Withdrawal to Bank', project: 'Ending in **0492', amount: -1200.00, date: 'Mar 12, 2026', status: 'completed' },
-  { id: 'tx-3', type: 'escrow', title: 'Funds Locked in Escrow', project: 'CoLab Native App', amount: 2400.00, date: 'Mar 10, 2026', status: 'pending' },
-  { id: 'tx-4', type: 'royalty', title: 'Revenue Share Distribution', project: 'Sankofa Lens MV', amount: 142.50, date: 'Mar 01, 2026', status: 'completed' },
+  { id: 'tx-1', type: 'credit', title: 'Milestone 2: UI Kit Approved', project: 'CAVIE Tech Platform', amount: 850000.00, date: 'Today, 10:42 AM', status: 'completed' },
+  { id: 'tx-2', type: 'withdrawal', title: 'Withdrawal to Bank', project: 'Ending in **0492', amount: -120000.00, date: 'Mar 12, 2026', status: 'completed' },
+  { id: 'tx-3', type: 'escrow', title: 'Funds Locked in Escrow', project: 'CoLab Native App', amount: 2400000.00, date: 'Mar 10, 2026', status: 'pending' },
+  { id: 'tx-4', type: 'royalty', title: 'Revenue Share Distribution', project: 'Sankofa Lens MV', amount: 142500.50, date: 'Mar 01, 2026', status: 'completed' },
 ];
 
 const FALLBACK_CONTRACTS = [
@@ -27,6 +30,7 @@ const INITIAL_BANKS = [
 ];
 
 export default function WalletPage() {
+  const router = useRouter();
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -35,9 +39,9 @@ export default function WalletPage() {
   // --- Real-Time State ---
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [balance, setBalance] = useState(4250.00); 
-  const [escrow, setEscrow] = useState(1200.00);
-  const [totalYield, setTotalYield] = useState(142.50);
+  const [balance, setBalance] = useState(4250000.00); 
+  const [escrow, setEscrow] = useState(1200000.00);
+  const [totalYield, setTotalYield] = useState(142500.50);
   const [transactions, setTransactions] = useState<any[]>(FALLBACK_TRANSACTIONS);
   const [contracts, setContracts] = useState<any[]>(FALLBACK_CONTRACTS);
   const [linkedBanks, setLinkedBanks] = useState<any[]>(INITIAL_BANKS);
@@ -45,10 +49,14 @@ export default function WalletPage() {
 
   // --- Modal State ---
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [isLinkBankModalOpen, setIsLinkBankModalOpen] = useState(false);
+  
   const [withdrawAmount, setWithdrawAmount] = useState<string>('');
+  const [fundAmount, setFundAmount] = useState<string>('');
   const [selectedBankId, setSelectedBankId] = useState<string>('b-1');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState('');
   const [withdrawError, setWithdrawError] = useState('');
 
   // --- New Bank Form State ---
@@ -63,18 +71,17 @@ export default function WalletPage() {
         if (activeUser) {
           setUser(activeUser);
           
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('wallet_balance, escrow_balance, total_yield')
-            .eq('id', activeUser.id)
+          const { data: walletData } = await supabase
+            .from('wallets')
+            .select('*')
+            .eq('user_id', activeUser.id)
             .single();
 
-          if (profile) {
-            if (profile.wallet_balance !== undefined) setBalance(profile.wallet_balance);
-            if (profile.escrow_balance !== undefined) setEscrow(profile.escrow_balance);
-            if (profile.total_yield !== undefined) setTotalYield(profile.total_yield);
+          if (walletData) {
+            setBalance(Number(walletData.balance));
           }
 
+          // Fetch transactions from real table
           const { data: txs } = await supabase
             .from('transactions')
             .select('*')
@@ -83,14 +90,7 @@ export default function WalletPage() {
             
           if (txs && txs.length > 0) setTransactions(txs);
 
-          const { data: activeCtrs } = await supabase
-            .from('contracts')
-            .select('*')
-            .eq('user_id', activeUser.id);
-            
-          if (activeCtrs && activeCtrs.length > 0) setContracts(activeCtrs);
-          
-          // Fetch linked banks (assuming a 'linked_accounts' table exists)
+          // Fetch linked banks
           const { data: banks } = await supabase
             .from('linked_accounts')
             .select('*')
@@ -111,25 +111,60 @@ export default function WalletPage() {
     fetchWalletData();
   }, [supabase]);
 
-  // --- Utility Functions ---
+  // --- Utility Functions (Updated to NGN) ---
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-NG', {
       style: 'currency',
-      currency: 'USD', // Note: Can be changed to NGN based on your payment gateway later
+      currency: 'NGN',
       minimumFractionDigits: 2
     }).format(amount);
   };
 
   const getAmountParts = (amount: number) => {
     const formatted = formatCurrency(amount);
-    const [dollars, cents] = formatted.split('.');
-    return { dollars, cents: `.${cents}` };
+    // Splits the Naira symbol/value from the decimal
+    const [main, cents] = formatted.split('.');
+    return { dollars: main, cents: `.${cents}` };
   };
 
   const balanceParts = getAmountParts(balance);
   const escrowParts = getAmountParts(escrow);
 
-  // --- Button Handlers ---
+  // --- Paystack Funding Logic ---
+  const handleFundWallet = async () => {
+    if (!fundAmount || parseFloat(fundAmount) <= 0) {
+      setError("Please enter a valid amount");
+      return;
+    }
+
+    setIsProcessing(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/paystack/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user?.email,
+          amount: parseFloat(fundAmount),
+          userId: user?.id
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status && data.data.authorization_url) {
+        window.location.href = data.data.authorization_url;
+      } else {
+        setError(data.message || "Failed to initialize payment");
+      }
+    } catch (err) {
+      setError("Network error. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleExportCSV = () => {
     if (transactions.length === 0) return;
     const headers = ['ID', 'Type', 'Title', 'Project', 'Amount', 'Date', 'Status'];
@@ -190,7 +225,6 @@ export default function WalletPage() {
     e.preventDefault();
     setIsProcessing(true);
 
-    // Simulate bank account verification (e.g., via Paystack API)
     setTimeout(() => {
       const newBank = {
         id: `b-${Date.now()}`,
@@ -204,7 +238,7 @@ export default function WalletPage() {
       setIsProcessing(false);
       setIsLinkBankModalOpen(false);
       setNewAccountNumber('');
-      setIsWithdrawModalOpen(true); // Return to withdrawal modal
+      setIsWithdrawModalOpen(true);
     }, 1500);
   };
 
@@ -233,7 +267,7 @@ export default function WalletPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* Available Balance Card */}
-        <div className="bg-zinc-900 text-white rounded-[2rem] p-6 md:p-8 flex flex-col justify-between relative overflow-hidden shadow-2xl border border-zinc-800">
+        <div className="bg-zinc-900 text-white rounded-[2rem] p-6 md:p-8 flex flex-col justify-between relative overflow-hidden shadow-2xl border border-zinc-800 min-h-[260px]">
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#9cf822] opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
           
           <div className="relative z-10">
@@ -248,12 +282,20 @@ export default function WalletPage() {
             </div>
           </div>
           
-          <button 
-            onClick={() => setIsWithdrawModalOpen(true)}
-            className="w-full relative z-10 bg-[#9cf822] text-black font-bold py-3.5 rounded-xl hover:bg-[#8be01d] transition-colors flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <Building size={18} /> Withdraw to Bank
-          </button>
+          <div className="grid grid-cols-2 gap-3 relative z-10">
+            <button 
+              onClick={() => setIsFundModalOpen(true)}
+              className="bg-[#9cf822] text-black font-bold py-3.5 rounded-xl hover:bg-[#8be01d] transition-colors flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Plus size={18} /> Fund
+            </button>
+            <button 
+              onClick={() => setIsWithdrawModalOpen(true)}
+              className="bg-zinc-800 text-white font-bold py-3.5 rounded-xl hover:bg-zinc-700 transition-colors flex items-center justify-center gap-2 border border-zinc-700 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Building size={18} /> Withdraw
+            </button>
+          </div>
         </div>
 
         {/* In Escrow Card */}
@@ -415,6 +457,51 @@ export default function WalletPage() {
         </div>
       </div>
 
+      {/* --- FUND WALLET MODAL --- */}
+      {isFundModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !isProcessing && setIsFundModalOpen(false)}></div>
+          
+          <div className="relative bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-[2rem] w-full max-w-md p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Fund Wallet</h2>
+              <button 
+                onClick={() => !isProcessing && setIsFundModalOpen(false)}
+                className="p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="text-sm font-bold text-zinc-700 dark:text-zinc-300 ml-1">Deposit Amount</label>
+                <div className="relative mt-2 group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-zinc-400 group-focus-within:text-[#9cf822]">₦</div>
+                  <input 
+                    type="number" 
+                    value={fundAmount}
+                    onChange={(e) => setFundAmount(e.target.value)}
+                    placeholder="5,000"
+                    className="w-full bg-[#f0f4f8] dark:bg-zinc-900 border border-transparent focus:border-[#9cf822] rounded-2xl py-4.5 pl-10 pr-4 text-xl font-bold text-zinc-900 dark:text-white focus:outline-none transition-all"
+                  />
+                </div>
+                {error && <p className="text-red-500 text-xs font-bold mt-2 ml-1">{error}</p>}
+                <p className="text-[10px] text-zinc-400 mt-2 ml-1 uppercase tracking-widest font-bold">Secure checkout via Paystack</p>
+              </div>
+
+              <button 
+                onClick={handleFundWallet}
+                disabled={isProcessing || !fundAmount}
+                className="w-full py-4.5 bg-[#9cf822] text-black font-extrabold rounded-2xl hover:bg-[#8be01d] transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-xl shadow-[#9cf822]/20"
+              >
+                {isProcessing ? <Loader2 size={24} className="animate-spin" /> : <>Fund Account <ArrowUpRight size={18} /></>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- WITHDRAWAL MODAL --- */}
       {isWithdrawModalOpen && !isLinkBankModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -439,13 +526,13 @@ export default function WalletPage() {
                 </div>
                 
                 <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-medium text-zinc-500">$</div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-zinc-400">₦</div>
                   <input 
                     type="number" 
                     value={withdrawAmount}
                     onChange={(e) => setWithdrawAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl py-4 pl-8 pr-20 text-xl font-bold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#9cf822] transition-shadow appearance-none"
+                    className="w-full bg-[#f0f4f8] dark:bg-zinc-900 border border-transparent focus:border-[#9cf822] rounded-2xl py-4.5 pl-10 pr-20 text-xl font-bold text-zinc-900 dark:text-white focus:outline-none transition-all appearance-none"
                   />
                   <button 
                     onClick={() => setWithdrawAmount(balance.toString())}
@@ -455,7 +542,7 @@ export default function WalletPage() {
                   </button>
                 </div>
                 {withdrawError && (
-                  <p className="text-red-500 text-sm mt-2 flex items-center gap-1">
+                  <p className="text-red-500 text-sm mt-2 flex items-center gap-1 font-bold">
                     <AlertCircle size={14} /> {withdrawError}
                   </p>
                 )}
@@ -463,22 +550,22 @@ export default function WalletPage() {
 
               {/* Linked Bank Selection */}
               <div>
-                <p className="text-sm font-bold text-zinc-900 dark:text-white mb-2">Transfer to</p>
+                <p className="text-sm font-bold text-zinc-900 dark:text-white mb-2 ml-1">Transfer to</p>
                 <div className="space-y-2">
                   {linkedBanks.map((bank) => (
-                    <label key={bank.id} className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${selectedBankId === bank.id ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30' : 'bg-white dark:bg-[#121212] border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50'}`}>
+                    <label key={bank.id} className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${selectedBankId === bank.id ? 'bg-[#9cf822]/5 border-[#9cf822]/30' : 'bg-white dark:bg-[#121212] border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50'}`}>
                       <input 
                         type="radio" 
                         name="bank_selection" 
                         value={bank.id}
                         checked={selectedBankId === bank.id}
                         onChange={() => setSelectedBankId(bank.id)}
-                        className="w-4 h-4 text-blue-600"
+                        className="w-4 h-4 accent-[#9cf822]"
                       />
-                      <Building size={20} className={selectedBankId === bank.id ? "text-blue-500" : "text-zinc-400"} />
+                      <Building size={20} className={selectedBankId === bank.id ? "text-[#9cf822]" : "text-zinc-400"} />
                       <div>
-                        <p className={`text-sm font-bold ${selectedBankId === bank.id ? 'text-blue-900 dark:text-blue-400' : 'text-zinc-900 dark:text-white'}`}>{bank.bankName}</p>
-                        <p className={`text-xs font-medium mt-0.5 ${selectedBankId === bank.id ? 'text-blue-600 dark:text-blue-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                        <p className={`text-sm font-bold ${selectedBankId === bank.id ? 'text-zinc-900 dark:text-white' : 'text-zinc-900 dark:text-white'}`}>{bank.bankName}</p>
+                        <p className={`text-xs font-medium mt-0.5 ${selectedBankId === bank.id ? 'text-zinc-500 dark:text-zinc-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
                           Ending in •••• {bank.accountNumber.slice(-4)}
                         </p>
                       </div>
@@ -500,16 +587,9 @@ export default function WalletPage() {
               <button 
                 onClick={executeWithdrawal}
                 disabled={isProcessing || !withdrawAmount || !selectedBankId}
-                className="w-full py-4 bg-[#9cf822] text-black font-bold rounded-xl hover:bg-[#8be01d] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-4.5 bg-black dark:bg-white text-white dark:text-black font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isProcessing ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
-                    Processing...
-                  </div>
-                ) : (
-                  'Confirm Withdrawal'
-                )}
+                {isProcessing ? <Loader2 size={24} className="animate-spin" /> : 'Confirm Withdrawal'}
               </button>
             </div>
           </div>
@@ -539,11 +619,11 @@ export default function WalletPage() {
 
             <form onSubmit={handleLinkNewBank} className="space-y-5">
               <div>
-                <label className="block text-sm font-bold text-zinc-900 dark:text-white mb-2">Select Bank</label>
+                <label className="block text-sm font-bold text-zinc-900 dark:text-white mb-2 ml-1">Select Bank</label>
                 <select 
                   value={newBankName}
                   onChange={(e) => setNewBankName(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-3.5 text-sm font-medium text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#9cf822]"
+                  className="w-full bg-[#f0f4f8] dark:bg-zinc-900 border border-transparent focus:border-[#9cf822] rounded-2xl p-4 text-sm font-bold text-zinc-900 dark:text-white focus:outline-none appearance-none"
                 >
                   <option value="Access Bank">Access Bank</option>
                   <option value="Guaranty Trust Bank">Guaranty Trust Bank (GTB)</option>
@@ -557,20 +637,20 @@ export default function WalletPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-zinc-900 dark:text-white mb-2">Account Number</label>
+                <label className="block text-sm font-bold text-zinc-900 dark:text-white mb-2 ml-1">Account Number</label>
                 <input 
                   type="text" 
                   maxLength={10}
                   value={newAccountNumber}
                   onChange={(e) => setNewAccountNumber(e.target.value.replace(/\D/g, ''))}
                   placeholder="0000000000"
-                  className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-3.5 text-sm font-medium text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#9cf822]"
+                  className="w-full bg-[#f0f4f8] dark:bg-zinc-900 border border-transparent focus:border-[#9cf822] rounded-2xl p-4 text-sm font-bold text-zinc-900 dark:text-white focus:outline-none"
                   required
                 />
               </div>
 
-              <div className="bg-zinc-100 dark:bg-zinc-900/50 p-4 rounded-xl flex gap-3 mt-2">
-                <ShieldCheck size={20} className="text-zinc-500 shrink-0" />
+              <div className="bg-[#9cf822]/5 p-4 rounded-xl flex gap-3 mt-2 border border-[#9cf822]/10">
+                <ShieldCheck size={20} className="text-[#9cf822] shrink-0" />
                 <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                   Your account information is securely encrypted. We use this solely to route your payouts.
                 </p>
@@ -579,16 +659,9 @@ export default function WalletPage() {
               <button 
                 type="submit"
                 disabled={isProcessing || newAccountNumber.length < 10}
-                className="w-full py-4 bg-zinc-900 dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+                className="w-full py-4.5 bg-black dark:bg-white text-white dark:text-black font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
               >
-                {isProcessing ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white dark:border-black border-t-transparent rounded-full animate-spin"></div>
-                    Verifying...
-                  </div>
-                ) : (
-                  'Verify and Link Account'
-                )}
+                {isProcessing ? <Loader2 size={24} className="animate-spin" /> : 'Verify and Link Account'}
               </button>
             </form>
           </div>
