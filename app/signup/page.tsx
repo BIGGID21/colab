@@ -116,7 +116,7 @@ export default function SignupPage() {
       <div className="relative w-full lg:w-[45%] h-[35vh] lg:h-auto lg:m-4 lg:rounded-[2.5rem] rounded-b-[2.5rem] overflow-hidden shrink-0 shadow-xl">
         <img 
           src="/image1.jpg" 
-          alt="CoLab - Multiply Productivity" 
+          alt="CoLab - Elite Professional Ecosystem" 
           className="absolute inset-0 w-full h-full object-cover" 
         />
         {/* Gradient Overlay for Text Readability */}
@@ -138,7 +138,7 @@ export default function SignupPage() {
         </div>
       </div>
 
-      {/* RIGHT PANEL: The Form */}
+      {/* RIGHT PANEL: The Form (Sleek White Background) */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12 relative bg-white dark:bg-[#0a0a0a]">
         
         {/* Desktop Top-Right Login Link */}
@@ -151,9 +151,10 @@ export default function SignupPage() {
             <div className="animate-in fade-in duration-500">
               <div className="mb-10 text-center lg:text-left">
                 <h2 className="text-3xl font-black text-black dark:text-white mb-2 tracking-tight">Create Account</h2>
-                <p className="text-zinc-500 text-sm font-medium">Enter your details to join the network.</p>
+                <p className="text-zinc-500 text-sm font-medium">Join the next generation of professional collaboration.</p>
               </div>
 
+              {/* Input Fields Updated to use subtle gray (#f8f9fa) background and minimal borders */}
               <form onSubmit={handleSignup} className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -205,7 +206,8 @@ export default function SignupPage() {
 
                 {error && <p className="text-red-500 text-xs font-bold text-center mt-4 bg-red-50 dark:bg-red-500/10 py-2 rounded-lg border border-red-100 dark:border-red-500/20">{error}</p>}
 
-                <button type="submit" disabled={!isFormValid || loading} className="w-full bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-[0.98] disabled:bg-zinc-300 disabled:dark:bg-zinc-800 text-white dark:text-black font-black uppercase tracking-wider py-4 rounded-full transition-all mt-8 flex items-center justify-center gap-2 text-sm">
+                {/* Updated Submit Button to use standard minimalist black/white design */}
+                <button type="submit" disabled={!isFormValid || loading} className="w-full bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-[0.98] disabled:bg-zinc-300 disabled:dark:bg-zinc-800 text-white dark:text-black font-black uppercase tracking-wider py-4 rounded-full transition-all mt-8 flex items-center justify-center gap-2 text-sm disabled:cursor-not-allowed">
                   {loading ? <Loader2 size={20} className="animate-spin" /> : 'Join CoLab'}
                 </button>
 
