@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { 
   Rocket, AlignLeft, Users, DollarSign, Percent, 
-  Plus, Trash2, ShieldCheck, Info, Sparkles, CheckCircle2, Bot, UploadCloud, FileIcon, X, Image as ImageIcon
+  Plus, Trash2, ShieldCheck, Info, Sparkles, CheckCircle2, Bot, UploadCloud, FileIcon, X, Image as ImageIcon, Flag
 } from 'lucide-react';
 
 // Initialize Supabase OUTSIDE the component so it doesn't recreate on every keystroke
@@ -21,6 +21,9 @@ export default function CreateProjectPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [roles, setRoles] = useState([{ id: 1, title: '', type: 'Developer' }]);
+  
+  // NEW: Milestone State
+  const [milestones, setMilestones] = useState([{ id: Date.now(), title: '', amount: '', dueDate: '' }]);
   
   // File Upload State
   const [coverImage, setCoverImage] = useState<File | null>(null);
@@ -46,6 +49,11 @@ export default function CreateProjectPage() {
   const handleAddRole = () => setRoles([...roles, { id: Date.now(), title: '', type: 'Designer' }]);
   const handleRemoveRole = (id: number) => { if (roles.length > 1) setRoles(roles.filter(r => r.id !== id)); };
   const handleUpdateRole = (id: number, field: string, value: string) => setRoles(roles.map(r => r.id === id ? { ...r, [field]: value } : r));
+
+  // NEW: Milestone Handlers
+  const handleAddMilestone = () => setMilestones([...milestones, { id: Date.now(), title: '', amount: '', dueDate: '' }]);
+  const handleRemoveMilestone = (id: number) => { if (milestones.length > 1) setMilestones(milestones.filter(m => m.id !== id)); };
+  const handleUpdateMilestone = (id: number, field: string, value: string) => setMilestones(milestones.map(m => m.id === id ? { ...m, [field]: value } : m));
 
   // --- File Handlers ---
   const handleCoverImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,6 +172,25 @@ export default function CreateProjectPage() {
           .insert(rolesToInsert);
           
         if (rolesError) throw rolesError;
+
+        // 5. NEW: Insert Milestones into Database
+        // Only insert if the first milestone actually has a title
+        if (milestones[0].title.trim() !== '') {
+          const milestonesToInsert = milestones.map((m, index) => ({
+            project_id: projectData.id,
+            title: m.title,
+            amount: m.amount ? parseFloat(m.amount) : null,
+            due_date: m.dueDate || null,
+            order_index: index,
+            status: 'pending'
+          }));
+
+          const { error: milestonesError } = await supabase
+            .from('project_milestones') 
+            .insert(milestonesToInsert);
+            
+          if (milestonesError) throw milestonesError;
+        }
       }
 
       setIsSuccess(true);
@@ -177,7 +204,7 @@ export default function CreateProjectPage() {
       console.error("Submission error:", error);
       let errorMsg = error.message;
       if (errorMsg.includes('does not exist')) {
-        errorMsg = "Database tables are missing in Supabase. Please ensure the 'projects' and 'project_roles' tables are created.";
+        errorMsg = "Database tables are missing in Supabase. Please ensure the 'projects', 'project_roles', and 'project_milestones' tables are created.";
       }
       setSubmitError(errorMsg);
     } finally {
@@ -415,7 +442,84 @@ export default function CreateProjectPage() {
             </div>
           </div>
 
-          {/* SECTION 3: Compensation & Escrow */}
+          {/* NEW SECTION 3: Milestones */}
+          <div className="bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-6 md:p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                <Flag size={20} className="text-[#9cf822]" /> Project Milestones
+              </h2>
+              <span className="text-xs font-medium text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 rounded-md">
+                {milestones.length} Step{milestones.length > 1 ? 's' : ''}
+              </span>
+            </div>
+            
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mb-6">
+              Break down your project into deliverable phases. This helps with tracking progress and releasing escrow payments safely.
+            </p>
+
+            <div className="space-y-4">
+              {milestones.map((milestone, index) => (
+                <div key={milestone.id} className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-4">
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Milestone {index + 1}</span>
+                    {milestones.length > 1 && (
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveMilestone(milestone.id)}
+                        className="text-zinc-400 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <input 
+                      type="text" 
+                      value={milestone.title}
+                      onChange={(e) => handleUpdateMilestone(milestone.id, 'title', e.target.value)}
+                      placeholder="e.g., Deliver High-Fidelity Figma Prototypes"
+                      className="w-full bg-transparent border-b border-zinc-200 dark:border-zinc-800 pb-2 text-sm font-bold text-zinc-900 dark:text-white focus:outline-none focus:border-[#9cf822] placeholder-zinc-400 transition-colors"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Amount / % Share</label>
+                      <input 
+                        type="number" 
+                        value={milestone.amount}
+                        onChange={(e) => handleUpdateMilestone(milestone.id, 'amount', e.target.value)}
+                        placeholder="e.g., 20"
+                        className="w-full bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-[#9cf822] transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Target Date</label>
+                      <input 
+                        type="date" 
+                        value={milestone.dueDate}
+                        onChange={(e) => handleUpdateMilestone(milestone.id, 'dueDate', e.target.value)}
+                        className="w-full bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-[#9cf822] transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                </div>
+              ))}
+              
+              <button 
+                type="button"
+                onClick={handleAddMilestone}
+                className="w-full py-3 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-bold text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-700 hover:text-zinc-900 dark:hover:text-white transition-all flex items-center justify-center gap-2"
+              >
+                <Plus size={16} /> Add another milestone
+              </button>
+            </div>
+          </div>
+
+          {/* SECTION 4: Compensation & Escrow */}
           <div className="bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-6 md:p-8 shadow-sm">
             <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-2 flex items-center gap-2">
               <ShieldCheck size={20} className="text-[#9cf822]" /> Compensation Engine
@@ -524,6 +628,10 @@ export default function CreateProjectPage() {
                   <div>
                     <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1">Roles Needed</p>
                     <p className="text-sm font-medium">{roles.length} Openings</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1">Milestones</p>
+                    <p className="text-sm font-medium">{milestones[0].title ? milestones.length : 0} defined step{milestones.length !== 1 ? 's' : ''}</p>
                   </div>
                   <div>
                     <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1">Total Pool</p>
