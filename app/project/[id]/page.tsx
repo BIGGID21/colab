@@ -6,7 +6,7 @@ import {
   Loader2, ArrowLeft, Users, ShieldCheck, 
   Target, Zap, Share2, Bookmark, Heart,
   ChevronRight, Plus, ExternalLink, X, Send, Banknote, Calendar,
-  LayoutDashboard, ArrowRight, Download
+  LayoutDashboard, ArrowRight, Download, Flag
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -56,12 +56,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       const uid = user?.id || null;
       setCurrentUserId(uid);
 
+      // We explicitly alias project_milestones to milestones for clean mapping
       const { data, error } = await supabase
         .from('projects')
         .select(`
           *,
           profiles:user_id(full_name, avatar_url, role, bio),
-          milestones(*)
+          milestones:project_milestones(*)
         `)
         .eq('id', projectId)
         .single();
@@ -218,7 +219,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       
       <nav className="sticky top-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-900 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          {/* Dynamic Navigation Logic */}
           <Link 
             href={userRole === 'owner' ? '/dashboard' : '/discover'} 
             className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
@@ -295,21 +295,40 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                
                <div className="space-y-4">
                  {project.milestones && project.milestones.length > 0 ? (
-                   project.milestones.map((milestone: any) => (
-                     <div key={milestone.id} className="p-6 rounded-3xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 flex items-center justify-between group relative overflow-hidden">
-                       <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-white dark:bg-black flex items-center justify-center text-zinc-400 shadow-sm shrink-0">
-                            <Zap size={18} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-black dark:text-white">{milestone.title}</p>
-                            <p className="text-xs text-zinc-500 mt-1 flex items-center gap-1.5">
-                              <Calendar size={12} /> {milestone.description?.replace('Timeline: ', '') || 'Timeline TBD'}
-                            </p>
-                          </div>
+                   // Sort by order_index just to ensure they are sequential
+                   project.milestones.sort((a: any, b: any) => a.order_index - b.order_index).map((milestone: any, index: number) => {
+                     const isPercentage = project.compensation_type === 'percentage';
+                     const amountLabel = milestone.amount 
+                        ? (isPercentage ? `${milestone.amount}% share` : `${getCurrencySymbol(project.currency)}${milestone.amount.toLocaleString()}`) 
+                        : null;
+                     
+                     return (
+                       <div key={milestone.id} className="p-5 md:p-6 rounded-3xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 flex items-center justify-between group relative overflow-hidden">
+                         <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-white dark:bg-black flex items-center justify-center text-zinc-400 font-bold border border-zinc-200 dark:border-zinc-800 shadow-sm shrink-0">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-black dark:text-white">{milestone.title}</p>
+                              <div className="text-xs text-zinc-500 mt-1 flex flex-wrap items-center gap-3">
+                                <span className="flex items-center gap-1.5">
+                                  <Calendar size={12} /> 
+                                  {milestone.due_date ? new Date(milestone.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No date set'}
+                                </span>
+                                {amountLabel && (
+                                  <span className="flex items-center gap-1.5 font-bold text-[#5a9a00] dark:text-[#9cf822]">
+                                    • {amountLabel}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                         </div>
+                         <div className={`hidden sm:block px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-tighter ${milestone.status === 'completed' ? 'bg-[#9cf822]/10 border-[#9cf822]/20 text-[#5a9a00] dark:text-[#9cf822]' : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400'}`}>
+                           {milestone.status || 'Pending'}
+                         </div>
                        </div>
-                     </div>
-                   ))
+                     )
+                   })
                  ) : (
                    <p className="text-sm text-zinc-500 italic px-4 py-8 bg-zinc-50 dark:bg-zinc-900/30 rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center">
                      Roadmap is currently being finalized by the project lead.
@@ -325,7 +344,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               
               <div className="p-8 rounded-[2.5rem] bg-zinc-50 dark:bg-[#0a0a0a] border border-zinc-100 dark:border-zinc-800 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4">
-                   <ShieldCheck className="text-[#5a9a00] dark:text-[#9cf822] opacity-10" size={80} />
+                  <ShieldCheck className="text-[#5a9a00] dark:text-[#9cf822] opacity-10" size={80} />
                 </div>
                 
                 <div className="relative z-10">
