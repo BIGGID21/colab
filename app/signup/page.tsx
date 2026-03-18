@@ -122,7 +122,7 @@ export default function SignupPage() {
         
         <div className="absolute inset-0 p-8 flex flex-col justify-between z-10">
           <div className="flex items-center gap-3 text-white font-bold text-xl tracking-tight">
-            <img src="/white.png" className="w-8 h-8 object-contain" alt="CoLab Logo" />
+            <img src="/logo2.png" className="w-8 h-8 object-contain" alt="CoLab Logo" />
             CoLab
           </div>
           <div className="mb-2 lg:mb-8">
