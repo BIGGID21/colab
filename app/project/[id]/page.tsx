@@ -297,7 +297,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                  {project.milestones && project.milestones.length > 0 ? (
                    // Sort by order_index just to ensure they are sequential
                    project.milestones.sort((a: any, b: any) => a.order_index - b.order_index).map((milestone: any, index: number) => {
-                     const isPercentage = project.compensation_type === 'percentage';
+                     
+                     // FIXED: Check if project is explicitly percentage OR if it has equity but no cash budget.
+                     const isPercentage = project.compensation_type === 'percentage' || (!project.budget && project.equity);
+                     
                      const amountLabel = milestone.amount 
                         ? (isPercentage ? `${milestone.amount}% share` : `${getCurrencySymbol(project.currency)}${milestone.amount.toLocaleString()}`) 
                         : null;
