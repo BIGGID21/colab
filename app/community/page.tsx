@@ -7,7 +7,7 @@ import {
   Loader2, Send, MapPin, Coffee, Image as ImageIcon, 
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
-  BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown
+  BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown, Bookmark
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -40,13 +40,13 @@ function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
 
   return (
     <div 
-      className="relative bg-black w-full flex justify-center items-center h-auto max-h-[800px] cursor-pointer rounded-2xl overflow-hidden group"
+      className="relative bg-black w-full flex justify-center items-center h-auto max-h-[800px] cursor-pointer sm:rounded-2xl rounded-none overflow-hidden group"
       onClick={onExpand}
     >
       <video 
         ref={videoRef}
         src={url} 
-        className="w-full h-auto max-h-[800px] object-contain rounded-2xl" 
+        className="w-full h-auto max-h-[800px] object-contain sm:rounded-2xl rounded-none" 
         autoPlay muted playsInline
         onEnded={() => setIsEnded(true)}
         onPlay={() => setIsEnded(false)}
@@ -106,6 +106,9 @@ export default function CommunityFeedPage() {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [replyTo, setReplyTo] = useState<{commentId: string, userName: string} | null>(null);
 
+  // New Save State
+  const [savedPosts, setSavedPosts] = useState<string[]>([]);
+
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -130,6 +133,10 @@ export default function CommunityFeedPage() {
   }, [lastScrollY]);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSavedPosts(JSON.parse(localStorage.getItem('savedPosts') || '[]'));
+    }
+
     async function fetchFeed() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return router.push('/login');
@@ -298,6 +305,33 @@ export default function CommunityFeedPage() {
     else await supabase.from('likes').insert({ post_id: postId, user_id: user.id });
   };
 
+  const handleSavePost = async (postId: string) => {
+    triggerHaptic(10);
+    const isSaved = savedPosts.includes(postId);
+    const newSaved = isSaved ? savedPosts.filter(id => id !== postId) : [...savedPosts, postId];
+    setSavedPosts(newSaved);
+    localStorage.setItem('savedPosts', JSON.stringify(newSaved));
+  };
+
+  const handleSharePost = async (postId: string) => {
+    triggerHaptic([10, 30]);
+    const url = `${window.location.origin}/post/${postId}`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Check out this post on CoLab',
+          url: url
+        });
+      } catch (err) {
+        console.log("Share failed or was cancelled", err);
+      }
+    } else {
+      navigator.clipboard.writeText(url);
+      alert("Link copied to clipboard!");
+    }
+  };
+
   const submitComment = async (postId: string) => {
     if (!commentText.trim() || isSubmittingComment) return;
     setIsSubmittingComment(true);
@@ -350,7 +384,6 @@ export default function CommunityFeedPage() {
     ));
   };
 
-  // Small helper for date shortening
   const formatDistanceToNowShort = (date: Date) => {
     const diff = Math.floor((new Date().getTime() - date.getTime()) / 1000);
     if (diff < 60) return 'now';
@@ -464,7 +497,7 @@ export default function CommunityFeedPage() {
               return (
                 <div 
                   key={post.id} 
-                  className={`sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border transition-all text-left relative overflow-hidden ${
+                  className={`sm:rounded-[2.5rem] pt-4 pb-4 sm:p-8 border-b sm:border transition-all text-left relative overflow-hidden ${
                     isOfficial 
                       ? 'bg-zinc-50 dark:bg-[#9cf822]/[0.02] border-[#9cf822] dark:border-[#9cf822]/40 shadow-[0_0_20px_rgba(156,248,34,0.05)]' 
                       : 'bg-white dark:bg-black border-zinc-200 dark:border-zinc-800 shadow-sm'
@@ -473,12 +506,12 @@ export default function CommunityFeedPage() {
                   {isOfficial && <div className="absolute top-0 left-0 w-full h-1.5 bg-[#9cf822]"></div>}
 
                   {isRepost && (
-                    <div className="flex items-center gap-2 mb-3 text-zinc-400 font-normal text-[10px] tracking-tight ml-12">
+                    <div className="flex items-center gap-2 mb-3 px-4 sm:px-0 text-zinc-400 font-normal text-[10px] tracking-tight ml-12">
                       <Repeat size={12} strokeWidth={2} /> New member reshared
                     </div>
                   )}
 
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-4 px-4 sm:px-0">
                     {isOfficial ? (
                       <div className="shrink-0 mt-1">
                         <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 border-[#9cf822]">
@@ -549,13 +582,14 @@ export default function CommunityFeedPage() {
                         </div>
                       ) : (
                         post.media?.length > 0 && (
-                          <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${post.media.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
+                          // Edge-to-edge media wrapper: applies negative margins on mobile to break out of horizontal padding
+                          <div className={`mt-3 overflow-hidden sm:rounded-2xl border-y sm:border border-zinc-200 dark:border-zinc-800 -mx-4 sm:mx-0 ${post.media.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
                             {post.media.map((m: any, i: number) => {
                               const isVideo = m.type === 'video' || m.url.includes('.mp4');
                               return isVideo ? (
                                 <FeedVideo key={i} url={m.url} onExpand={() => setExpandedMedia({url: m.url, type: 'video'})} />
                               ) : (
-                                <div key={i} className="relative bg-black w-full flex justify-center items-center aspect-[4/5] cursor-pointer rounded-2xl overflow-hidden" onClick={() => setExpandedMedia({url: m.url, type: 'image'})}>
+                                <div key={i} className="relative bg-black w-full flex justify-center items-center aspect-[4/5] cursor-pointer sm:rounded-2xl rounded-none overflow-hidden" onClick={() => setExpandedMedia({url: m.url, type: 'image'})}>
                                   <img src={m.url} className="w-full h-full object-cover hover:opacity-90 transition-opacity" />
                                 </div>
                               );
@@ -564,19 +598,32 @@ export default function CommunityFeedPage() {
                         )
                       )}
 
-                      <div className="flex items-center gap-8 mt-6">
-                        <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-2 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-400'}`}>
-                           <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} />
-                           <span className="text-xs font-bold">{post.likes_count}</span>
-                        </button>
-                        <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className={`flex items-center gap-2 transition-colors ${activeCommentPost === post.id ? 'text-[#9cf822]' : 'text-zinc-400'}`}>
-                           <MessageSquare size={20} />
-                           <span className="text-xs font-bold">{post.comments?.length || 0}</span>
-                        </button>
-                        <button onClick={() => handleRepost(post.id)} className="flex items-center gap-2 text-zinc-400 hover:text-[#9cf822] transition-colors">
-                           <Repeat size={20} />
-                           <span className="text-xs font-normal">Reshare</span>
-                        </button>
+                      {/* Action Bar */}
+                      <div className="flex items-center justify-between mt-6">
+                        <div className="flex items-center gap-6 sm:gap-8">
+                          <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-2 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-400 hover:text-rose-500'} transition-colors`}>
+                             <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} />
+                             <span className="text-xs font-bold">{post.likes_count}</span>
+                          </button>
+                          <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className={`flex items-center gap-2 transition-colors ${activeCommentPost === post.id ? 'text-[#9cf822]' : 'text-zinc-400 hover:text-[#9cf822]'}`}>
+                             <MessageSquare size={20} />
+                             <span className="text-xs font-bold">{post.comments?.length || 0}</span>
+                          </button>
+                          {/* Removed the word "Reshare", leaving only the icon */}
+                          <button onClick={() => handleRepost(post.id)} className="flex items-center gap-2 text-zinc-400 hover:text-[#9cf822] transition-colors">
+                             <Repeat size={20} />
+                          </button>
+                        </div>
+
+                        {/* Save & Share Section */}
+                        <div className="flex items-center gap-6 sm:gap-8">
+                          <button onClick={() => handleSavePost(post.id)} className={`transition-colors ${savedPosts.includes(post.id) ? 'text-[#9cf822]' : 'text-zinc-400 hover:text-[#9cf822]'}`}>
+                            <Bookmark size={20} fill={savedPosts.includes(post.id) ? "currentColor" : "none"} />
+                          </button>
+                          <button onClick={() => handleSharePost(post.id)} className="text-zinc-400 hover:text-white transition-colors">
+                            <Share2 size={20} />
+                          </button>
+                        </div>
                       </div>
 
                       {activeCommentPost === post.id && (
