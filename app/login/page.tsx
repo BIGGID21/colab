@@ -72,7 +72,7 @@ export default function LoginPage() {
       {/* LEFT PANEL: Immersive Image (Top on Mobile, Left on Desktop) */}
       <div className="relative w-full lg:w-[45%] h-[35vh] lg:h-auto lg:m-4 lg:rounded-[2.5rem] rounded-b-[2.5rem] overflow-hidden shrink-0 shadow-xl">
         <img 
-          src="/image1.jpg" 
+          src="/image2.jpg" 
           alt="CoLab - Elite Professional Ecosystem" 
           className="absolute inset-0 w-full h-full object-cover" 
         />
@@ -81,7 +81,7 @@ export default function LoginPage() {
         
         <div className="absolute inset-0 p-8 flex flex-col justify-between z-10">
           <div className="flex items-center gap-3 text-white font-bold text-xl tracking-tight">
-            <img src="/white.png" className="w-8 h-8 object-contain" alt="CoLab Logo" />
+            <img src="/logo2.png" className="w-8 h-8 object-contain" alt="CoLab Logo" />
             CoLab
           </div>
           <div className="mb-2 lg:mb-8">
@@ -98,11 +98,6 @@ export default function LoginPage() {
       {/* RIGHT PANEL: The Form (Strictly White Background) */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12 relative bg-white">
         
-        {/* Desktop Top-Right Register Link */}
-        <div className="hidden lg:block absolute top-10 right-12 text-sm text-zinc-500 font-medium">
-          Don't have an account? <Link href="/signup" className="text-black font-bold hover:text-[#9cf822] transition-colors ml-1">Register ↗</Link>
-        </div>
-
         <div className="w-full max-w-[440px]">
           <div className="animate-in fade-in duration-500">
             {/* Left-aligned header for all devices */}
