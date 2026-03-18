@@ -103,6 +103,21 @@ export default function SignupPage() {
     }
   };
 
+  // NEW: Actually trigger Supabase to resend the code
+  const handleResendCode = async () => {
+    setError(null);
+    setTimer(60); // Reset UI timer
+    
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+    });
+
+    if (resendError) {
+      setError(resendError.message);
+    }
+  };
+
   if (!mounted) return null;
 
   const isFormValid = firstName && lastName && email && password && confirmPassword && agreeTerms;
@@ -142,13 +157,11 @@ export default function SignupPage() {
         <div className="w-full max-w-[440px]">
           {step === 'form' ? (
             <div className="animate-in fade-in duration-500">
-              {/* Left-aligned header for all devices */}
               <div className="mb-10 text-left">
                 <h2 className="text-3xl font-black text-black mb-2 tracking-tight">Create Account</h2>
                 <p className="text-zinc-500 text-sm font-medium">Join the next generation of professional collaboration.</p>
               </div>
 
-              {/* Input Fields Updated to use subtle gray (#f8f9fa) background */}
               <form onSubmit={handleSignup} className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -204,7 +217,6 @@ export default function SignupPage() {
                   {loading ? <Loader2 size={20} className="animate-spin" /> : 'Join CoLab'}
                 </button>
 
-                {/* Visible on all devices, placed at the bottom */}
                 <p className="text-center text-zinc-500 text-sm font-medium mt-8">
                   Already a member? <Link href="/login" className="font-bold text-black hover:text-[#9cf822] transition-colors">Sign in</Link>
                 </p>
@@ -220,11 +232,20 @@ export default function SignupPage() {
 
               <form onSubmit={handleVerifyOtp} className="space-y-6">
                 <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value.slice(0, 6))} className="w-full bg-[#f8f9fa] border border-zinc-200 text-center tracking-[0.5em] font-mono text-2xl rounded-full py-4 focus:outline-none focus:ring-2 focus:ring-black transition-all" placeholder="000000" />
+                
+                {error && <p className="text-red-500 text-xs font-bold text-center bg-red-50 py-2 rounded-lg border border-red-100">{error}</p>}
+
                 <button type="submit" disabled={otp.length !== 6 || loading} className="w-full bg-black text-white font-black uppercase tracking-wider py-4 rounded-full hover:bg-zinc-800 transition-colors text-sm disabled:bg-zinc-300">
                   {loading ? <Loader2 className="animate-spin mx-auto" /> : 'Confirm Code'}
                 </button>
                 <div className="text-sm font-bold text-zinc-400 pt-4">
-                  {timer > 0 ? `Resend in ${timer}s` : <button type="button" onClick={() => setTimer(60)} className="text-black hover:text-[#9cf822] transition-colors">Resend Code</button>}
+                  {timer > 0 ? (
+                    `Resend in ${timer}s` 
+                  ) : (
+                    <button type="button" onClick={handleResendCode} className="text-black hover:text-[#9cf822] transition-colors">
+                      Resend Code
+                    </button>
+                  )}
                 </div>
               </form>
             </div>
