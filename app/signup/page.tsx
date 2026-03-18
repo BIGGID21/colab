@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
-import { useTheme } from 'next-themes';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -140,15 +139,11 @@ export default function SignupPage() {
       {/* RIGHT PANEL: The Form (Strictly White Background) */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12 relative bg-white">
         
-        {/* Desktop Top-Right Login Link */}
-        <div className="hidden lg:block absolute top-10 right-12 text-sm text-zinc-500 font-medium">
-          Already a member? <Link href="/login" className="text-black font-bold hover:text-[#9cf822] transition-colors ml-1">Sign in ↗</Link>
-        </div>
-
         <div className="w-full max-w-[440px]">
           {step === 'form' ? (
             <div className="animate-in fade-in duration-500">
-              <div className="mb-10 text-center lg:text-left">
+              {/* Left-aligned header for all devices */}
+              <div className="mb-10 text-left">
                 <h2 className="text-3xl font-black text-black mb-2 tracking-tight">Create Account</h2>
                 <p className="text-zinc-500 text-sm font-medium">Join the next generation of professional collaboration.</p>
               </div>
@@ -209,7 +204,8 @@ export default function SignupPage() {
                   {loading ? <Loader2 size={20} className="animate-spin" /> : 'Join CoLab'}
                 </button>
 
-                <p className="lg:hidden text-center text-zinc-500 text-sm font-medium mt-8">
+                {/* Visible on all devices, placed at the bottom */}
+                <p className="text-center text-zinc-500 text-sm font-medium mt-8">
                   Already a member? <Link href="/login" className="font-bold text-black hover:text-[#9cf822] transition-colors">Sign in</Link>
                 </p>
               </form>
