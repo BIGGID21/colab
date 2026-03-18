@@ -5,8 +5,9 @@ import { createBrowserClient } from '@supabase/ssr';
 import { 
   Loader2, Grid, Search, User, 
   Heart, Share2, ArrowUpRight, Bookmark,
-  Sparkles, SlidersHorizontal, Flame, Clock,
-  ChevronDown, Code, Palette, Megaphone, Bot, Boxes, Smartphone
+  SlidersHorizontal, Flame, Clock,
+  ChevronDown, Code, Palette, Megaphone, Bot, Boxes, Smartphone,
+  ShieldCheck, Users
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -56,9 +57,10 @@ export default function DiscoverPage() {
     }
 
     async function fetchProjects() {
+      // Added project_roles to the select query to get the actual open roles count
       const { data, error } = await supabase
         .from('projects')
-        .select(`*, profiles:user_id(full_name, avatar_url, role)`)
+        .select(`*, profiles:user_id(full_name, avatar_url, role), project_roles(id, status)`)
         .order('created_at', { ascending: false });
       
       if (!error) setProjects(data || []);
@@ -132,7 +134,7 @@ export default function DiscoverPage() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div className="space-y-2">
             <h1 className="text-4xl md:text-6xl font-black text-black dark:text-white tracking-tighter flex items-center gap-3">
-              Discover <Sparkles className="text-[#9cf822]" size={36} />
+              Discover
             </h1>
             <p className="text-zinc-500 text-sm md:text-base max-w-md font-medium">
               Explore high-impact projects. Find your next great collaboration.
@@ -229,10 +231,12 @@ export default function DiscoverPage() {
               const isLiked = likedProjects.includes(project.id);
               const isSaved = savedProjects.includes(project.id);
 
-              // --- SMART FALLBACKS FOR LEGACY DATA ---
               const displayImage = project.cover_image_url || project.image_url;
               const displayBudget = project.budget || project.valuation || 0;
               const displayEquity = project.equity || project.available_share || 0;
+
+              // Calculate open roles
+              const openRolesCount = project.project_roles?.filter((r: any) => r.status === 'open' || !r.status).length || 0;
 
               return (
                 <div 
@@ -258,20 +262,31 @@ export default function DiscoverPage() {
 
                     <button 
                       onClick={(e) => toggleLike(e, project)} 
-                      className="absolute top-4 right-4 z-30 p-2.5 backdrop-blur-md bg-black/40 border border-white/10 rounded-full text-white hover:bg-black/60 transition-colors shadow-lg"
+                      className="absolute top-4 right-4 z-30 px-3 py-1.5 backdrop-blur-md bg-black/40 border border-white/10 rounded-full text-white hover:bg-black/60 transition-colors shadow-lg flex items-center gap-1.5"
                     >
-                      <Heart size={16} fill={isLiked ? "#f43f5e" : "none"} className={isLiked ? "text-rose-500" : ""} />
+                      <Heart size={14} fill={isLiked ? "#f43f5e" : "none"} className={isLiked ? "text-rose-500" : ""} />
+                      <span className="text-[10px] font-bold tracking-wider">{project.like_count || 0}</span>
                     </button>
                   </div>
 
                   <div className="px-6 pb-6 pt-2 flex flex-col flex-grow">
-                    <div className="space-y-1.5 mb-6 flex-grow">
+                    <div className="space-y-1.5 mb-4 flex-grow">
                       <h3 className="text-xl font-black text-black dark:text-white tracking-tight line-clamp-1 group-hover:text-[#5a9a00] dark:group-hover:text-[#9cf822] transition-colors">
                         {project.title}
                       </h3>
                       <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed font-medium">
                         {project.description || "Looking for strategic partners to scale development and market reach."}
                       </p>
+                    </div>
+
+                    {/* NEW TAGS SECTION */}
+                    <div className="flex flex-wrap items-center gap-2 mb-5">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#9cf822]/10 border border-[#9cf822]/20 text-[#5a9a00] dark:text-[#9cf822] rounded-lg text-[10px] font-black uppercase tracking-widest">
+                        <ShieldCheck size={12} strokeWidth={2.5} /> Payment Secured
+                      </div>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                        <Users size={12} strokeWidth={2.5} /> {openRolesCount} {openRolesCount === 1 ? 'Role' : 'Roles'} Available
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 mb-6">
