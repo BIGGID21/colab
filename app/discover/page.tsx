@@ -57,15 +57,39 @@ export default function DiscoverPage() {
     }
 
     async function fetchProjects() {
-      // Added project_roles to the select query to get the actual open roles count
-      const { data, error } = await supabase
+      // 1. Primary Query: Fetch projects without the problematic join
+      const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select(`*, profiles:user_id(full_name, avatar_url, role), project_roles(id, status)`)
+        .select(`*, profiles:user_id(full_name, avatar_url, role)`)
         .order('created_at', { ascending: false });
       
-      if (!error) setProjects(data || []);
+      if (projectsError) {
+        console.error("Error fetching projects:", projectsError);
+        setLoading(false);
+        return;
+      }
+
+      if (projectsData) {
+        // 2. Secondary Query: Fetch roles independently (Graceful Degradation)
+        const { data: rolesData, error: rolesError } = await supabase
+          .from('project_roles')
+          .select('project_id, status');
+
+        if (rolesError) {
+          console.warn("Could not fetch roles. Supabase RLS might be blocking this:", rolesError.message);
+        }
+
+        // 3. Merge: Attach roles to their respective projects safely
+        const enhancedProjects = projectsData.map(project => {
+          const projectRoles = rolesData?.filter(r => r.project_id === project.id) || [];
+          return { ...project, project_roles: projectRoles };
+        });
+
+        setProjects(enhancedProjects);
+      }
       setLoading(false);
     }
+    
     fetchProjects();
 
     const channel = supabase
@@ -235,7 +259,7 @@ export default function DiscoverPage() {
               const displayBudget = project.budget || project.valuation || 0;
               const displayEquity = project.equity || project.available_share || 0;
 
-              // Calculate open roles
+              // Calculate open roles safely
               const openRolesCount = project.project_roles?.filter((r: any) => r.status === 'open' || !r.status).length || 0;
 
               return (
