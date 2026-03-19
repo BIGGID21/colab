@@ -99,11 +99,26 @@ export default function SignupPage() {
     }
 
     if (data.user) {
+      // === NEW: FIRE THE WELCOME EMAIL HERE ===
+      try {
+        await fetch('/api/welcome-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            email: email, 
+            name: firstName // Personalizing the email with their first name
+          })
+        });
+      } catch (emailError) {
+        console.error("Failed to send welcome email, but user verified successfully:", emailError);
+        // We don't block the UI if the email fails. They still get to login!
+      }
+      // ========================================
+
       router.push(`/profile/${data.user.id}?setupProfile=true`);
     }
   };
 
-  // NEW: Actually trigger Supabase to resend the code
   const handleResendCode = async () => {
     setError(null);
     setTimer(60); // Reset UI timer
