@@ -174,18 +174,18 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             .single();
             
           const completeMessage = { ...payload.new, profiles: profileData };
-          setMessages(prev => [...prev, completeMessage]);
+          setMessages((prev: any[]) => [...prev, completeMessage]);
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
 
         // Handle deleted messages
         if (payload.eventType === 'DELETE') {
-          setMessages(prev => prev.filter(msg => msg.id !== payload.old.id));
+          setMessages((prev: any[]) => prev.filter(msg => msg.id !== payload.old.id));
         }
 
         // Handle updated messages (like pinning)
         if (payload.eventType === 'UPDATE') {
-          setMessages(prev => prev.map(msg => msg.id === payload.new.id ? { ...msg, ...payload.new } : msg));
+          setMessages((prev: any[]) => prev.map(msg => msg.id === payload.new.id ? { ...msg, ...payload.new } : msg));
         }
       })
       .subscribe();
@@ -212,7 +212,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     triggerHaptic([10, 30]);
     const newStatus = m.status === 'completed' ? 'pending' : 'completed';
     
-    setMilestones(prev => prev.map(milestone => milestone.id === m.id ? { ...milestone, status: newStatus } : milestone));
+    setMilestones((prev: any[]) => prev.map(milestone => milestone.id === m.id ? { ...milestone, status: newStatus } : milestone));
     await supabase.from('milestones').update({ status: newStatus }).eq('id', m.id);
   };
 
@@ -240,7 +240,41 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         }).eq('id', milestoneId);
         
         if (!error) {
-          setMilestones(prev => prev.map(m => m.id === milestoneId ? { ...m, payment_status: 'escrow_funded' } : m));
+          setMilestones((prev: any[]) => prev.map(m => m.id === milestoneId ? { ...m, payment_status: 'escrow_funded' } : m));
+          triggerHaptic([10, 50, 10]);
+        }
+        setIsProcessing(null);
+      },
+      onClose: () => setIsProcessing(null)
+    });
+    handler.openIframe();
+  };
+
+  const handleProjectPayment = () => {
+    if (!user) return;
+    setIsProcessing('project_funding');
+
+    // @ts-ignore
+    if (typeof window.PaystackPop === 'undefined') {
+      alert("Payment gateway is still loading. Please try again in a few seconds.");
+      setIsProcessing(null);
+      return;
+    }
+
+    // @ts-ignore
+    const handler = window.PaystackPop.setup({
+      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+      email: user.email,
+      amount: Number(project.budget || project.valuation || 0) * 100 * 1500, // Matching the existing multiplier
+      currency: 'NGN',
+      callback: async (response: any) => {
+        const { error } = await supabase.from('projects').update({ 
+          payment_status: 'escrow_funded', 
+          payment_reference: response.reference 
+        }).eq('id', projectId);
+        
+        if (!error) {
+          setProject((prev: any) => ({ ...prev, payment_status: 'escrow_funded' }));
           triggerHaptic([10, 50, 10]);
         }
         setIsProcessing(null);
@@ -376,9 +410,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-20 overflow-x-hidden text-left font-sans">
       
       {/* ------------------------------------------------------------------ */}
-      {/* APP HEADER */}
+      {/* APP HEADER - NOW FIXED TO TOP WITH Z-50 */}
       {/* ------------------------------------------------------------------ */}
-      <header className="bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-900 px-6 py-4 sticky top-0 z-40">
+      <header className="fixed inset-x-0 top-0 z-40 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-900 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link 
@@ -412,9 +446,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       </header>
 
       {/* ------------------------------------------------------------------ */}
-      {/* MAIN CONTENT GRID */}
+      {/* MAIN CONTENT GRID - Added pt-28 to clear fixed header */}
       {/* ------------------------------------------------------------------ */}
-      <div className="max-w-7xl mx-auto px-6 pt-8 grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <div className="max-w-7xl mx-auto px-6 pt-28 grid grid-cols-1 lg:grid-cols-12 gap-10">
         
         {/* LEFT COLUMN: ROADMAP & DELIVERABLES */}
         <div className="lg:col-span-8 space-y-8">
@@ -511,99 +545,117 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         {/* ------------------------------------------------------------------ */}
         {/* RIGHT COLUMN: TEAM & FINANCIALS */}
         {/* ------------------------------------------------------------------ */}
-        <div className="lg:col-span-4 space-y-6">
-          
-          <section className="bg-black text-white dark:bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
-             <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
-               <DollarSign size={160} />
-             </div>
-             
-             <div className="relative z-10">
-                <h2 className="text-xs font-bold mb-1 flex items-center gap-2 text-zinc-400 uppercase tracking-widest">
-                  <Wallet size={14} className="text-[#9cf822]" /> Total Budget
-                </h2>
-                <p className="text-4xl font-bold tracking-tight mb-6">
-                  {currencySymbol}{Number(totalBudget).toLocaleString()}
-                </p>
+        <div className="lg:col-span-4">
+          <div className="sticky top-28 space-y-6">
+            <section className="bg-black text-white dark:bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+               <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
+                 <DollarSign size={160} />
+               </div>
+               
+               <div className="relative z-10">
+                  <h2 className="text-xs font-bold mb-1 flex items-center gap-2 text-zinc-400 uppercase tracking-widest">
+                    <Wallet size={14} className="text-[#9cf822]" /> Total Budget
+                  </h2>
+                  <p className="text-4xl font-bold tracking-tight mb-6">
+                    {currencySymbol}{Number(totalBudget).toLocaleString()}
+                  </p>
 
-                <div className="space-y-4 pt-6 border-t border-zinc-800">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-zinc-400">Total Equity</span>
-                    <span className="font-bold">{project?.equity || 0}%</span>
+                  <div className="space-y-4 pt-6 border-t border-zinc-800">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-zinc-400">Total Equity</span>
+                      <span className="font-bold">{project?.equity || 0}%</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-zinc-400">Available to Distribute</span>
+                      <span className="font-bold text-[#9cf822]">{project?.available_share || 0}%</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-zinc-400">Available to Distribute</span>
-                    <span className="font-bold text-[#9cf822]">{project?.available_share || 0}%</span>
-                  </div>
-                </div>
-             </div>
-          </section>
 
-          <section className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-900 rounded-[2.5rem] p-8">
-            <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-              <Users size={16} /> Active Roster
-            </h2>
-            
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 group">
-                 <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 border-2 border-[#9cf822] shrink-0">
-                    {project?.profiles?.avatar_url ? (
-                      <img src={project.profiles.avatar_url} className="w-full h-full object-cover" alt="Founder" />
-                    ) : (
-                      <Shield size={20} className="m-auto mt-3 text-zinc-400" />
-                    )}
-                 </div>
-                 <div className="flex-grow min-w-0">
-                   <p className="text-sm font-bold text-black dark:text-white truncate flex items-center gap-1.5">
-                     {project?.profiles?.full_name || 'Project Lead'} 
-                     {isFounder && <span className="bg-zinc-100 dark:bg-zinc-800 text-[9px] px-1.5 py-0.5 rounded text-zinc-500 uppercase">You</span>}
-                   </p>
-                   <p className="text-xs text-[#5a9a00] dark:text-[#9cf822] font-semibold flex items-center gap-1 mt-0.5">
-                     <ShieldCheck size={12}/> Founder
-                   </p>
-                 </div>
-              </div>
+                  {isFounder && project?.payment_status !== 'escrow_funded' && (
+                    <button 
+                      onClick={handleProjectPayment}
+                      disabled={isProcessing === 'project_funding'}
+                      className="mt-6 w-full py-3.5 bg-[#9cf822] text-black rounded-xl font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {isProcessing === 'project_funding' ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+                      Fund Project Escrow
+                    </button>
+                  )}
 
-              {team.map(member => (
-                <div key={member.id} className="flex items-center gap-4">
-                   <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shrink-0">
-                      {member.profiles?.avatar_url ? (
-                        <img src={member.profiles.avatar_url} className="w-full h-full object-cover" alt="Member" />
+                  {isFounder && project?.payment_status === 'escrow_funded' && (
+                    <div className="mt-6 w-full py-3 bg-[#9cf822]/10 text-[#9cf822] border border-[#9cf822]/20 rounded-xl font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-2">
+                      <ShieldCheck size={16} /> Project Funded
+                    </div>
+                  )}
+               </div>
+            </section>
+
+            <section className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-900 rounded-[2.5rem] p-8">
+              <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <Users size={16} /> Active Roster
+              </h2>
+              
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 group">
+                   <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 border-2 border-[#9cf822] shrink-0">
+                      {project?.profiles?.avatar_url ? (
+                        <img src={project.profiles.avatar_url} className="w-full h-full object-cover" alt="Founder" />
                       ) : (
-                        <User size={20} className="m-auto mt-3 text-zinc-400" />
+                        <Shield size={20} className="m-auto mt-3 text-zinc-400" />
                       )}
                    </div>
                    <div className="flex-grow min-w-0">
                      <p className="text-sm font-bold text-black dark:text-white truncate flex items-center gap-1.5">
-                       {member.profiles?.full_name}
-                       {user?.id === member.user_id && <span className="bg-zinc-100 dark:bg-zinc-800 text-[9px] px-1.5 py-0.5 rounded text-zinc-500 uppercase">You</span>}
+                       {project?.profiles?.full_name || 'Project Lead'} 
+                       {isFounder && <span className="bg-zinc-100 dark:bg-zinc-800 text-[9px] px-1.5 py-0.5 rounded text-zinc-500 uppercase">You</span>}
                      </p>
-                     <p className="text-xs text-zinc-500 truncate mt-0.5">{member.assigned_role}</p>
-                   </div>
-                   <div className="shrink-0 text-right">
-                     <span className="text-xs font-bold bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded-md text-black dark:text-white">{member.equity_share}%</span>
+                     <p className="text-xs text-[#5a9a00] dark:text-[#9cf822] font-semibold flex items-center gap-1 mt-0.5">
+                       <ShieldCheck size={12}/> Founder
+                     </p>
                    </div>
                 </div>
-              ))}
-            </div>
-          </section>
 
-          {project?.additional_files?.length > 0 && (
-            <section className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-900 rounded-[2rem] p-6">
-               <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                 <FileText size={14} /> Shared Assets
-               </h2>
-               <div className="space-y-2">
-                 {project.additional_files.map((file: string, idx: number) => (
-                    <a key={idx} href={file} target="_blank" className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors group">
-                      <span className="text-sm font-semibold text-black dark:text-white truncate pr-4">Document_{idx + 1}</span>
-                      <ArrowUpRight size={14} className="text-zinc-400 group-hover:text-[#9cf822]" />
-                    </a>
-                 ))}
-               </div>
+                {team.map(member => (
+                  <div key={member.id} className="flex items-center gap-4">
+                     <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shrink-0">
+                        {member.profiles?.avatar_url ? (
+                          <img src={member.profiles.avatar_url} className="w-full h-full object-cover" alt="Member" />
+                        ) : (
+                          <User size={20} className="m-auto mt-3 text-zinc-400" />
+                        )}
+                     </div>
+                     <div className="flex-grow min-w-0">
+                       <p className="text-sm font-bold text-black dark:text-white truncate flex items-center gap-1.5">
+                         {member.profiles?.full_name}
+                         {user?.id === member.user_id && <span className="bg-zinc-100 dark:bg-zinc-800 text-[9px] px-1.5 py-0.5 rounded text-zinc-500 uppercase">You</span>}
+                       </p>
+                       <p className="text-xs text-zinc-500 truncate mt-0.5">{member.assigned_role}</p>
+                     </div>
+                     <div className="shrink-0 text-right">
+                       <span className="text-xs font-bold bg-zinc-100 dark:bg-zinc-900 px-2 py-1 rounded-md text-black dark:text-white">{member.equity_share}%</span>
+                     </div>
+                  </div>
+                ))}
+              </div>
             </section>
-          )}
 
+            {project?.additional_files?.length > 0 && (
+              <section className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-900 rounded-[2rem] p-6">
+                 <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                   <FileText size={14} /> Shared Assets
+                 </h2>
+                 <div className="space-y-2">
+                   {project.additional_files.map((file: string, idx: number) => (
+                      <a key={idx} href={file} target="_blank" className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors group">
+                        <span className="text-sm font-semibold text-black dark:text-white truncate pr-4">Document_{idx + 1}</span>
+                        <ArrowUpRight size={14} className="text-zinc-400 group-hover:text-[#9cf822]" />
+                      </a>
+                   ))}
+                 </div>
+              </section>
+            )}
+
+          </div>
         </div>
       </div>
 
