@@ -159,7 +159,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     
     const channel = supabase.channel(`workspace_chat_${projectId}`)
       .on('postgres_changes', { 
-        event: '*', // Listen for INSERT, UPDATE, and DELETE
+        event: '*', 
         schema: 'public', 
         table: 'messages',
         filter: `project_id=eq.${projectId}`
@@ -174,18 +174,18 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             .single();
             
           const completeMessage = { ...payload.new, profiles: profileData };
-          setMessages((prev: any[]) => [...prev, completeMessage]);
+          setMessages((currentMessages: any[]) => [...currentMessages, completeMessage]);
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
 
         // Handle deleted messages
         if (payload.eventType === 'DELETE') {
-          setMessages((prev: any[]) => prev.filter(msg => msg.id !== payload.old.id));
+          setMessages((currentMessages: any[]) => currentMessages.filter((msg: any) => msg.id !== payload.old.id));
         }
 
         // Handle updated messages (like pinning)
         if (payload.eventType === 'UPDATE') {
-          setMessages((prev: any[]) => prev.map(msg => msg.id === payload.new.id ? { ...msg, ...payload.new } : msg));
+          setMessages((currentMessages: any[]) => currentMessages.map((msg: any) => msg.id === payload.new.id ? { ...msg, ...payload.new } : msg));
         }
       })
       .subscribe();
@@ -212,7 +212,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     triggerHaptic([10, 30]);
     const newStatus = m.status === 'completed' ? 'pending' : 'completed';
     
-    setMilestones((prev: any[]) => prev.map(milestone => milestone.id === m.id ? { ...milestone, status: newStatus } : milestone));
+    setMilestones((currentMilestones: any[]) => currentMilestones.map((milestone: any) => milestone.id === m.id ? { ...milestone, status: newStatus } : milestone));
     await supabase.from('milestones').update({ status: newStatus }).eq('id', m.id);
   };
 
@@ -240,7 +240,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         }).eq('id', milestoneId);
         
         if (!error) {
-          setMilestones((prev: any[]) => prev.map(m => m.id === milestoneId ? { ...m, payment_status: 'escrow_funded' } : m));
+          setMilestones((currentMilestones: any[]) => currentMilestones.map((m: any) => m.id === milestoneId ? { ...m, payment_status: 'escrow_funded' } : m));
           triggerHaptic([10, 50, 10]);
         }
         setIsProcessing(null);
@@ -265,7 +265,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     const handler = window.PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
       email: user.email,
-      amount: Number(project.budget || project.valuation || 0) * 100 * 1500, // Matching the existing multiplier
+      amount: Number(project.budget || project.valuation || 0) * 100 * 1500, 
       currency: 'NGN',
       callback: async (response: any) => {
         const { error } = await supabase.from('projects').update({ 
@@ -274,7 +274,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         }).eq('id', projectId);
         
         if (!error) {
-          setProject((prev: any) => ({ ...prev, payment_status: 'escrow_funded' }));
+          setProject((currentProject: any) => ({ ...currentProject, payment_status: 'escrow_funded' }));
           triggerHaptic([10, 50, 10]);
         }
         setIsProcessing(null);
@@ -336,7 +336,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     }
   };
 
-  // Chat: Delete Message (Fixed False-Positive Alert)
+  // Chat: Delete Message 
   const handleDeleteMessage = async (messageId: string) => {
     const { error } = await supabase.from('messages')
       .delete()
@@ -349,23 +349,20 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     }
 
     triggerHaptic(10);
-    // Note: We DO NOT manually update state here. The postgres_changes listener will see the DB delete and remove it from the screen.
   };
 
-  // Chat: Toggle Pin Message (Strict Real Data Sync)
+  // Chat: Toggle Pin Message 
   const handleTogglePin = async (messageId: string, currentPinStatus: boolean) => {
     const newStatus = !currentPinStatus;
 
     try {
       if (newStatus) {
-        // Unpin others in DB
         await supabase.from('messages')
           .update({ is_pinned: false })
           .eq('project_id', projectId)
           .neq('id', messageId);
       }
       
-      // Update target and verify
       const { data, error } = await supabase.from('messages')
         .update({ is_pinned: newStatus })
         .eq('id', messageId)
@@ -404,15 +401,16 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const completedMilestones = milestones.filter(m => m.status === 'completed').length;
   const progressPercentage = milestones.length > 0 ? Math.round((completedMilestones / milestones.length) * 100) : 0;
   
-  const pinnedMessage = messages.find(m => m.is_pinned === true);
+  const pinnedMessage = messages.find((m: any) => m.is_pinned === true);
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-20 overflow-x-hidden text-left font-sans">
+    // Note: removed overflow-x-hidden here to allow the sticky header to work properly
+    <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-20 text-left font-sans relative">
       
       {/* ------------------------------------------------------------------ */}
-      {/* APP HEADER - NOW FIXED TO TOP WITH Z-50 */}
+      {/* APP HEADER - FIXED TO STICKY TO RESPECT GLOBAL SIDEBAR */}
       {/* ------------------------------------------------------------------ */}
-      <header className="fixed inset-x-0 top-0 z-40 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-900 px-6 py-4">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-900 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link 
@@ -446,9 +444,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       </header>
 
       {/* ------------------------------------------------------------------ */}
-      {/* MAIN CONTENT GRID - Added pt-28 to clear fixed header */}
+      {/* MAIN CONTENT GRID - pt-8 since header is now sticky */}
       {/* ------------------------------------------------------------------ */}
-      <div className="max-w-7xl mx-auto px-6 pt-28 grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <div className="max-w-7xl mx-auto px-6 pt-8 grid grid-cols-1 lg:grid-cols-12 gap-10">
         
         {/* LEFT COLUMN: ROADMAP & DELIVERABLES */}
         <div className="lg:col-span-8 space-y-8">
@@ -546,7 +544,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         {/* RIGHT COLUMN: TEAM & FINANCIALS */}
         {/* ------------------------------------------------------------------ */}
         <div className="lg:col-span-4">
-          <div className="sticky top-28 space-y-6">
+          <div className="sticky top-24 space-y-6">
             <section className="bg-black text-white dark:bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
                <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
                  <DollarSign size={160} />
