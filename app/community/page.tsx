@@ -17,7 +17,7 @@ function ExpandableText({ text, limit = 280 }: { text: string, limit?: number })
   const shouldTruncate = text.length > limit;
 
   return (
-    <div className="mt-2">
+    <div className="mt-2 px-4 sm:px-0">
       <p className="text-zinc-800 dark:text-zinc-300 whitespace-pre-wrap text-[15px] leading-relaxed">
         {shouldTruncate && !isExpanded ? `${text.substring(0, limit)}...` : text}
       </p>
@@ -106,7 +106,6 @@ export default function CommunityFeedPage() {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [replyTo, setReplyTo] = useState<{commentId: string, userName: string} | null>(null);
 
-  // New Save State
   const [savedPosts, setSavedPosts] = useState<string[]>([]);
 
   const supabase = createBrowserClient(
@@ -348,7 +347,7 @@ export default function CommunityFeedPage() {
 
   const renderComments = (postId: string, comments: any[], parentId: string | null = null, depth = 0) => {
     return comments.filter(c => c.parent_id === parentId).map(c => (
-      <div key={c.id} className={`flex gap-3 ${depth > 0 ? 'ml-10 mt-3' : 'mt-4 text-left'}`}>
+      <div key={c.id} className={`flex gap-3 px-4 sm:px-0 ${depth > 0 ? 'ml-10 mt-3' : 'mt-4 text-left'}`}>
         <Link href={`/profile/${c.user_id}`} className="shrink-0">
           <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 dark:border-zinc-800 hover:opacity-80 transition-opacity bg-zinc-100">
             {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
@@ -435,8 +434,9 @@ export default function CommunityFeedPage() {
       <div className="max-w-5xl mx-auto px-0 sm:px-6 pt-0 sm:pt-8 grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
         
         {/* Main Feed Column */}
-        <div className="lg:col-span-8 space-y-0 sm:space-y-6 order-2 lg:order-1">
-          {/* Post Composer */}
+        <div className="lg:col-span-8 space-y-2 sm:space-y-6 order-2 lg:order-1 bg-zinc-100 dark:bg-zinc-900 sm:bg-transparent">
+          
+          {/* Post Composer - Edge to Edge on Mobile */}
           <div className="bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border border-zinc-200 dark:border-zinc-800 shadow-sm text-left">
             <form onSubmit={handlePost}>
               <div className="flex gap-4">
@@ -488,8 +488,8 @@ export default function CommunityFeedPage() {
             </form>
           </div>
 
-          {/* Posts List */}
-          <div className="space-y-0 sm:space-y-6">
+          {/* Posts List - FACEBOOK STYLE MOBILE EDGE-TO-EDGE */}
+          <div className="space-y-2 sm:space-y-6">
             {posts.map((post) => {
               const isOfficial = post.profiles?.role === 'official';
               const isRepost = !!post.repost_id;
@@ -497,10 +497,10 @@ export default function CommunityFeedPage() {
               return (
                 <div 
                   key={post.id} 
-                  className={`sm:rounded-[2.5rem] pt-4 pb-4 sm:p-8 border-b sm:border transition-all text-left relative overflow-hidden ${
+                  className={`bg-white dark:bg-black sm:rounded-[2.5rem] pt-4 pb-4 sm:p-8 border-y sm:border transition-all text-left relative overflow-hidden ${
                     isOfficial 
-                      ? 'bg-zinc-50 dark:bg-[#9cf822]/[0.02] border-[#9cf822] dark:border-[#9cf822]/40 shadow-[0_0_20px_rgba(156,248,34,0.05)]' 
-                      : 'bg-white dark:bg-black border-zinc-200 dark:border-zinc-800 shadow-sm'
+                      ? 'border-[#9cf822] dark:border-[#9cf822]/40 shadow-[0_0_20px_rgba(156,248,34,0.05)] bg-zinc-50 dark:bg-[#9cf822]/[0.02]' 
+                      : 'border-zinc-200 dark:border-zinc-800 shadow-sm'
                   }`}
                 >
                   {isOfficial && <div className="absolute top-0 left-0 w-full h-1.5 bg-[#9cf822]"></div>}
@@ -511,16 +511,17 @@ export default function CommunityFeedPage() {
                     </div>
                   )}
 
-                  <div className="flex items-start gap-4 px-4 sm:px-0">
+                  {/* Header (Avatar + Name) */}
+                  <div className="flex items-start gap-3 px-4 sm:px-0 mb-3">
                     {isOfficial ? (
                       <div className="shrink-0 mt-1">
-                        <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 border-[#9cf822]">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border-2 border-[#9cf822]">
                           <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
                         </div>
                       </div>
                     ) : (
                       <Link href={`/profile/${post.user_id}`} className="shrink-0 mt-1">
-                        <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border-2 border-transparent hover:border-[#9cf822] transition-colors">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border border-transparent hover:border-[#9cf822] transition-colors">
                           <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
                         </div>
                       </Link>
@@ -528,18 +529,21 @@ export default function CommunityFeedPage() {
 
                     <div className="flex-grow min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2 truncate">
+                        <div className="flex flex-col truncate">
                           {isOfficial ? (
-                            <div className="font-black text-black dark:text-white truncate flex items-center gap-1.5 cursor-default">
+                            <div className="font-bold text-[15px] text-black dark:text-white truncate flex items-center gap-1.5 cursor-default">
                               {post.profiles?.full_name}
-                              {post.profiles?.is_verified && <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black" />}
+                              {post.profiles?.is_verified && <BadgeCheck size={14} fill="#9cf822" className="text-white dark:text-black" />}
                             </div>
                           ) : (
-                            <Link href={`/profile/${post.user_id}`} className="font-black text-black dark:text-white hover:underline truncate flex items-center gap-1.5">
+                            <Link href={`/profile/${post.user_id}`} className="font-bold text-[15px] text-black dark:text-white hover:underline truncate flex items-center gap-1.5">
                               {post.profiles?.full_name}
-                              {post.profiles?.is_verified && <BadgeCheck size={16} fill="#9cf822" className="text-white dark:text-black" />}
+                              {post.profiles?.is_verified && <BadgeCheck size={14} fill="#9cf822" className="text-white dark:text-black" />}
                             </Link>
                           )}
+                          <span className="text-[11px] text-zinc-500 font-normal mt-0.5 flex items-center gap-1">
+                            {formatDistanceToNowShort(new Date(post.created_at))} <Globe size={10} />
+                          </span>
                         </div>
                         
                         {user?.id === post.user_id && (
@@ -551,119 +555,117 @@ export default function CommunityFeedPage() {
                           </div>
                         )}
                       </div>
-
-                      {editingPostId === post.id ? (
-                        <div className="mt-2 mb-3">
-                          <textarea 
-                            value={editContent} 
-                            onChange={(e) => setEditContent(e.target.value)}
-                            className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-xl p-3 text-sm text-black dark:text-white focus:outline-none border border-transparent focus:border-[#9cf822] resize-none"
-                            rows={3}
-                          />
-                          <div className="flex items-center gap-2 mt-2">
-                            <button onClick={() => handleSaveEdit(post.id)} className="px-4 py-1.5 bg-[#9cf822] text-black text-xs font-bold rounded-lg hover:scale-95 transition-transform">Save</button>
-                            <button onClick={() => setEditingPostId(null)} className="px-4 py-1.5 bg-zinc-200 dark:bg-zinc-800 text-black dark:text-white text-xs font-bold rounded-lg hover:opacity-80 transition-opacity">Cancel</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <ExpandableText text={post.content} />
-                      )}
-                      
-                      {isRepost && post.repost ? (
-                        <div className="mt-4 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-black/40">
-                          <div className="flex items-center gap-2 mb-2">
-                             <div className="w-5 h-5 rounded-full overflow-hidden bg-zinc-800">
-                               <img src={post.repost.profiles?.avatar_url} className="w-full h-full object-cover" />
-                             </div>
-                             <span className="font-bold text-xs text-black dark:text-white">{post.repost.profiles?.full_name}</span>
-                          </div>
-                          <ExpandableText text={post.repost.content} limit={150} />
-                          {post.repost.media?.length > 0 && <div className="mt-2 text-[10px] text-[#9cf822] font-black uppercase flex items-center gap-1"><ImageIcon size={10}/> Attached Media</div>}
-                        </div>
-                      ) : (
-                        post.media?.length > 0 && (
-                          // Edge-to-edge media wrapper: applies negative margins on mobile to break out of horizontal padding
-                          <div className={`mt-3 overflow-hidden sm:rounded-2xl border-y sm:border border-zinc-200 dark:border-zinc-800 -mx-4 sm:mx-0 ${post.media.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
-                            {post.media.map((m: any, i: number) => {
-                              const isVideo = m.type === 'video' || m.url.includes('.mp4');
-                              return isVideo ? (
-                                <FeedVideo key={i} url={m.url} onExpand={() => setExpandedMedia({url: m.url, type: 'video'})} />
-                              ) : (
-                                <div key={i} className="relative bg-black w-full flex justify-center items-center aspect-[4/5] cursor-pointer sm:rounded-2xl rounded-none overflow-hidden" onClick={() => setExpandedMedia({url: m.url, type: 'image'})}>
-                                  <img src={m.url} className="w-full h-full object-cover hover:opacity-90 transition-opacity" />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )
-                      )}
-
-                      {/* Action Bar */}
-                      <div className="flex items-center justify-between mt-6">
-                        <div className="flex items-center gap-6 sm:gap-8">
-                          <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-2 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-400 hover:text-rose-500'} transition-colors`}>
-                             <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} />
-                             <span className="text-xs font-bold">{post.likes_count}</span>
-                          </button>
-                          <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className={`flex items-center gap-2 transition-colors ${activeCommentPost === post.id ? 'text-[#9cf822]' : 'text-zinc-400 hover:text-[#9cf822]'}`}>
-                             <MessageSquare size={20} />
-                             <span className="text-xs font-bold">{post.comments?.length || 0}</span>
-                          </button>
-                          {/* Removed the word "Reshare", leaving only the icon */}
-                          <button onClick={() => handleRepost(post.id)} className="flex items-center gap-2 text-zinc-400 hover:text-[#9cf822] transition-colors">
-                             <Repeat size={20} />
-                          </button>
-                        </div>
-
-                        {/* Save & Share Section */}
-                        <div className="flex items-center gap-6 sm:gap-8">
-                          <button onClick={() => handleSavePost(post.id)} className={`transition-colors ${savedPosts.includes(post.id) ? 'text-[#9cf822]' : 'text-zinc-400 hover:text-[#9cf822]'}`}>
-                            <Bookmark size={20} fill={savedPosts.includes(post.id) ? "currentColor" : "none"} />
-                          </button>
-                          <button onClick={() => handleSharePost(post.id)} className="text-zinc-400 hover:text-white transition-colors">
-                            <Share2 size={20} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {activeCommentPost === post.id && (
-                        <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-900 animate-in slide-in-from-top-2">
-                          <div className="mb-4">{renderComments(post.id, post.comments)}</div>
-                          
-                          {/* COMMENT INPUT WITH USER IMAGE */}
-                          <div className="flex gap-3 items-start mt-4">
-                            <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 bg-zinc-100">
-                               {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
-                            </div>
-                            <div className="flex-grow flex flex-col gap-2">
-                              {replyTo && (
-                                <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg text-xs w-fit">
-                                  <span className="text-zinc-500 font-medium">Replying to <span className="font-bold text-black dark:text-white">@{replyTo.userName}</span></span>
-                                  <button onClick={() => setReplyTo(null)} className="ml-3 text-zinc-400 hover:text-black dark:hover:text-white transition-colors"><X size={12}/></button>
-                                </div>
-                              )}
-                              <div className="relative">
-                                <input 
-                                  id={`comment-input-${post.id}`}
-                                  type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
-                                  onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
-                                  placeholder="Write a comment..." 
-                                  className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-[1.5rem] px-5 py-3 text-sm outline-none border border-transparent focus:border-[#9cf822] text-black dark:text-white"
-                                />
-                                <button 
-                                  onClick={() => submitComment(post.id)} 
-                                  disabled={!commentText.trim()} 
-                                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all ${commentText.trim() ? 'text-[#9cf822] scale-110' : 'text-zinc-400'}`}
-                                >
-                                  <Send size={18} />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
+
+                  {/* Body Text */}
+                  {editingPostId === post.id ? (
+                    <div className="mt-2 mb-3 px-4 sm:px-0">
+                      <textarea 
+                        value={editContent} 
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-xl p-3 text-sm text-black dark:text-white focus:outline-none border border-transparent focus:border-[#9cf822] resize-none"
+                        rows={3}
+                      />
+                      <div className="flex items-center gap-2 mt-2">
+                        <button onClick={() => handleSaveEdit(post.id)} className="px-4 py-1.5 bg-[#9cf822] text-black text-xs font-bold rounded-lg hover:scale-95 transition-transform">Save</button>
+                        <button onClick={() => setEditingPostId(null)} className="px-4 py-1.5 bg-zinc-200 dark:bg-zinc-800 text-black dark:text-white text-xs font-bold rounded-lg hover:opacity-80 transition-opacity">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <ExpandableText text={post.content} />
+                  )}
+                  
+                  {/* Media Content - Edge to Edge on Mobile */}
+                  {isRepost && post.repost ? (
+                    <div className="mt-4 mx-4 sm:mx-0 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-black/40">
+                      <div className="flex items-center gap-2 mb-2">
+                         <div className="w-5 h-5 rounded-full overflow-hidden bg-zinc-800">
+                           <img src={post.repost.profiles?.avatar_url} className="w-full h-full object-cover" />
+                         </div>
+                         <span className="font-bold text-xs text-black dark:text-white">{post.repost.profiles?.full_name}</span>
+                      </div>
+                      <ExpandableText text={post.repost.content} limit={150} />
+                      {post.repost.media?.length > 0 && <div className="mt-2 text-[10px] text-[#9cf822] font-black uppercase flex items-center gap-1"><ImageIcon size={10}/> Attached Media</div>}
+                    </div>
+                  ) : (
+                    post.media?.length > 0 && (
+                      <div className={`mt-3 overflow-hidden ${post.media.length > 1 ? 'grid gap-[1px] grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
+                        {post.media.map((m: any, i: number) => {
+                          const isVideo = m.type === 'video' || m.url.includes('.mp4');
+                          return isVideo ? (
+                            <FeedVideo key={i} url={m.url} onExpand={() => setExpandedMedia({url: m.url, type: 'video'})} />
+                          ) : (
+                            <div key={i} className="relative bg-black w-full flex justify-center items-center aspect-square sm:aspect-auto sm:max-h-[600px] cursor-pointer sm:rounded-2xl rounded-none overflow-hidden" onClick={() => setExpandedMedia({url: m.url, type: 'image'})}>
+                              <img src={m.url} className="w-full h-full object-cover sm:object-contain hover:opacity-90 transition-opacity" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  )}
+
+                  {/* Facebook Style Interaction Bar (All icons grouped) */}
+                  <div className="flex items-center gap-6 px-4 sm:px-0 mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-900">
+                    <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-1.5 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-500 hover:text-rose-500'} transition-colors`}>
+                        <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} strokeWidth={post._hasLiked ? 1 : 1.5} />
+                        <span className="text-sm font-semibold">{post.likes_count > 0 ? post.likes_count : ''}</span>
+                    </button>
+                    
+                    <button onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} className={`flex items-center gap-1.5 transition-colors ${activeCommentPost === post.id ? 'text-[#9cf822]' : 'text-zinc-500 hover:text-[#9cf822]'}`}>
+                        <MessageSquare size={20} strokeWidth={1.5} />
+                        <span className="text-sm font-semibold">{post.comments?.length > 0 ? post.comments.length : ''}</span>
+                    </button>
+                    
+                    <button onClick={() => handleRepost(post.id)} className="flex items-center gap-1.5 text-zinc-500 hover:text-[#9cf822] transition-colors">
+                        <Repeat size={20} strokeWidth={1.5} />
+                    </button>
+
+                    <button onClick={() => handleSavePost(post.id)} className={`flex items-center gap-1.5 transition-colors ${savedPosts.includes(post.id) ? 'text-[#9cf822]' : 'text-zinc-500 hover:text-[#9cf822]'}`}>
+                      <Bookmark size={20} fill={savedPosts.includes(post.id) ? "currentColor" : "none"} strokeWidth={1.5} />
+                    </button>
+                    
+                    <button onClick={() => handleSharePost(post.id)} className="flex items-center gap-1.5 text-zinc-500 hover:text-white transition-colors ml-auto">
+                      <Share2 size={20} strokeWidth={1.5} />
+                    </button>
+                  </div>
+
+                  {activeCommentPost === post.id && (
+                    <div className="mt-4 px-4 sm:px-0 animate-in slide-in-from-top-2">
+                      <div className="mb-4">{renderComments(post.id, post.comments)}</div>
+                      
+                      {/* COMMENT INPUT WITH USER IMAGE */}
+                      <div className="flex gap-3 items-start mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900">
+                        <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 bg-zinc-100">
+                           {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
+                        </div>
+                        <div className="flex-grow flex flex-col gap-2">
+                          {replyTo && (
+                            <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg text-xs w-fit">
+                              <span className="text-zinc-500 font-medium">Replying to <span className="font-bold text-black dark:text-white">@{replyTo.userName}</span></span>
+                              <button onClick={() => setReplyTo(null)} className="ml-3 text-zinc-400 hover:text-black dark:hover:text-white transition-colors"><X size={12}/></button>
+                            </div>
+                          )}
+                          <div className="relative">
+                            <input 
+                              id={`comment-input-${post.id}`}
+                              type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
+                              placeholder="Write a comment..." 
+                              className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-[1.5rem] px-5 py-3 text-sm outline-none border border-transparent focus:border-[#9cf822] text-black dark:text-white"
+                            />
+                            <button 
+                              onClick={() => submitComment(post.id)} 
+                              disabled={!commentText.trim()} 
+                              className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all ${commentText.trim() ? 'text-[#9cf822] scale-110' : 'text-zinc-400'}`}
+                            >
+                              <Send size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
