@@ -212,7 +212,7 @@ export default function DiscoverPage() {
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mask-linear-fade">
           <div className="flex items-center gap-2 px-1 text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 pr-4 mr-2 shrink-0">
              <SlidersHorizontal size={16} />
-             <span className="text-xs font-bold uppercase tracking-widest">Filter</span>
+             <span className="text-xs font-bold">Filter</span>
           </div>
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon;
@@ -281,7 +281,7 @@ export default function DiscoverPage() {
                     
                     <div className="absolute top-4 left-4 z-30 px-3 py-1.5 backdrop-blur-md bg-black/40 border border-white/10 rounded-full flex items-center gap-2 shadow-lg">
                       <div className="w-1.5 h-1.5 rounded-full bg-[#9cf822] animate-pulse shadow-[0_0_8px_#9cf822]" />
-                      <span className="text-[9px] font-black text-white uppercase tracking-widest">Active</span>
+                      <span className="text-[9px] font-black text-white">Active</span>
                     </div>
 
                     <button 
@@ -305,23 +305,23 @@ export default function DiscoverPage() {
 
                     {/* NEW TAGS SECTION */}
                     <div className="flex flex-wrap items-center gap-2 mb-5">
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#9cf822]/10 border border-[#9cf822]/20 text-[#5a9a00] dark:text-[#9cf822] rounded-lg text-[10px] font-black uppercase tracking-widest">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#9cf822]/10 border border-[#9cf822]/20 text-[#5a9a00] dark:text-[#9cf822] rounded-lg text-[10px] font-black">
                         <ShieldCheck size={12} strokeWidth={2.5} /> Payment Secured
                       </div>
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg text-[10px] font-black">
                         <Users size={12} strokeWidth={2.5} /> {openRolesCount} {openRolesCount === 1 ? 'Role' : 'Roles'} Available
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 mb-6">
                       <div className="bg-zinc-50 dark:bg-zinc-900/80 rounded-2xl p-3 border border-zinc-100 dark:border-zinc-800">
-                        <span className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Budget</span>
+                        <span className="block text-[10px] font-black text-zinc-400 mb-1">Budget</span>
                         <span className="block text-sm font-black text-black dark:text-white truncate">
                           {getCurrencySymbol(project.currency)}{displayBudget.toLocaleString()}
                         </span>
                       </div>
                       <div className="bg-zinc-50 dark:bg-[#9cf822]/5 rounded-2xl p-3 border border-zinc-100 dark:border-[#9cf822]/20">
-                        <span className="block text-[10px] font-black text-[#5a9a00] dark:text-[#9cf822] uppercase tracking-widest mb-1">Equity/Share</span>
+                        <span className="block text-[10px] font-black text-[#5a9a00] dark:text-[#9cf822] mb-1">Equity/Share</span>
                         <span className="block text-sm font-black text-black dark:text-white">
                           {displayEquity}%
                         </span>
@@ -341,7 +341,7 @@ export default function DiscoverPage() {
                           <span className="text-xs font-black text-black dark:text-white truncate">
                             {project.profiles?.full_name || 'Project Lead'}
                           </span>
-                          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">
+                          <span className="text-[10px] font-bold text-zinc-500 truncate capitalize">
                             {project.profiles?.role || 'Founder'}
                           </span>
                         </div>
