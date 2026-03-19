@@ -8,7 +8,7 @@ import {
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
   BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown, Bookmark,
-  VolumeX, Volume2 // Added Volume icons for video
+  VolumeX, Volume2
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -398,7 +398,8 @@ export default function CommunityFeedPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300 pb-28 sm:pb-24">
+    // THE FIX: w-[100vw] ml-[calc(-50vw+50%)] forces the container to break out of ANY parent layout padding on mobile
+    <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible">
       
       {/* Media Overlay */}
       {expandedMedia && (
@@ -415,7 +416,7 @@ export default function CommunityFeedPage() {
       )}
 
       {/* MOBILE LIVE PULSE TICKER */}
-      <div className="sm:hidden w-full bg-white dark:bg-black border-b border-zinc-100 dark:border-zinc-900 py-3 overflow-hidden">
+      <div className="sm:hidden w-full bg-white dark:bg-black border-b border-zinc-200 dark:border-zinc-800 py-3 overflow-hidden">
         <div className="px-4 flex items-center gap-2 mb-2">
           <Zap size={14} className="text-[#9cf822] fill-[#9cf822]" />
           <span className="text-xs font-normal text-zinc-500 tracking-tight">What is happening</span>
@@ -435,14 +436,14 @@ export default function CommunityFeedPage() {
         </div>
       </div>
 
-      {/* Main Grid Container - px-0 on mobile guarantees true edge-to-edge */}
-      <div className="max-w-5xl mx-auto px-0 sm:px-6 pt-0 sm:pt-8 grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
+      {/* Main Grid Container - Enforced w-full */}
+      <div className="w-full max-w-5xl mx-auto px-0 sm:px-6 pt-0 sm:pt-8 grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
         
         {/* Main Feed Column - FB STYLE BACKGROUND SEPARATOR */}
-        <div className="lg:col-span-8 flex flex-col gap-[8px] sm:gap-6 order-2 lg:order-1 bg-zinc-200 dark:bg-zinc-900 sm:bg-transparent">
+        <div className="w-full lg:col-span-8 flex flex-col gap-[8px] sm:gap-6 order-2 lg:order-1 bg-zinc-200 dark:bg-zinc-900 sm:bg-transparent">
           
           {/* Post Composer */}
-          <div className="bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left">
+          <div className="w-full bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left">
             <form onSubmit={handlePost}>
               <div className="flex gap-4">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 dark:border-zinc-800">
@@ -501,7 +502,7 @@ export default function CommunityFeedPage() {
             return (
               <div 
                 key={post.id} 
-                className={`bg-white dark:bg-black sm:rounded-[2.5rem] pt-3 pb-4 sm:p-8 transition-all text-left relative overflow-hidden ${
+                className={`w-full bg-white dark:bg-black sm:rounded-[2.5rem] pt-3 pb-4 sm:p-8 transition-all text-left relative overflow-hidden ${
                   isOfficial 
                     ? 'sm:border sm:border-[#9cf822] sm:shadow-[0_0_20px_rgba(156,248,34,0.05)] bg-white dark:bg-black sm:bg-zinc-50 sm:dark:bg-[#9cf822]/[0.02]' 
                     : 'sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm'
