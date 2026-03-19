@@ -220,68 +220,86 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     if (!user) return;
     setIsProcessing(milestoneId);
 
-    // @ts-ignore
-    if (typeof window.PaystackPop === 'undefined') {
-      alert("Payment gateway is still loading. Please try again in a few seconds.");
-      setIsProcessing(null);
-      return;
-    }
-
-    // @ts-ignore
-    const handler = window.PaystackPop.setup({
-      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
-      email: user.email,
-      amount: amount * 100 * 1500,
-      currency: 'NGN',
-      callback: async (response: any) => {
-        const { error } = await supabase.from('milestones').update({ 
-          payment_status: 'escrow_funded', 
-          payment_reference: response.reference 
-        }).eq('id', milestoneId);
-        
-        if (!error) {
-          setMilestones((currentMilestones: any[]) => currentMilestones.map((m: any) => m.id === milestoneId ? { ...m, payment_status: 'escrow_funded' } : m));
-          triggerHaptic([10, 50, 10]);
-        }
+    try {
+      // @ts-ignore
+      if (typeof window.PaystackPop === 'undefined') {
+        alert("Payment gateway is still loading. Please try again in a few seconds.");
         setIsProcessing(null);
-      },
-      onClose: () => setIsProcessing(null)
-    });
-    handler.openIframe();
+        return;
+      }
+
+      // @ts-ignore
+      const handler = window.PaystackPop.setup({
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+        email: user.email,
+        amount: Math.round(amount * 100 * 1500), // Strict Math.round to prevent Paystack crash
+        currency: 'NGN',
+        callback: async (response: any) => {
+          const { error } = await supabase.from('milestones').update({ 
+            payment_status: 'escrow_funded', 
+            payment_reference: response.reference 
+          }).eq('id', milestoneId);
+          
+          if (!error) {
+            setMilestones((currentMilestones: any[]) => currentMilestones.map((m: any) => m.id === milestoneId ? { ...m, payment_status: 'escrow_funded' } : m));
+            triggerHaptic([10, 50, 10]);
+          }
+          setIsProcessing(null);
+        },
+        onClose: () => setIsProcessing(null)
+      });
+      handler.openIframe();
+    } catch (error) {
+      console.error("Paystack initialization error:", error);
+      alert("Could not load payment gateway. Please check your connection or refresh the page.");
+      setIsProcessing(null);
+    }
   };
 
   const handleProjectPayment = () => {
     if (!user) return;
     setIsProcessing('project_funding');
 
-    // @ts-ignore
-    if (typeof window.PaystackPop === 'undefined') {
-      alert("Payment gateway is still loading. Please try again in a few seconds.");
-      setIsProcessing(null);
-      return;
-    }
-
-    // @ts-ignore
-    const handler = window.PaystackPop.setup({
-      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
-      email: user.email,
-      amount: Number(project.budget || project.valuation || 0) * 100 * 1500, 
-      currency: 'NGN',
-      callback: async (response: any) => {
-        const { error } = await supabase.from('projects').update({ 
-          payment_status: 'escrow_funded', 
-          payment_reference: response.reference 
-        }).eq('id', projectId);
-        
-        if (!error) {
-          setProject((currentProject: any) => ({ ...currentProject, payment_status: 'escrow_funded' }));
-          triggerHaptic([10, 50, 10]);
-        }
+    try {
+      // @ts-ignore
+      if (typeof window.PaystackPop === 'undefined') {
+        alert("Payment gateway is still loading. Please try again in a few seconds.");
         setIsProcessing(null);
-      },
-      onClose: () => setIsProcessing(null)
-    });
-    handler.openIframe();
+        return;
+      }
+
+      // Clean the budget string (remove commas just in case it was stored as "100,000")
+      const rawBudget = project?.budget || project?.valuation || 0;
+      const cleanBudget = typeof rawBudget === 'string' ? rawBudget.replace(/[^0-9.]/g, '') : rawBudget;
+      const baseAmount = Number(cleanBudget) || 0;
+
+      // @ts-ignore
+      const handler = window.PaystackPop.setup({
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+        email: user.email,
+        // Paystack STRICTLY requires an integer (no decimals). Math.round guarantees this.
+        amount: Math.round(baseAmount * 100 * 1500), 
+        currency: 'NGN',
+        callback: async (response: any) => {
+          const { error } = await supabase.from('projects').update({ 
+            payment_status: 'escrow_funded', 
+            payment_reference: response.reference 
+          }).eq('id', projectId);
+          
+          if (!error) {
+            setProject((currentProject: any) => ({ ...currentProject, payment_status: 'escrow_funded' }));
+            triggerHaptic([10, 50, 10]);
+          }
+          setIsProcessing(null);
+        },
+        onClose: () => setIsProcessing(null)
+      });
+      handler.openIframe();
+    } catch (error) {
+      console.error("Paystack initialization error:", error);
+      alert("Could not load payment gateway. Please check your connection or refresh the page.");
+      setIsProcessing(null);
+    }
   };
 
   // Chat: Send Message
@@ -404,7 +422,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const pinnedMessage = messages.find((m: any) => m.is_pinned === true);
 
   return (
-    // Note: removed overflow-x-hidden here to allow the sticky header to work properly
     <div className="min-h-screen bg-zinc-50 dark:bg-black transition-colors duration-300 pb-20 text-left font-sans relative">
       
       {/* ------------------------------------------------------------------ */}
@@ -444,7 +461,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       </header>
 
       {/* ------------------------------------------------------------------ */}
-      {/* MAIN CONTENT GRID - pt-8 since header is now sticky */}
+      {/* MAIN CONTENT GRID */}
       {/* ------------------------------------------------------------------ */}
       <div className="max-w-7xl mx-auto px-6 pt-8 grid grid-cols-1 lg:grid-cols-12 gap-10">
         
@@ -544,7 +561,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         {/* RIGHT COLUMN: TEAM & FINANCIALS */}
         {/* ------------------------------------------------------------------ */}
         <div className="lg:col-span-4">
-          <div className="sticky top-24 space-y-6">
+          <div className="sticky top-28 space-y-6">
             <section className="bg-black text-white dark:bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
                <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
                  <DollarSign size={160} />
