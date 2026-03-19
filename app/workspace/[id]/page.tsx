@@ -228,11 +228,25 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         return;
       }
 
+      const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+      if (!paystackKey) {
+        alert("Developer Error: NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY is missing in your .env file!");
+        setIsProcessing(null);
+        return;
+      }
+
+      const finalAmountInKobo = Math.round(amount * 100 * 1500);
+      if (finalAmountInKobo <= 0) {
+        alert("Error: Milestone amount must be greater than zero.");
+        setIsProcessing(null);
+        return;
+      }
+
       // @ts-ignore
       const handler = window.PaystackPop.setup({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
-        email: user.email,
-        amount: Math.round(amount * 100 * 1500), // Strict Math.round to prevent Paystack crash
+        key: paystackKey,
+        email: user.email || 'founder@colab.com', // Fallback if user object has no email
+        amount: finalAmountInKobo,
         currency: 'NGN',
         callback: async (response: any) => {
           const { error } = await supabase.from('milestones').update({ 
@@ -249,9 +263,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         onClose: () => setIsProcessing(null)
       });
       handler.openIframe();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Paystack initialization error:", error);
-      alert("Could not load payment gateway. Please check your connection or refresh the page.");
+      alert(`Gateway Error: ${error.message || "Unknown error occurred"}`);
       setIsProcessing(null);
     }
   };
@@ -268,17 +282,31 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         return;
       }
 
-      // Clean the budget string (remove commas just in case it was stored as "100,000")
+      const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+      if (!paystackKey) {
+        alert("Developer Error: NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY is missing in your .env file!");
+        setIsProcessing(null);
+        return;
+      }
+
+      // Clean the budget string
       const rawBudget = project?.budget || project?.valuation || 0;
       const cleanBudget = typeof rawBudget === 'string' ? rawBudget.replace(/[^0-9.]/g, '') : rawBudget;
       const baseAmount = Number(cleanBudget) || 0;
 
+      const finalAmountInKobo = Math.round(baseAmount * 100 * 1500);
+
+      if (finalAmountInKobo <= 0) {
+        alert("Error: Cannot fund a project with a 0 budget.");
+        setIsProcessing(null);
+        return;
+      }
+
       // @ts-ignore
       const handler = window.PaystackPop.setup({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
-        email: user.email,
-        // Paystack STRICTLY requires an integer (no decimals). Math.round guarantees this.
-        amount: Math.round(baseAmount * 100 * 1500), 
+        key: paystackKey,
+        email: user.email || 'founder@colab.com', // Fallback if user object has no email
+        amount: finalAmountInKobo, 
         currency: 'NGN',
         callback: async (response: any) => {
           const { error } = await supabase.from('projects').update({ 
@@ -295,9 +323,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         onClose: () => setIsProcessing(null)
       });
       handler.openIframe();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Paystack initialization error:", error);
-      alert("Could not load payment gateway. Please check your connection or refresh the page.");
+      alert(`Gateway Error: ${error.message || "Unknown error occurred"}`);
       setIsProcessing(null);
     }
   };
