@@ -434,7 +434,8 @@ export default function CommunityFeedPage() {
       <div className="max-w-5xl mx-auto px-0 sm:px-6 pt-0 sm:pt-8 grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
         
         {/* Main Feed Column */}
-        <div className="lg:col-span-8 space-y-2 sm:space-y-6 order-2 lg:order-1 bg-zinc-100 dark:bg-zinc-900 sm:bg-transparent">
+        {/* Changing the mobile background of this container to white removes the grey gaps between cards on mobile. */}
+        <div className="lg:col-span-8 space-y-2 sm:space-y-6 order-2 lg:order-1 bg-white dark:bg-black sm:bg-transparent">
           
           {/* Post Composer - Edge to Edge on Mobile */}
           <div className="bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 border-b sm:border border-zinc-200 dark:border-zinc-800 shadow-sm text-left">
