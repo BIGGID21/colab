@@ -8,7 +8,7 @@ import {
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
   BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown, Bookmark,
-  VolumeX, Volume2
+  VolumeX, Volume2, ShieldAlert
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -395,6 +395,14 @@ export default function CommunityFeedPage() {
     return `${Math.floor(diff / 86400)}d`;
   };
 
+  // Check if user has provided actual info to unlock community features
+  const isProfileComplete = 
+    profile?.full_name && 
+    profile?.full_name !== 'New Member' && 
+    profile?.role && 
+    profile?.role !== 'Creative Professional' &&
+    profile?.avatar_url;
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
@@ -442,57 +450,78 @@ export default function CommunityFeedPage() {
         {/* Main Feed Column - FB STYLE BACKGROUND SEPARATOR */}
         <div className="w-full lg:col-span-8 flex flex-col gap-[8px] sm:gap-6 order-2 lg:order-1 bg-zinc-200 dark:bg-zinc-900 sm:bg-transparent">
           
-          {/* Post Composer */}
-          <div className="w-full bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left">
-            <form onSubmit={handlePost}>
-              <div className="flex gap-4">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 dark:border-zinc-800">
-                  <img src={profile?.avatar_url} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-grow">
-                  <textarea 
-                    ref={textAreaRef}
-                    value={newPost} onChange={(e) => setNewPost(e.target.value)}
-                    placeholder="What are you building today?"
-                    className="w-full bg-transparent resize-none text-black dark:text-white text-lg focus:outline-none min-h-[80px]"
-                  />
-                  
-                  {/* COMPOSER MEDIA PREVIEW */}
-                  {postMedia.length > 0 && (
-                    <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${postMedia.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
-                      {postMedia.map((m, idx) => {
-                        const isVideo = m.type === 'video' || m.url.includes('.mp4');
-                        return (
-                          <div 
-                            key={idx} 
-                            className={`relative bg-black w-full flex justify-center items-center rounded-2xl overflow-hidden ${isVideo ? 'h-auto max-h-[800px]' : 'aspect-[4/5]'}`} 
-                          >
-                            {isVideo ? (
-                              <video src={m.url} className="w-full h-auto max-h-[800px] object-contain rounded-2xl" autoPlay muted loop playsInline />
-                            ) : (
-                              <img src={m.url} className="w-full h-full object-cover" />
-                            )}
-                            <button type="button" onClick={() => removeMedia(idx)} className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 backdrop-blur-sm rounded-full text-white transition-colors z-10">
-                              <X size={14}/>
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+          {/* Post Composer / Gatekeeper */}
+          {!isProfileComplete ? (
+            <div className="w-full bg-white dark:bg-[#0a0a0a] border border-dashed border-zinc-200 dark:border-zinc-800 sm:rounded-[2.5rem] rounded-none p-8 text-center flex flex-col items-center justify-center relative overflow-hidden group mb-2 sm:mb-0">
+              <div className="absolute inset-0 bg-[#9cf822]/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-4 relative z-10 border border-zinc-200 dark:border-zinc-800">
+                <ShieldAlert size={20} className="text-[#9cf822]" />
               </div>
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900">
-                <div className="flex items-center gap-2">
-                  <input type="file" ref={fileInputRef} onChange={handleMediaUpload} accept="image/*,video/*" className="hidden" />
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-[#9cf822] hover:bg-[#9cf822]/10 rounded-full transition-colors"><ImageIcon size={20} /></button>
+              <h3 className="text-base font-bold text-black dark:text-white mb-1 relative z-10">
+                Unlock the Network
+              </h3>
+              <p className="text-sm text-zinc-500 mb-6 max-w-sm mx-auto relative z-10">
+                To maintain a high-quality community, please set up your full name, professional title, and profile picture before posting.
+              </p>
+              <Link 
+                href="/settings" 
+                className="px-6 py-3 bg-black text-white dark:bg-white dark:text-black rounded-xl text-xs font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-lg shadow-black/10 relative z-10 inline-block"
+              >
+                Complete Profile
+              </Link>
+            </div>
+          ) : (
+            <div className="w-full bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left">
+              <form onSubmit={handlePost}>
+                <div className="flex gap-4">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 dark:border-zinc-800">
+                    <img src={profile?.avatar_url} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-grow">
+                    <textarea 
+                      ref={textAreaRef}
+                      value={newPost} onChange={(e) => setNewPost(e.target.value)}
+                      placeholder="What are you building today?"
+                      className="w-full bg-transparent resize-none text-black dark:text-white text-lg focus:outline-none min-h-[80px]"
+                    />
+                    
+                    {/* COMPOSER MEDIA PREVIEW */}
+                    {postMedia.length > 0 && (
+                      <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${postMedia.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
+                        {postMedia.map((m, idx) => {
+                          const isVideo = m.type === 'video' || m.url.includes('.mp4');
+                          return (
+                            <div 
+                              key={idx} 
+                              className={`relative bg-black w-full flex justify-center items-center rounded-2xl overflow-hidden ${isVideo ? 'h-auto max-h-[800px]' : 'aspect-[4/5]'}`} 
+                            >
+                              {isVideo ? (
+                                <video src={m.url} className="w-full h-auto max-h-[800px] object-contain rounded-2xl" autoPlay muted loop playsInline />
+                              ) : (
+                                <img src={m.url} className="w-full h-full object-cover" />
+                              )}
+                              <button type="button" onClick={() => removeMedia(idx)} className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 backdrop-blur-sm rounded-full text-white transition-colors z-10">
+                                <X size={14}/>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <button type="submit" disabled={isPosting || (!newPost.trim() && postMedia.length === 0)} className="px-8 py-3 bg-[#9cf822] text-black font-normal text-xs rounded-2xl transition-all active:scale-95 shadow-lg shadow-[#9cf822]/20 tracking-tight">
-                  Post update
-                </button>
-              </div>
-            </form>
-          </div>
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900">
+                  <div className="flex items-center gap-2">
+                    <input type="file" ref={fileInputRef} onChange={handleMediaUpload} accept="image/*,video/*" className="hidden" />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-[#9cf822] hover:bg-[#9cf822]/10 rounded-full transition-colors"><ImageIcon size={20} /></button>
+                  </div>
+                  <button type="submit" disabled={isPosting || (!newPost.trim() && postMedia.length === 0)} className="px-8 py-3 bg-[#9cf822] text-black font-normal text-xs rounded-2xl transition-all active:scale-95 shadow-lg shadow-[#9cf822]/20 tracking-tight">
+                    Post update
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
 
           {/* Posts List */}
           {posts.map((post) => {
@@ -549,7 +578,7 @@ export default function CommunityFeedPage() {
                         )}
                         <span className="text-[11px] text-zinc-500 font-normal mt-0.5 flex items-center gap-1">
                           {formatDistanceToNowShort(new Date(post.created_at))} <Globe size={10} />
-                          {isOfficial && <span className="ml-1 text-[#9cf822] font-bold uppercase tracking-widest text-[9px]">Pinned</span>}
+                          {isOfficial && <span className="ml-1 text-[#9cf822] font-bold uppercase tracking-widest text-[9px]"></span>}
                         </span>
                       </div>
                       
@@ -714,14 +743,16 @@ export default function CommunityFeedPage() {
       </div>
 
       {/* TWITTER-STYLE FLOATING ACTION BUTTON */}
-      <button 
-        onClick={() => { window.scrollTo({top: 0, behavior: 'smooth'}); textAreaRef.current?.focus(); }}
-        className={`sm:hidden fixed right-6 bottom-24 bg-[#9cf822] text-black p-4 rounded-full shadow-[0_8px_30px_rgba(156,248,34,0.4)] z-50 transition-all duration-300 active:scale-90 ${
-          isNavVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'
-        }`}
-      >
-        <Plus size={24} strokeWidth={3} />
-      </button>
+      {isProfileComplete && (
+        <button 
+          onClick={() => { window.scrollTo({top: 0, behavior: 'smooth'}); textAreaRef.current?.focus(); }}
+          className={`sm:hidden fixed right-6 bottom-24 bg-[#9cf822] text-black p-4 rounded-full shadow-[0_8px_30px_rgba(156,248,34,0.4)] z-50 transition-all duration-300 active:scale-90 ${
+            isNavVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'
+          }`}
+        >
+          <Plus size={24} strokeWidth={3} />
+        </button>
+      )}
 
     </div>
   );
