@@ -136,7 +136,6 @@ export default function CommunityFeedPage() {
       if (!authUser) return router.push('/login');
       setUser(authUser);
 
-      // --- Updated profile fetch to match your actual schema ---
       const { data: userProfile } = await supabase
         .from('profiles')
         .select('*')
@@ -144,7 +143,6 @@ export default function CommunityFeedPage() {
         .single();
       setProfile(userProfile);
 
-      // --- Updated post profiles join to use professional_role ---
       const { data: postData, error } = await supabase
         .from('posts')
         .select(`
@@ -176,7 +174,7 @@ export default function CommunityFeedPage() {
         })).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       }));
 
-      // Sorting Logic: Uses professional_role instead of role
+      // Sorting Logic: Updated to use professional_role
       const sortedPosts = formattedPosts.sort((a, b) => {
         const aOfficial = a.profiles?.professional_role?.toLowerCase() === 'official' ? 1 : 0;
         const bOfficial = b.profiles?.professional_role?.toLowerCase() === 'official' ? 1 : 0;
@@ -397,7 +395,7 @@ export default function CommunityFeedPage() {
   };
 
   // ---------------------------------------------------------------------------------
-  // FIXED PROFILE CHECK: Maps to professional_role based on your Supabase Schema
+  // ROBUST PROFILE CHECK: Updated to use professional_role column
   // ---------------------------------------------------------------------------------
   const isProfileComplete = Boolean(
     profile?.full_name && profile.full_name.trim() !== 'New Member' &&
@@ -410,6 +408,7 @@ export default function CommunityFeedPage() {
   return (
     <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible">
       
+      {/* MOBILE REDIRECT POPUP */}
       {showProfileAlert && (
         <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl relative">
@@ -436,6 +435,7 @@ export default function CommunityFeedPage() {
         </div>
       )}
 
+      {/* Media Overlay */}
       {expandedMedia && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4" onClick={() => setExpandedMedia(null)}>
           <button className="absolute top-6 right-6 text-white p-2 hover:bg-white/10 rounded-full transition-colors z-50">
@@ -449,6 +449,7 @@ export default function CommunityFeedPage() {
         </div>
       )}
 
+      {/* MOBILE LIVE PULSE TICKER */}
       <div className="sm:hidden w-full bg-white dark:bg-black border-b border-zinc-200 dark:border-zinc-800 py-3 overflow-hidden">
         <div className="px-4 flex items-center gap-2 mb-2">
           <Zap size={14} className="text-[#9cf822] fill-[#9cf822]" />
@@ -469,10 +470,13 @@ export default function CommunityFeedPage() {
         </div>
       </div>
 
+      {/* Main Grid Container */}
       <div className="w-full max-w-5xl mx-auto px-0 sm:px-6 pt-0 sm:pt-8 grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
         
+        {/* Main Feed Column */}
         <div className="w-full lg:col-span-8 flex flex-col gap-[8px] sm:gap-6 order-2 lg:order-1 bg-zinc-200 dark:bg-zinc-900 sm:bg-transparent">
           
+          {/* Post Composer / Gatekeeper */}
           {!isProfileComplete ? (
             <div className="w-full bg-white dark:bg-[#0a0a0a] border border-dashed border-zinc-200 dark:border-zinc-800 sm:rounded-[2.5rem] rounded-none p-8 text-center flex flex-col items-center justify-center relative overflow-hidden group mb-2 sm:mb-0">
               <div className="absolute inset-0 bg-[#9cf822]/5 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -507,6 +511,7 @@ export default function CommunityFeedPage() {
                       className="w-full bg-transparent resize-none text-black dark:text-white text-lg focus:outline-none min-h-[80px]"
                     />
                     
+                    {/* COMPOSER MEDIA PREVIEW */}
                     {postMedia.length > 0 && (
                       <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${postMedia.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
                         {postMedia.map((m, idx) => {
@@ -544,8 +549,8 @@ export default function CommunityFeedPage() {
             </div>
           )}
 
+          {/* Posts List */}
           {posts.map((post) => {
-            // Check based on professional_role
             const isOfficial = post.profiles?.professional_role?.toLowerCase() === 'official';
             const isRepost = !!post.repost_id;
             
@@ -558,36 +563,53 @@ export default function CommunityFeedPage() {
                     : 'sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm'
                 }`}
               >
+                {/* Official Pin Highlight Line */}
                 {isOfficial && <div className="absolute top-0 left-0 w-full h-1.5 bg-[#9cf822]"></div>}
 
                 {isRepost && (
                   <div className="flex items-center gap-2 mb-3 px-4 sm:px-0 text-zinc-400 font-normal text-[10px] tracking-tight ml-12">
-                    <Repeat size={12} strokeWidth={2} /> Reshared
+                    <Repeat size={12} strokeWidth={2} /> New member reshared
                   </div>
                 )}
 
+                {/* Header (Avatar + Name) */}
                 <div className="flex items-start gap-3 px-4 sm:px-0 mb-3 mt-1">
-                  <Link href={`/profile/${post.user_id}`} className="shrink-0">
-                    <div className={`w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border ${isOfficial ? 'border-2 border-[#9cf822]' : 'border-transparent hover:border-[#9cf822]'} transition-colors`}>
-                      <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
+                  {isOfficial ? (
+                    <div className="shrink-0">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border-2 border-[#9cf822]">
+                        <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
+                      </div>
                     </div>
-                  </Link>
+                  ) : (
+                    <Link href={`/profile/${post.user_id}`} className="shrink-0">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border border-transparent hover:border-[#9cf822] transition-colors">
+                        <img src={post.profiles?.avatar_url} className="w-full h-full object-cover" />
+                      </div>
+                    </Link>
+                  )}
 
                   <div className="flex-grow min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex flex-col truncate">
-                        <Link href={`/profile/${post.user_id}`} className="font-bold text-[15px] text-black dark:text-white hover:underline truncate flex items-center gap-1.5">
-                          {post.profiles?.full_name}
-                          {(post.profiles?.is_verified || isOfficial) && <BadgeCheck size={14} fill="#9cf822" className="text-white dark:text-black" />}
-                        </Link>
+                        {isOfficial ? (
+                          <div className="font-bold text-[15px] text-black dark:text-white truncate flex items-center gap-1.5 cursor-default">
+                            {post.profiles?.full_name}
+                            <BadgeCheck size={14} fill="#9cf822" className="text-white dark:text-black" />
+                          </div>
+                        ) : (
+                          <Link href={`/profile/${post.user_id}`} className="font-bold text-[15px] text-black dark:text-white hover:underline truncate flex items-center gap-1.5">
+                            {post.profiles?.full_name}
+                            {post.profiles?.is_verified && <BadgeCheck size={14} fill="#9cf822" className="text-white dark:text-black" />}
+                          </Link>
+                        )}
                         <span className="text-[11px] text-zinc-500 font-normal mt-0.5 flex items-center gap-1">
                           {formatDistanceToNowShort(new Date(post.created_at))} <Globe size={10} />
+                          {isOfficial && <span className="ml-1 text-[#9cf822] font-bold uppercase tracking-widest text-[9px]"></span>}
                         </span>
                       </div>
                       
                       {user?.id === post.user_id && (
                         <div className="flex items-center gap-3 shrink-0 ml-2">
-                          {/* Updated to check professional_role for editing permission if needed */}
                           <button onClick={() => { setEditingPostId(post.id); setEditContent(post.content); }} className="text-zinc-400 hover:text-[#9cf822] transition-colors"><Edit size={14} /></button>
                           <button onClick={() => handleDeletePost(post.id)} className="text-zinc-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                         </div>
@@ -596,6 +618,7 @@ export default function CommunityFeedPage() {
                   </div>
                 </div>
 
+                {/* Body Text */}
                 {editingPostId === post.id ? (
                   <div className="mt-2 mb-3 px-4 sm:px-0">
                     <textarea 
@@ -613,6 +636,7 @@ export default function CommunityFeedPage() {
                   <ExpandableText text={post.content} />
                 )}
                 
+                {/* Media Content - 100% Edge to Edge */}
                 {isRepost && post.repost ? (
                   <div className="mt-4 mx-4 sm:mx-0 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-black/40">
                     <div className="flex items-center gap-2 mb-2">
@@ -622,6 +646,7 @@ export default function CommunityFeedPage() {
                        <span className="font-bold text-xs text-black dark:text-white">{post.repost.profiles?.full_name}</span>
                     </div>
                     <ExpandableText text={post.repost.content} limit={150} />
+                    {post.repost.media?.length > 0 && <div className="mt-2 text-[10px] text-[#9cf822] font-black uppercase flex items-center gap-1"><ImageIcon size={10}/> Attached Media</div>}
                   </div>
                 ) : (
                   post.media?.length > 0 && (
@@ -640,6 +665,7 @@ export default function CommunityFeedPage() {
                   )
                 )}
 
+                {/* Facebook Style Interaction Bar */}
                 <div className="flex items-center gap-6 px-4 sm:px-0 mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-900">
                   <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-1.5 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-500 hover:text-rose-500'} transition-colors`}>
                       <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} strokeWidth={post._hasLiked ? 1 : 1.5} />
@@ -667,6 +693,8 @@ export default function CommunityFeedPage() {
                 {activeCommentPost === post.id && (
                   <div className="mt-4 px-4 sm:px-0 animate-in slide-in-from-top-2">
                     <div className="mb-4">{renderComments(post.id, post.comments)}</div>
+                    
+                    {/* COMMENT INPUT WITH USER IMAGE */}
                     <div className="flex gap-3 items-start mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900">
                       <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 bg-zinc-100">
                          {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
@@ -703,6 +731,7 @@ export default function CommunityFeedPage() {
           })}
         </div>
 
+        {/* Sidebar */}
         <div className="lg:col-span-4 space-y-8 order-1 lg:order-2 hidden lg:block">
           <div className="sticky top-24 space-y-8 max-h-[calc(100vh-6rem)] overflow-y-auto no-scrollbar pb-8 text-left">
             <div className="w-full bg-gradient-to-br from-[#1a2e05] to-[#0a1401] rounded-[2.5rem] p-8 border border-white/5 shadow-2xl relative overflow-hidden">
@@ -737,6 +766,7 @@ export default function CommunityFeedPage() {
         </div>
       </div>
 
+      {/* TWITTER-STYLE FLOATING ACTION BUTTON */}
       <button 
         onClick={() => { 
           if (isProfileComplete) {
