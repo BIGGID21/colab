@@ -221,16 +221,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const isCommunityFeed = pathname === '/community';
   const isMessagesPage = pathname?.startsWith('/messages');
 
-  // UPDATED NAV ITEMS: Removed Manage, Moved Search to end
+  // UPDATED NAV ITEMS: Search moved to end, added tour anchor classes
   const navItems = [
-    { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true }, 
+    { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true, tourClass: 'sidebar-home' }, 
     { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true },
     { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true },
-    { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true },
+    { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true, tourClass: 'sidebar-community' },
     { name: 'Wallet', icon: Wallet, href: '/wallet', showOnMobileBar: false },
     { name: 'Notifications', icon: Bell, href: '/notifications', count: unreadCount, showOnMobileBar: true },
     { name: 'Search', icon: Search, onClick: () => setActiveModal('search'), showOnMobileBar: false },
   ];
+
+  // FIX: Use DiceBear Initials for neutral avatars if avatarUrl is missing
+  const finalAvatar = avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${fullName || user?.user_metadata?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`;
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -291,7 +294,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                     return item.href ? (
                       <Link key={item.name} href={item.href} onClick={handleNavClick}
-                        className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive ? 'text-black dark:text-white bg-black/5 dark:bg-[#9cf822]/10 font-bold' : 'text-zinc-600 dark:text-zinc-500 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white'} ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
+                        className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.tourClass || ''} ${isActive ? 'text-black dark:text-white bg-black/5 dark:bg-[#9cf822]/10 font-bold' : 'text-zinc-600 dark:text-zinc-500 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white'} ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
                         <div className="relative w-9 flex items-center justify-center shrink-0">
                           <item.icon size={18} />
                           {(item.count !== undefined && item.count > 0) ? (
@@ -304,7 +307,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </Link>
                     ) : (
                       <button key={item.name} onClick={item.onClick}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.tourClass || ''} text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
                         <div className="w-9 flex items-center justify-center shrink-0">
                           <item.icon size={18} />
                         </div>
@@ -373,7 +376,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                   <button onClick={() => setShowMenu(!showMenu)} className={`w-full flex items-center gap-3 p-2 px-4 rounded-xl hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 transition-all ${isCollapsed && !isMobileMenuOpen ? 'justify-center' : ''}`}>
                     <div className="w-9 h-9 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0 flex items-center justify-center">
-                      {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" alt="Avatar" /> : <User size={18} className="text-zinc-400" />}
+                      <img src={finalAvatar} className="w-full h-full object-cover" alt="Avatar" />
                     </div>
                     {(!isCollapsed || isMobileMenuOpen) && (
                       <div className="text-left flex-grow flex items-center gap-1.5 min-w-0">
@@ -408,13 +411,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   ))}
                   <Link href={`/profile/${user?.id}`} className="flex flex-col items-center justify-center w-full py-1">
                     <div className={`w-6 h-6 rounded-full overflow-hidden border-2 ${pathname.includes('/profile/') ? 'border-[#9cf822]' : 'border-transparent'}`}>
-                      {avatarUrl ? (
-                        <img src={avatarUrl} className="w-full h-full object-cover" alt="Profile" />
-                      ) : (
-                        <div className="w-full h-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-500">
-                          <User size={12} />
-                        </div>
-                      )}
+                      <img src={finalAvatar} className="w-full h-full object-cover" alt="Profile" />
                     </div>
                   </Link>
                 </nav>
