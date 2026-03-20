@@ -191,7 +191,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     };
   }, [supabase, user?.id]);
 
-  // Combined Scroll Listener for Mobile UI
   useEffect(() => {
     const handleScroll = () => {
       if (typeof window === 'undefined') return;
@@ -201,10 +200,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       if (currentScrollY < 60) {
         setIsMobileNavVisible(true);
       } else if (currentScrollY > lastScrollY.current + 5) {
-        // Scrolling down -> Hide
         setIsMobileNavVisible(false);
       } else if (currentScrollY < lastScrollY.current - 5) {
-        // Scrolling up -> Show
         setIsMobileNavVisible(true);
       }
       
@@ -224,15 +221,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const isCommunityFeed = pathname === '/community';
   const isMessagesPage = pathname?.startsWith('/messages');
 
+  // UPDATED NAV ITEMS: Removed Manage, Moved Search to end
   const navItems = [
-    { name: 'Search', icon: Search, onClick: () => setActiveModal('search'), showOnMobileBar: false },
     { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true }, 
     { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true },
     { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true },
     { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true },
     { name: 'Wallet', icon: Wallet, href: '/wallet', showOnMobileBar: false },
     { name: 'Notifications', icon: Bell, href: '/notifications', count: unreadCount, showOnMobileBar: true },
-    { name: 'Manage', icon: Settings, href: '/manage', showOnMobileBar: false },
+    { name: 'Search', icon: Search, onClick: () => setActiveModal('search'), showOnMobileBar: false },
   ];
 
   return (
@@ -247,7 +244,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           {showSidebar && !isAppLoading && (
             <>
-              {/* MOBILE TOP BAR - Hidden on Messages */}
               {!isMessagesPage && (
                 <div 
                   className={`md:hidden flex items-center justify-between p-4 h-16 backdrop-blur-md border-b fixed top-0 w-full z-[100] bg-white/90 dark:bg-black/90 border-zinc-200 dark:border-zinc-900 transition-transform duration-300 ease-in-out ${
@@ -262,7 +258,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               )}
 
-              {/* DESKTOP SIDEBAR */}
               <aside className={`fixed md:sticky left-0 top-0 h-screen border-r flex flex-col z-[110] transition-all duration-300 bg-[#F3F2F1] dark:bg-[#0a0a0a] border-zinc-200 dark:border-zinc-900
                 ${isMobileMenuOpen ? 'translate-x-0 w-[280px]' : '-translate-x-full w-64'} 
                 ${isCollapsed ? 'md:w-20' : 'md:w-64'} md:translate-x-0`}>
@@ -319,7 +314,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   })}
                 </nav>
 
-                {/* QUICK-VIEW WALLET WIDGET - Updated to Naira */}
                 {(!isCollapsed || isMobileMenuOpen) && (
                   <div className="px-4 mt-auto mb-2 relative z-10">
                     <Link href="/wallet" className="block bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors group shadow-sm">
@@ -394,7 +388,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </aside>
 
-              {/* MOBILE BOTTOM NAV - Hidden on Messages */}
               {!isMessagesPage && (
                 <nav className={`md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))] transition-transform duration-300 ease-in-out ${
                     (isCommunityFeed && !isMobileNavVisible) ? 'translate-y-full' : 'translate-y-0'
@@ -413,7 +406,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </div>
                     </Link>
                   ))}
-                  {/* Profile Avatar on Far Right */}
                   <Link href={`/profile/${user?.id}`} className="flex flex-col items-center justify-center w-full py-1">
                     <div className={`w-6 h-6 rounded-full overflow-hidden border-2 ${pathname.includes('/profile/') ? 'border-[#9cf822]' : 'border-transparent'}`}>
                       {avatarUrl ? (
@@ -432,7 +424,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </>
           )}
 
-          {/* MAIN CONTENT AREA */}
           <main className={`flex-grow w-full transition-all duration-500 bg-white dark:bg-black ${showSidebar && !isAppLoading ? (isMessagesPage ? 'pb-24 md:pb-10' : 'px-4 md:px-10 pb-24 md:pb-10 pt-20 md:pt-10') : ''}`}>
             {!isAppLoading && children}
           </main>
