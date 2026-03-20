@@ -40,7 +40,7 @@ function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const toggleMute = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevents the video from expanding when clicking mute
+    e.stopPropagation(); 
     if (videoRef.current) {
       videoRef.current.muted = !isMuted;
       setIsMuted(!isMuted);
@@ -59,7 +59,6 @@ function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
         autoPlay muted={isMuted} loop playsInline
       />
       
-      {/* Audio Toggle Button */}
       <button 
         onClick={toggleMute}
         className="absolute bottom-4 right-4 p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full text-white transition-all shadow-lg z-20"
@@ -102,7 +101,6 @@ export default function CommunityFeedPage() {
   const [replyTo, setReplyTo] = useState<{commentId: string, userName: string} | null>(null);
 
   const [savedPosts, setSavedPosts] = useState<string[]>([]);
-  const [showProfileAlert, setShowProfileAlert] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -148,7 +146,7 @@ export default function CommunityFeedPage() {
         .from('posts')
         .select(`
           *,
-          profiles:user_id(full_name, avatar_url, role, is_verified),
+          profiles:user_id(full_name, avatar_url, role, professional_title, is_verified),
           likes(user_id),
           comments(
             id, content, created_at, parent_id, user_id,
@@ -157,7 +155,7 @@ export default function CommunityFeedPage() {
           ),
           repost:repost_id(
             id, content, media, created_at, user_id,
-            profiles:user_id(full_name, avatar_url, role, is_verified)
+            profiles:user_id(full_name, avatar_url, role, professional_title, is_verified)
           )
         `)
         .order('created_at', { ascending: false });
@@ -177,8 +175,8 @@ export default function CommunityFeedPage() {
 
       // Sorting Logic: Forces 'official' roles to ALWAYS be at the top
       const sortedPosts = formattedPosts.sort((a, b) => {
-        const aOfficial = a.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
-        const bOfficial = b.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
+        const aOfficial = (a.profiles?.role?.toLowerCase() === 'official' || a.profiles?.professional_title?.toLowerCase() === 'official') ? 1 : 0;
+        const bOfficial = (b.profiles?.role?.toLowerCase() === 'official' || b.profiles?.professional_title?.toLowerCase() === 'official') ? 1 : 0;
         if (aOfficial !== bOfficial) return bOfficial - aOfficial;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
@@ -233,15 +231,15 @@ export default function CommunityFeedPage() {
     const postContent = newPost.trim();
     const { data: insertedPost, error } = await supabase.from('posts').insert({
       user_id: user.id, content: postContent, media: postMedia
-    }).select('*, profiles:user_id(full_name, avatar_url, role, is_verified)').single();
+    }).select('*, profiles:user_id(full_name, avatar_url, role, professional_title, is_verified)').single();
 
     if (!error) {
       const formattedInserted = { ...insertedPost, likes_count: 0, comments: [], _hasLiked: false };
       setPosts(prev => {
         const updated = [formattedInserted, ...prev];
         return updated.sort((a, b) => {
-          const aOfficial = a.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
-          const bOfficial = b.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
+          const aOfficial = (a.profiles?.role?.toLowerCase() === 'official' || a.profiles?.professional_title?.toLowerCase() === 'official') ? 1 : 0;
+          const bOfficial = (b.profiles?.role?.toLowerCase() === 'official' || b.profiles?.professional_title?.toLowerCase() === 'official') ? 1 : 0;
           if (aOfficial !== bOfficial) return bOfficial - aOfficial;
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
@@ -265,10 +263,10 @@ export default function CommunityFeedPage() {
       content: ''
     }).select(`
       *,
-      profiles:user_id(full_name, avatar_url, role, is_verified),
+      profiles:user_id(full_name, avatar_url, role, professional_title, is_verified),
       repost:repost_id(
         id, content, media, created_at, user_id,
-        profiles:user_id(full_name, avatar_url, role, is_verified)
+        profiles:user_id(full_name, avatar_url, role, professional_title, is_verified)
       )
     `).single();
 
@@ -276,8 +274,8 @@ export default function CommunityFeedPage() {
       setPosts(prev => {
         const updated = [insertedRepost, ...prev];
         return updated.sort((a, b) => {
-          const aOfficial = a.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
-          const bOfficial = b.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
+          const aOfficial = (a.profiles?.role?.toLowerCase() === 'official' || a.profiles?.professional_title?.toLowerCase() === 'official') ? 1 : 0;
+          const bOfficial = (b.profiles?.role?.toLowerCase() === 'official' || b.profiles?.professional_title?.toLowerCase() === 'official') ? 1 : 0;
           if (aOfficial !== bOfficial) return bOfficial - aOfficial;
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
@@ -396,11 +394,11 @@ export default function CommunityFeedPage() {
   };
 
   // ---------------------------------------------------------------------------------
-  // ROBUST PROFILE CHECK: Requires Name, Role, and Avatar to be present and non-default
+  // NEW LOGIC: Only Requires Name and Avatar URL
   // ---------------------------------------------------------------------------------
   const isProfileComplete = Boolean(
-    profile?.full_name && profile.full_name.trim() !== 'New Member' &&
-    profile?.role && profile.role.trim() !== 'Creative Professional' &&
+    profile?.full_name && 
+    profile?.full_name?.trim() !== 'New Member' &&
     profile?.avatar_url
   );
 
@@ -409,33 +407,6 @@ export default function CommunityFeedPage() {
   return (
     <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible">
       
-      {/* MOBILE REDIRECT POPUP */}
-      {showProfileAlert && (
-        <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl relative">
-            <button onClick={() => setShowProfileAlert(false)} className="absolute top-6 right-6 text-zinc-400 hover:text-black dark:hover:text-white transition-colors">
-              <X size={20} />
-            </button>
-            <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-200 dark:border-zinc-800">
-              <ShieldAlert size={28} className="text-[#9cf822]" />
-            </div>
-            <h3 className="text-lg font-bold text-black dark:text-white mb-2">Action Required</h3>
-            <p className="text-sm text-zinc-500 mb-8 px-2">
-              To keep our community high-quality, please complete your profile (name, title, and photo) before posting.
-            </p>
-            <button
-              onClick={() => {
-                setShowProfileAlert(false);
-                router.push(`/profile/${user?.id}`);
-              }}
-              className="w-full py-4 bg-black text-white dark:bg-white dark:text-black font-bold text-xs uppercase tracking-widest rounded-2xl hover:scale-[1.02] transition-transform shadow-lg shadow-black/10"
-            >
-              Go To Profile
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Media Overlay */}
       {expandedMedia && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4" onClick={() => setExpandedMedia(null)}>
@@ -471,7 +442,6 @@ export default function CommunityFeedPage() {
         </div>
       </div>
 
-      {/* Main Grid Container */}
       <div className="w-full max-w-5xl mx-auto px-0 sm:px-6 pt-0 sm:pt-8 grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
         
         {/* Main Feed Column */}
@@ -488,7 +458,7 @@ export default function CommunityFeedPage() {
                 Unlock the Network
               </h3>
               <p className="text-sm text-zinc-500 mb-6 max-w-sm mx-auto relative z-10">
-                To maintain a high-quality community, please set up your full name, professional title, and profile picture before posting.
+                To maintain a high-quality community, please set up your full name and profile picture before posting.
               </p>
               <button 
                 onClick={() => router.push(`/profile/${user?.id}`)}
@@ -552,7 +522,7 @@ export default function CommunityFeedPage() {
 
           {/* Posts List */}
           {posts.map((post) => {
-            const isOfficial = post.profiles?.role?.toLowerCase() === 'official';
+            const isOfficial = (post.profiles?.role?.toLowerCase() === 'official' || post.profiles?.professional_title?.toLowerCase() === 'official');
             const isRepost = !!post.repost_id;
             
             return (
@@ -611,9 +581,7 @@ export default function CommunityFeedPage() {
                       
                       {user?.id === post.user_id && (
                         <div className="flex items-center gap-3 shrink-0 ml-2">
-                          {profile?.role?.toLowerCase() === 'pro' && (
-                            <button onClick={() => { setEditingPostId(post.id); setEditContent(post.content); }} className="text-zinc-400 hover:text-[#9cf822] transition-colors"><Edit size={14} /></button>
-                          )}
+                          <button onClick={() => { setEditingPostId(post.id); setEditContent(post.content); }} className="text-zinc-400 hover:text-[#9cf822] transition-colors"><Edit size={14} /></button>
                           <button onClick={() => handleDeletePost(post.id)} className="text-zinc-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                         </div>
                       )}
@@ -668,7 +636,7 @@ export default function CommunityFeedPage() {
                   )
                 )}
 
-                {/* Facebook Style Interaction Bar */}
+                {/* Interaction Bar */}
                 <div className="flex items-center gap-6 px-4 sm:px-0 mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-900">
                   <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-1.5 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-500 hover:text-rose-500'} transition-colors`}>
                       <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} strokeWidth={post._hasLiked ? 1 : 1.5} />
@@ -755,7 +723,7 @@ export default function CommunityFeedPage() {
                 <h4 className="text-[10px] font-normal text-[#9cf822] tracking-tight mb-6 flex items-center gap-2"><Clock size={12} /> What is happening</h4>
                 <div className="space-y-6">
                    {recentActivity.slice(0, 4).map((activity, i) => (
-                    <div key={i} className="flex items-start gap-4 group cursor-pointer" onClick={() => activity.profiles?.role !== 'official' && router.push(`/profile/${activity.user_id}`)}>
+                    <div key={i} className="flex items-start gap-4 group cursor-pointer" onClick={() => (activity.profiles?.professional_title || activity.profiles?.role)?.toLowerCase() !== 'official' && router.push(`/profile/${activity.user_id}`)}>
                       <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 group-hover:border-[#9cf822] transition-colors"><img src={activity.profiles?.avatar_url} className="w-full h-full object-cover" /></div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1"><p className="text-sm font-black text-black dark:text-white truncate group-hover:text-[#9cf822]">{activity.profiles?.full_name}</p>{activity.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white shrink-0" />}</div>
@@ -776,7 +744,7 @@ export default function CommunityFeedPage() {
             window.scrollTo({top: 0, behavior: 'smooth'}); 
             textAreaRef.current?.focus(); 
           } else {
-            setShowProfileAlert(true);
+            router.push(`/profile/${user?.id}`);
           }
         }}
         className={`sm:hidden fixed right-6 bottom-24 bg-[#9cf822] text-black p-4 rounded-full shadow-[0_8px_30px_rgba(156,248,34,0.4)] z-50 transition-all duration-300 active:scale-90 ${
