@@ -238,7 +238,6 @@ export default function CommunityFeedPage() {
       const formattedInserted = { ...insertedPost, likes_count: 0, comments: [], _hasLiked: false };
       setPosts(prev => {
         const updated = [formattedInserted, ...prev];
-        // Ensure official posts remain at the top even after a new post is inserted
         return updated.sort((a, b) => {
           const aOfficial = a.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
           const bOfficial = b.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
@@ -395,18 +394,16 @@ export default function CommunityFeedPage() {
     return `${Math.floor(diff / 86400)}d`;
   };
 
-  // Check if user has provided actual info to unlock community features
-  const isProfileComplete = 
+  // Safe Profile Check
+  const isProfileComplete = Boolean(
     profile?.full_name && 
-    profile?.full_name !== 'New Member' && 
-    profile?.role && 
-    profile?.role !== 'Creative Professional' &&
-    profile?.avatar_url;
+    profile?.full_name?.trim() !== 'New Member' &&
+    profile?.avatar_url
+  );
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    // THE FIX: w-[100vw] ml-[calc(-50vw+50%)] forces the container to break out of ANY parent layout padding on mobile
     <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible">
       
       {/* Media Overlay */}
@@ -444,10 +441,10 @@ export default function CommunityFeedPage() {
         </div>
       </div>
 
-      {/* Main Grid Container - Enforced w-full */}
+      {/* Main Grid Container */}
       <div className="w-full max-w-5xl mx-auto px-0 sm:px-6 pt-0 sm:pt-8 grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
         
-        {/* Main Feed Column - FB STYLE BACKGROUND SEPARATOR */}
+        {/* Main Feed Column */}
         <div className="w-full lg:col-span-8 flex flex-col gap-[8px] sm:gap-6 order-2 lg:order-1 bg-zinc-200 dark:bg-zinc-900 sm:bg-transparent">
           
           {/* Post Composer / Gatekeeper */}
@@ -463,12 +460,12 @@ export default function CommunityFeedPage() {
               <p className="text-sm text-zinc-500 mb-6 max-w-sm mx-auto relative z-10">
                 To maintain a high-quality community, please set up your full name, professional title, and profile picture before posting.
               </p>
-              <Link 
-                href="/settings" 
+              <button 
+                onClick={() => router.push(`/profile/${user?.id}`)}
                 className="px-6 py-3 bg-black text-white dark:bg-white dark:text-black rounded-xl text-xs font-bold uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-lg shadow-black/10 relative z-10 inline-block"
               >
                 Complete Profile
-              </Link>
+              </button>
             </div>
           ) : (
             <div className="w-full bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left">
@@ -743,16 +740,21 @@ export default function CommunityFeedPage() {
       </div>
 
       {/* TWITTER-STYLE FLOATING ACTION BUTTON */}
-      {isProfileComplete && (
-        <button 
-          onClick={() => { window.scrollTo({top: 0, behavior: 'smooth'}); textAreaRef.current?.focus(); }}
-          className={`sm:hidden fixed right-6 bottom-24 bg-[#9cf822] text-black p-4 rounded-full shadow-[0_8px_30px_rgba(156,248,34,0.4)] z-50 transition-all duration-300 active:scale-90 ${
-            isNavVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'
-          }`}
-        >
-          <Plus size={24} strokeWidth={3} />
-        </button>
-      )}
+      <button 
+        onClick={() => { 
+          if (isProfileComplete) {
+            window.scrollTo({top: 0, behavior: 'smooth'}); 
+            textAreaRef.current?.focus(); 
+          } else {
+            router.push(`/profile/${user?.id}`);
+          }
+        }}
+        className={`sm:hidden fixed right-6 bottom-24 bg-[#9cf822] text-black p-4 rounded-full shadow-[0_8px_30px_rgba(156,248,34,0.4)] z-50 transition-all duration-300 active:scale-90 ${
+          isNavVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'
+        }`}
+      >
+        <Plus size={24} strokeWidth={3} />
+      </button>
 
     </div>
   );
