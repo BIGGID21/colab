@@ -102,6 +102,7 @@ export default function CommunityFeedPage() {
   const [replyTo, setReplyTo] = useState<{commentId: string, userName: string} | null>(null);
 
   const [savedPosts, setSavedPosts] = useState<string[]>([]);
+  const [showProfileAlert, setShowProfileAlert] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -394,10 +395,12 @@ export default function CommunityFeedPage() {
     return `${Math.floor(diff / 86400)}d`;
   };
 
-  // Safe Profile Check
+  // ---------------------------------------------------------------------------------
+  // ROBUST PROFILE CHECK: Requires Name, Role, and Avatar to be present and non-default
+  // ---------------------------------------------------------------------------------
   const isProfileComplete = Boolean(
-    profile?.full_name && 
-    profile?.full_name?.trim() !== 'New Member' &&
+    profile?.full_name && profile.full_name.trim() !== 'New Member' &&
+    profile?.role && profile.role.trim() !== 'Creative Professional' &&
     profile?.avatar_url
   );
 
@@ -406,6 +409,33 @@ export default function CommunityFeedPage() {
   return (
     <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible">
       
+      {/* MOBILE REDIRECT POPUP */}
+      {showProfileAlert && (
+        <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl relative">
+            <button onClick={() => setShowProfileAlert(false)} className="absolute top-6 right-6 text-zinc-400 hover:text-black dark:hover:text-white transition-colors">
+              <X size={20} />
+            </button>
+            <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-200 dark:border-zinc-800">
+              <ShieldAlert size={28} className="text-[#9cf822]" />
+            </div>
+            <h3 className="text-lg font-bold text-black dark:text-white mb-2">Action Required</h3>
+            <p className="text-sm text-zinc-500 mb-8 px-2">
+              To keep our community high-quality, please complete your profile (name, title, and photo) before posting.
+            </p>
+            <button
+              onClick={() => {
+                setShowProfileAlert(false);
+                router.push(`/profile/${user?.id}`);
+              }}
+              className="w-full py-4 bg-black text-white dark:bg-white dark:text-black font-bold text-xs uppercase tracking-widest rounded-2xl hover:scale-[1.02] transition-transform shadow-lg shadow-black/10"
+            >
+              Go To Profile
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Media Overlay */}
       {expandedMedia && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4" onClick={() => setExpandedMedia(null)}>
@@ -746,7 +776,7 @@ export default function CommunityFeedPage() {
             window.scrollTo({top: 0, behavior: 'smooth'}); 
             textAreaRef.current?.focus(); 
           } else {
-            router.push(`/profile/${user?.id}`);
+            setShowProfileAlert(true);
           }
         }}
         className={`sm:hidden fixed right-6 bottom-24 bg-[#9cf822] text-black p-4 rounded-full shadow-[0_8px_30px_rgba(156,248,34,0.4)] z-50 transition-all duration-300 active:scale-90 ${
