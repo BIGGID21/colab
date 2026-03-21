@@ -8,7 +8,7 @@ import {
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
   BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown, Bookmark,
-  VolumeX, Volume2
+  VolumeX, Volume2, Trophy, Medal, Flame // <-- Added Trophy, Medal, and Flame icons
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -82,6 +82,11 @@ export default function CommunityFeedPage() {
   const [trendingTags, setTrendingTags] = useState<{tag: string, count: number}[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   
+  // --- LEADERBOARD STATE ---
+  const [topPosters, setTopPosters] = useState<any[]>([]);
+  const [topEngaged, setTopEngaged] = useState<any[]>([]);
+  const [leaderboardTab, setLeaderboardTab] = useState<'posts' | 'engagement'>('engagement');
+  
   const [postMedia, setPostMedia] = useState<{url: string, type: string}[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [expandedMedia, setExpandedMedia] = useState<{url: string, type: string} | null>(null);
@@ -102,8 +107,7 @@ export default function CommunityFeedPage() {
 
   const [savedPosts, setSavedPosts] = useState<string[]>([]);
   
-  // --- FIRST POST CELEBRATION STATE ---
-  const [hasPostedBefore, setHasPostedBefore] = useState(true); // Default true so it doesn't flash
+  const [hasPostedBefore, setHasPostedBefore] = useState(true); 
   const [showFirstPostModal, setShowFirstPostModal] = useState(false);
 
   const supabase = createBrowserClient(
@@ -146,7 +150,6 @@ export default function CommunityFeedPage() {
         .single();
       setProfile(userProfile);
 
-      // Check if user has posted before for the celebration modal
       const { count: userPostCount } = await supabase
         .from('posts')
         .select('*', { count: 'exact', head: true })
@@ -184,6 +187,41 @@ export default function CommunityFeedPage() {
           _hasLiked: c.comment_likes?.some((cl: any) => cl.user_id === authUser.id)
         })).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       }));
+
+      // --- LEADERBOARD AGGREGATION LOGIC ---
+      const userStats: Record<string, any> = {};
+
+      formattedPosts.forEach(post => {
+        // Skip official accounts from leaderboards to keep it fair for regular users
+        if (post.profiles?.role?.toLowerCase() === 'official') return;
+
+        const userId = post.user_id;
+        if (!userStats[userId]) {
+          userStats[userId] = {
+            id: userId,
+            profile: post.profiles,
+            postCount: 0,
+            engagementCount: 0
+          };
+        }
+        userStats[userId].postCount += 1;
+        // Total engagement = Post Likes + Number of Comments received
+        userStats[userId].engagementCount += (post.likes_count || 0) + (post.comments?.length || 0);
+      });
+
+      // Calculate Top Posters
+      const topByPosts = Object.values(userStats)
+        .sort((a, b) => b.postCount - a.postCount)
+        .slice(0, 3);
+      
+      // Calculate Top Engaged
+      const topByEngagement = Object.values(userStats)
+        .sort((a, b) => b.engagementCount - a.engagementCount)
+        .slice(0, 3);
+
+      setTopPosters(topByPosts);
+      setTopEngaged(topByEngagement);
+      // ------------------------------------
 
       const sortedPosts = formattedPosts.sort((a, b) => {
         const aOfficial = a.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
@@ -260,11 +298,10 @@ export default function CommunityFeedPage() {
           setRecentActivity(prev => [formattedInserted, ...prev.slice(0, 4)]);
       }
       
-      // Check if this was their first post ever
       if (!hasPostedBefore) {
         setShowFirstPostModal(true);
         setHasPostedBefore(true);
-        triggerHaptic([50, 100, 150]); // Extra celebration haptic
+        triggerHaptic([50, 100, 150]); 
       }
       
       setNewPost('');
@@ -416,7 +453,6 @@ export default function CommunityFeedPage() {
   return (
     <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible">
       
-      {/* --- FIRST POST CELEBRATION MODAL --- */}
       {showFirstPostModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setShowFirstPostModal(false)}>
           <div 
@@ -440,7 +476,6 @@ export default function CommunityFeedPage() {
         </div>
       )}
 
-      {/* Media Overlay */}
       {expandedMedia && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4" onClick={() => setExpandedMedia(null)}>
           <button className="absolute top-6 right-6 text-white p-2 hover:bg-white/10 rounded-full transition-colors z-50">
@@ -454,7 +489,6 @@ export default function CommunityFeedPage() {
         </div>
       )}
 
-      {/* MOBILE LIVE PULSE TICKER */}
       <div className="sm:hidden w-full bg-white dark:bg-black border-b border-zinc-200 dark:border-zinc-800 py-3 overflow-hidden">
         <div className="px-4 flex items-center gap-2 mb-2">
           <Zap size={14} className="text-[#9cf822] fill-[#9cf822]" />
@@ -706,8 +740,10 @@ export default function CommunityFeedPage() {
           })}
         </div>
 
+        {/* SIDEBAR */}
         <div className="lg:col-span-4 space-y-8 order-1 lg:order-2 hidden lg:block">
           <div className="sticky top-24 space-y-8 max-h-[calc(100vh-6rem)] overflow-y-auto no-scrollbar pb-8 text-left">
+            
             <div className="w-full bg-gradient-to-br from-[#1a2e05] to-[#0a1401] rounded-[2.5rem] p-8 border border-white/5 shadow-2xl relative overflow-hidden">
               <Sparkles size={18} className="text-[#9cf822] mb-2" />
               <h3 className="font-bold text-white text-lg uppercase tracking-widest">Community Hub</h3>
@@ -722,6 +758,67 @@ export default function CommunityFeedPage() {
                 ))}
               </div>
             </div>
+
+            {/* --- NEW LEADERBOARD WIDGET --- */}
+            {(topPosters.length > 0 || topEngaged.length > 0) && (
+              <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-[#9cf822] flex items-center gap-2">
+                    <Trophy size={14} /> Top Builders
+                  </h4>
+                </div>
+
+                {/* Tab Switcher */}
+                <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-lg p-1 mb-6">
+                  <button 
+                    onClick={() => setLeaderboardTab('engagement')}
+                    className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${leaderboardTab === 'engagement' ? 'bg-white dark:bg-[#222] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
+                  >
+                    Most Engaged
+                  </button>
+                  <button 
+                    onClick={() => setLeaderboardTab('posts')}
+                    className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${leaderboardTab === 'posts' ? 'bg-white dark:bg-[#222] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
+                  >
+                    Most Active
+                  </button>
+                </div>
+
+                {/* Leaderboard List */}
+                <div className="space-y-4">
+                  {(leaderboardTab === 'posts' ? topPosters : topEngaged).map((userStat, index) => {
+                    // Assign colors based on rank
+                    const rankColors = ['text-yellow-500', 'text-zinc-400', 'text-amber-700'];
+                    const rankIcon = index === 0 ? <Trophy size={16} className={rankColors[index]} /> : <Medal size={16} className={rankColors[index] || 'text-zinc-500'} />;
+
+                    return (
+                      <div key={userStat.id} className="flex items-center gap-3 group cursor-pointer p-2 -mx-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors" onClick={() => router.push(`/profile/${userStat.id}`)}>
+                        <div className="flex items-center justify-center w-6 font-black text-sm text-zinc-400 group-hover:text-[#9cf822] transition-colors">
+                          {index < 3 ? rankIcon : `#${index + 1}`}
+                        </div>
+                        <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800">
+                          <img src={userStat.profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${userStat.profile?.full_name || 'User'}`} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-grow min-w-0">
+                          <p className="text-sm font-bold text-black dark:text-white truncate flex items-center gap-1 group-hover:text-[#9cf822] transition-colors">
+                            {userStat.profile?.full_name || 'Anonymous Builder'}
+                            {userStat.profile?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
+                          </p>
+                          <p className="text-[11px] font-medium text-zinc-500 flex items-center gap-1 mt-0.5">
+                            {leaderboardTab === 'posts' ? (
+                              <><Edit size={10} /> {userStat.postCount} updates</>
+                            ) : (
+                              <><Flame size={10} className="text-orange-500" /> {userStat.engagementCount} interactions</>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-sm">
                 <h4 className="text-[10px] font-normal text-[#9cf822] tracking-tight mb-6 flex items-center gap-2"><Clock size={12} /> What is happening</h4>
                 <div className="space-y-6">
