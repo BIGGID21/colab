@@ -294,7 +294,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                     return item.href ? (
                       <Link key={item.name} href={item.href} onClick={handleNavClick}
-                        className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.tourClass || ''} ${isActive ? 'text-black dark:text-white bg-black/5 dark:bg-[#9cf822]/10 font-bold' : 'text-zinc-600 dark:text-zinc-500 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white'} ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
+                        className={`group relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.tourClass || ''} ${isActive ? 'text-black dark:text-white bg-black/5 dark:bg-[#9cf822]/10 font-bold' : 'text-zinc-600 dark:text-zinc-500 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white'} ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
                         <div className="relative w-9 flex items-center justify-center shrink-0">
                           <item.icon size={18} />
                           {(item.count !== undefined && item.count > 0) ? (
@@ -304,14 +304,30 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                           ) : null}
                         </div>
                         {(!isCollapsed || isMobileMenuOpen) && <span className="text-sm font-medium">{item.name}</span>}
+                        
+                        {/* THE HOVER TOOLTIP */}
+                        {isCollapsed && !isMobileMenuOpen && (
+                          <div className="absolute left-full ml-4 px-3 py-1.5 bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-bold rounded-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all pointer-events-none whitespace-nowrap z-[200] shadow-xl">
+                            {item.name}
+                            <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-[5px] border-transparent border-r-zinc-900 dark:border-r-white"></div>
+                          </div>
+                        )}
                       </Link>
                     ) : (
                       <button key={item.name} onClick={item.onClick}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.tourClass || ''} text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
+                        className={`group relative w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.tourClass || ''} text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
                         <div className="w-9 flex items-center justify-center shrink-0">
                           <item.icon size={18} />
                         </div>
                         {(!isCollapsed || isMobileMenuOpen) && <span className="text-sm font-medium">{item.name}</span>}
+                        
+                        {/* THE HOVER TOOLTIP */}
+                        {isCollapsed && !isMobileMenuOpen && (
+                          <div className="absolute left-full ml-4 px-3 py-1.5 bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-bold rounded-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all pointer-events-none whitespace-nowrap z-[200] shadow-xl">
+                            {item.name}
+                            <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-[5px] border-transparent border-r-zinc-900 dark:border-r-white"></div>
+                          </div>
+                        )}
                       </button>
                     );
                   })}
