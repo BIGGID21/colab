@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { ThemeProvider, useTheme } from 'next-themes';
+import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride'; // <-- ADDED GLOBAL JOYRIDE
 import { 
   Home, Compass, PlusCircle, FolderClosed, Settings, User, 
   LogOut, TrendingUp, ChevronUp, Menu, X, ChevronLeft, ChevronRight,
@@ -120,6 +121,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   
+  // GLOBAL TOUR STATE
+  const [runTour, setRunTour] = useState(false);
+  const [tourSteps, setTourSteps] = useState<Step[]>([]);
+  
   // Mobile Top & Bottom Bar Scroll State
   const [isMobileNavVisible, setIsMobileNavVisible] = useState(true);
   const lastScrollY = useRef(0);
@@ -212,6 +217,56 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // --- DYNAMIC TOUR LOGIC ---
+  useEffect(() => {
+    if (isAppLoading) return;
+
+    // Define the specific steps for each page here
+    const getStepsForPath = (path: string): Step[] => {
+      switch (path) {
+        case '/community':
+          return [
+            { target: '.sidebar-community', content: 'This is the Community Hub. Explore what others are building here.', placement: 'right', disableBeacon: true },
+            { target: '.composer-section', content: 'Share your progress with the community here.', placement: 'bottom' }
+          ];
+        case '/discover':
+          return [
+            { target: '.sidebar-home', content: 'Welcome to Home! Your curated feed of top projects appears here.', placement: 'right', disableBeacon: true },
+            { target: '.sidebar-search', content: 'Looking for specific skills or projects? Search the entire platform here.', placement: 'right' }
+          ];
+        case '/my-projects':
+          return [
+            { target: '.sidebar-dashboard', content: 'Your Dashboard. Manage all your ongoing builds and collaborations from here.', placement: 'right', disableBeacon: true },
+            { target: '.sidebar-create', content: 'Got an idea? Click here to spin up a new project.', placement: 'right' }
+          ];
+        case '/wallet':
+          return [
+            { target: '.sidebar-wallet', content: 'Track your earnings, payments, and escrow balances securely here.', placement: 'right', disableBeacon: true }
+          ];
+        default:
+          return []; // No tour on unmapped pages
+      }
+    };
+
+    const newSteps = getStepsForPath(pathname || '');
+    
+    if (newSteps.length > 0) {
+      setTourSteps(newSteps);
+      // Small delay to ensure the page has rendered the DOM elements
+      setTimeout(() => setRunTour(true), 600);
+    } else {
+      setRunTour(false);
+    }
+  }, [pathname, isAppLoading]);
+
+  const handleJoyrideCallback = (data: CallBackProps) => {
+    const { status } = data;
+    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any)) {
+      setRunTour(false);
+    }
+  };
+  // -------------------------
+
   const modalContent: Record<string, { title: string, content: React.ReactNode }> = {};
 
   const isAuthPage = pathname === '/login' || pathname === '/signup';
@@ -221,18 +276,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const isCommunityFeed = pathname === '/community';
   const isMessagesPage = pathname?.startsWith('/messages');
 
-  // UPDATED NAV ITEMS: Search moved to end, added tour anchor classes
+  // ALL ITEMS NOW HAVE UNIQUE TOUR CLASSES
   const navItems = [
     { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true, tourClass: 'sidebar-home' }, 
-    { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true },
-    { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true },
+    { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true, tourClass: 'sidebar-dashboard' },
+    { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true, tourClass: 'sidebar-create' },
     { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true, tourClass: 'sidebar-community' },
-    { name: 'Wallet', icon: Wallet, href: '/wallet', showOnMobileBar: false },
-    { name: 'Notifications', icon: Bell, href: '/notifications', count: unreadCount, showOnMobileBar: true },
-    { name: 'Search', icon: Search, onClick: () => setActiveModal('search'), showOnMobileBar: false },
+    { name: 'Wallet', icon: Wallet, href: '/wallet', showOnMobileBar: false, tourClass: 'sidebar-wallet' },
+    { name: 'Notifications', icon: Bell, href: '/notifications', count: unreadCount, showOnMobileBar: true, tourClass: 'sidebar-notifications' },
+    { name: 'Search', icon: Search, onClick: () => setActiveModal('search'), showOnMobileBar: false, tourClass: 'sidebar-search' },
   ];
 
-  // FIX: Use DiceBear Initials for neutral avatars if avatarUrl is missing
   const finalAvatar = avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${fullName || user?.user_metadata?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`;
 
   return (
@@ -245,6 +299,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           
           {isAppLoading && <SplashScreen />}
 
+          {/* GLOBAL TOUR GUIDE RENDERS ON EVERY PAGE AUTOMATICALLY */}
+          <Joyride
+            key={pathname} // This forces Joyride to reset completely when the URL changes
+            steps={tourSteps}
+            run={runTour}
+            continuous
+            showProgress
+            showSkipButton
+            callback={handleJoyrideCallback}
+            styles={{
+              options: { primaryColor: '#9cf822', textColor: '#000', zIndex: 1000 },
+              tooltipContainer: { textAlign: 'left', borderRadius: '20px' },
+              buttonNext: { borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }
+            }}
+          />
+
           {showSidebar && !isAppLoading && (
             <>
               {!isMessagesPage && (
@@ -255,7 +325,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 >
                   <BrandLogo isMobile />
                   <div className="flex items-center gap-4 text-zinc-500 dark:text-zinc-400">
-                    <button onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
+                    <button className="sidebar-search" onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
                     <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu"><Menu size={24} /></button>
                   </div>
                 </div>
@@ -412,7 +482,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     (isCommunityFeed && !isMobileNavVisible) ? 'translate-y-full' : 'translate-y-0'
                   }`}>
                   {navItems.filter(item => item.showOnMobileBar).map((item) => (
-                    <Link key={item.name} href={item.href!} className="flex flex-col items-center justify-center w-full py-1">
+                    <Link key={item.name} href={item.href!} className={`flex flex-col items-center justify-center w-full py-1 ${item.tourClass || ''}`}>
                       <div className="relative flex items-center justify-center">
                         <div className={`${pathname === item.href ? 'text-black dark:text-white' : 'text-zinc-500'}`}>
                           <item.icon size={22} strokeWidth={pathname === item.href ? 2.5 : 2} />
