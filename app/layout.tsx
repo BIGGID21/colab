@@ -331,13 +331,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <>
               {!isMessagesPage && (
                 <div 
-                  className={`md:hidden flex items-center justify-between p-4 h-16 backdrop-blur-md border-b fixed top-0 w-full z-[100] bg-white/90 dark:bg-black/90 border-zinc-200 dark:border-zinc-900 transition-transform duration-300 ease-in-out ${
-                    (isCommunityFeed && !isMobileNavVisible) ? '-translate-y-full' : 'translate-y-0'
-                  }`}
+                  className={`md:hidden flex items-center justify-between p-4 h-16 fixed top-0 w-full z-[100] transition-transform duration-300 ease-in-out
+                    bg-white/60 dark:bg-black/60 backdrop-blur-xl border-b border-zinc-200/50 dark:border-zinc-900/50 shadow-sm
+                    ${(isCommunityFeed && !isMobileNavVisible) ? '-translate-y-full' : 'translate-y-0'}`}
                 >
                   <BrandLogo isMobile />
-                  <div className="flex items-center gap-4 text-zinc-500 dark:text-zinc-400">
-                    {/* Add Mobile tour class to search button */}
+                  <div className="flex items-center gap-4 text-zinc-600 dark:text-zinc-300">
                     <button className="mobile-sidebar-search" onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
                     <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu"><Menu size={24} /></button>
                   </div>
@@ -491,11 +490,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </aside>
 
               {!isMessagesPage && (
-                <nav className={`md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-900 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))] transition-transform duration-300 ease-in-out ${
-                    (isCommunityFeed && !isMobileNavVisible) ? 'translate-y-full' : 'translate-y-0'
-                  }`}>
+                <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-[100] flex items-center justify-between px-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom,0px))] transition-transform duration-300 ease-in-out
+                  bg-white/70 dark:bg-[#0a0a0a]/70 backdrop-blur-xl border-t border-zinc-200/50 dark:border-zinc-900/50 shadow-[0_-4px_30px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_30px_rgba(0,0,0,0.2)]
+                  ${(isCommunityFeed && !isMobileNavVisible) ? 'translate-y-full' : 'translate-y-0'}`}>
                   {navItems.filter(item => item.showOnMobileBar).map((item) => (
-                    // Add Mobile tour class here
                     <Link key={item.name} href={item.href!} className={`flex flex-col items-center justify-center w-full py-1 ${item.tourClass ? `mobile-${item.tourClass}` : ''}`}>
                       <div className="relative flex items-center justify-center">
                         <div className={`${pathname === item.href ? 'text-black dark:text-white' : 'text-zinc-500'}`}>
