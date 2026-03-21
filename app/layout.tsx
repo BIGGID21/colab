@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { ThemeProvider, useTheme } from 'next-themes';
-import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride'; // <-- ADDED GLOBAL JOYRIDE
+import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride';
 import { 
   Home, Compass, PlusCircle, FolderClosed, Settings, User, 
   LogOut, TrendingUp, ChevronUp, Menu, X, ChevronLeft, ChevronRight,
@@ -217,34 +217,44 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // --- DYNAMIC TOUR LOGIC ---
+  // --- DYNAMIC TOUR LOGIC (WITH MOBILE + ONCE-PER-PAGE FIXES) ---
   useEffect(() => {
-    if (isAppLoading) return;
+    if (isAppLoading || typeof window === 'undefined') return;
 
-    // Define the specific steps for each page here
+    // 1. Check if they've seen the tour on this specific page already
+    const seenTours = JSON.parse(localStorage.getItem('colab_tours_seen') || '{}');
+    if (seenTours[pathname || '']) {
+      setRunTour(false);
+      return; 
+    }
+
+    // 2. Determine if it's mobile to set targets and placement correctly
+    const isMobile = window.innerWidth < 768;
+    const navPlacement = isMobile ? 'top' : 'right';
+
     const getStepsForPath = (path: string): Step[] => {
       switch (path) {
         case '/community':
           return [
-            { target: '.sidebar-community', content: 'This is the Community Hub. Explore what others are building here.', placement: 'right', disableBeacon: true },
+            { target: isMobile ? '.mobile-sidebar-community' : '.desktop-sidebar-community', content: 'This is the Community Hub. Explore what others are building here.', placement: navPlacement, disableBeacon: true },
             { target: '.composer-section', content: 'Share your progress with the community here.', placement: 'bottom' }
           ];
         case '/discover':
           return [
-            { target: '.sidebar-home', content: 'Welcome to Home! Your curated feed of top projects appears here.', placement: 'right', disableBeacon: true },
-            { target: '.sidebar-search', content: 'Looking for specific skills or projects? Search the entire platform here.', placement: 'right' }
+            { target: isMobile ? '.mobile-sidebar-home' : '.desktop-sidebar-home', content: 'Welcome to Home! Your curated feed of top projects appears here.', placement: navPlacement, disableBeacon: true },
+            { target: isMobile ? '.mobile-sidebar-search' : '.desktop-sidebar-search', content: 'Looking for specific skills or projects? Search the entire platform here.', placement: isMobile ? 'bottom' : 'right' }
           ];
         case '/my-projects':
           return [
-            { target: '.sidebar-dashboard', content: 'Your Dashboard. Manage all your ongoing builds and collaborations from here.', placement: 'right', disableBeacon: true },
-            { target: '.sidebar-create', content: 'Got an idea? Click here to spin up a new project.', placement: 'right' }
+            { target: isMobile ? '.mobile-sidebar-dashboard' : '.desktop-sidebar-dashboard', content: 'Your Dashboard. Manage all your ongoing builds and collaborations from here.', placement: navPlacement, disableBeacon: true },
+            { target: isMobile ? '.mobile-sidebar-create' : '.desktop-sidebar-create', content: 'Got an idea? Click here to spin up a new project.', placement: navPlacement }
           ];
         case '/wallet':
           return [
-            { target: '.sidebar-wallet', content: 'Track your earnings, payments, and escrow balances securely here.', placement: 'right', disableBeacon: true }
+            { target: isMobile ? '.mobile-sidebar-wallet' : '.desktop-sidebar-wallet', content: 'Track your earnings, payments, and escrow balances securely here.', placement: navPlacement, disableBeacon: true }
           ];
         default:
-          return []; // No tour on unmapped pages
+          return [];
       }
     };
 
@@ -252,17 +262,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     
     if (newSteps.length > 0) {
       setTourSteps(newSteps);
-      // Small delay to ensure the page has rendered the DOM elements
       setTimeout(() => setRunTour(true), 600);
     } else {
       setRunTour(false);
     }
   }, [pathname, isAppLoading]);
 
+  // Save the state to localStorage when the tour finishes or is skipped
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status } = data;
     if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any)) {
       setRunTour(false);
+      const seenTours = JSON.parse(localStorage.getItem('colab_tours_seen') || '{}');
+      seenTours[pathname || ''] = true;
+      localStorage.setItem('colab_tours_seen', JSON.stringify(seenTours));
     }
   };
   // -------------------------
@@ -276,7 +289,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const isCommunityFeed = pathname === '/community';
   const isMessagesPage = pathname?.startsWith('/messages');
 
-  // ALL ITEMS NOW HAVE UNIQUE TOUR CLASSES
   const navItems = [
     { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true, tourClass: 'sidebar-home' }, 
     { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true, tourClass: 'sidebar-dashboard' },
@@ -299,9 +311,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           
           {isAppLoading && <SplashScreen />}
 
-          {/* GLOBAL TOUR GUIDE RENDERS ON EVERY PAGE AUTOMATICALLY */}
+          {/* GLOBAL TOUR GUIDE */}
           <Joyride
-            key={pathname} // This forces Joyride to reset completely when the URL changes
+            key={pathname} 
             steps={tourSteps}
             run={runTour}
             continuous
@@ -309,7 +321,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             showSkipButton
             callback={handleJoyrideCallback}
             styles={{
-              options: { primaryColor: '#9cf822', textColor: '#000', zIndex: 1000 },
+              options: { primaryColor: '#9cf822', textColor: '#000', zIndex: 10000 },
               tooltipContainer: { textAlign: 'left', borderRadius: '20px' },
               buttonNext: { borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }
             }}
@@ -325,7 +337,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 >
                   <BrandLogo isMobile />
                   <div className="flex items-center gap-4 text-zinc-500 dark:text-zinc-400">
-                    <button className="sidebar-search" onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
+                    {/* Add Mobile tour class to search button */}
+                    <button className="mobile-sidebar-search" onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
                     <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu"><Menu size={24} /></button>
                   </div>
                 </div>
@@ -364,7 +377,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                     return item.href ? (
                       <Link key={item.name} href={item.href} onClick={handleNavClick}
-                        className={`group relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.tourClass || ''} ${isActive ? 'text-black dark:text-white bg-black/5 dark:bg-[#9cf822]/10 font-bold' : 'text-zinc-600 dark:text-zinc-500 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white'} ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
+                        className={`group relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.tourClass ? `desktop-${item.tourClass}` : ''} ${isActive ? 'text-black dark:text-white bg-black/5 dark:bg-[#9cf822]/10 font-bold' : 'text-zinc-600 dark:text-zinc-500 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white'} ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
                         <div className="relative w-9 flex items-center justify-center shrink-0">
                           <item.icon size={18} />
                           {(item.count !== undefined && item.count > 0) ? (
@@ -385,7 +398,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </Link>
                     ) : (
                       <button key={item.name} onClick={item.onClick}
-                        className={`group relative w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.tourClass || ''} text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
+                        className={`group relative w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.tourClass ? `desktop-${item.tourClass}` : ''} text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-900/50 hover:text-zinc-900 dark:hover:text-white ${isCollapsed && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}>
                         <div className="w-9 flex items-center justify-center shrink-0">
                           <item.icon size={18} />
                         </div>
@@ -482,7 +495,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     (isCommunityFeed && !isMobileNavVisible) ? 'translate-y-full' : 'translate-y-0'
                   }`}>
                   {navItems.filter(item => item.showOnMobileBar).map((item) => (
-                    <Link key={item.name} href={item.href!} className={`flex flex-col items-center justify-center w-full py-1 ${item.tourClass || ''}`}>
+                    // Add Mobile tour class here
+                    <Link key={item.name} href={item.href!} className={`flex flex-col items-center justify-center w-full py-1 ${item.tourClass ? `mobile-${item.tourClass}` : ''}`}>
                       <div className="relative flex items-center justify-center">
                         <div className={`${pathname === item.href ? 'text-black dark:text-white' : 'text-zinc-500'}`}>
                           <item.icon size={22} strokeWidth={pathname === item.href ? 2.5 : 2} />
