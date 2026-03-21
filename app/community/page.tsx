@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
+import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride'; // <-- ADDED JOYRIDE IMPORTS
 import { 
   Loader2, Send, MapPin, Coffee, Image as ImageIcon, 
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
@@ -102,6 +103,9 @@ export default function CommunityFeedPage() {
   const [replyTo, setReplyTo] = useState<{commentId: string, userName: string} | null>(null);
 
   const [savedPosts, setSavedPosts] = useState<string[]>([]);
+  
+  // --- ADDED JOYRIDE STATE ---
+  const [runTour, setRunTour] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -125,6 +129,13 @@ export default function CommunityFeedPage() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
+
+  // --- ADDED JOYRIDE CHECK (Runs for EVERYONE on load) ---
+  useEffect(() => {
+    if (!loading) {
+      setRunTour(true);
+    }
+  }, [loading]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -395,12 +406,65 @@ export default function CommunityFeedPage() {
     return `${Math.floor(diff / 86400)}d`;
   };
 
+  // --- ADDED JOYRIDE CONFIG ---
+  const tourSteps: Step[] = [
+    {
+      target: '.sidebar-home',
+      content: 'Start here! This is your central hub for all updates.',
+      placement: 'right',
+      disableBeacon: true,
+    },
+    {
+      target: '.composer-section',
+      content: 'Share your progress with the community here.',
+      placement: 'bottom',
+    },
+    {
+      target: '.sidebar-community',
+      content: 'Explore what others are building and join the conversation.',
+      placement: 'right',
+    }
+  ];
+
+  const handleJoyrideCallback = (data: CallBackProps) => {
+    const { status } = data;
+    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any)) {
+      setRunTour(false); // Does not save to local storage, runs every time
+    }
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
-    // THE FIX: w-[100vw] ml-[calc(-50vw+50%)] forces the container to break out of ANY parent layout padding on mobile
     <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible">
       
+      {/* THE TOUR GUIDE COMPONENT */}
+      <Joyride
+        steps={tourSteps}
+        run={runTour}
+        continuous
+        showProgress
+        showSkipButton
+        callback={handleJoyrideCallback}
+        styles={{
+          options: {
+            primaryColor: '#9cf822',
+            textColor: '#000',
+            zIndex: 1000,
+          },
+          tooltipContainer: {
+            textAlign: 'left',
+            borderRadius: '20px',
+          },
+          buttonNext: {
+            borderRadius: '12px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            textTransform: 'uppercase',
+          }
+        }}
+      />
+
       {/* Media Overlay */}
       {expandedMedia && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4" onClick={() => setExpandedMedia(null)}>
@@ -442,8 +506,8 @@ export default function CommunityFeedPage() {
         {/* Main Feed Column - FB STYLE BACKGROUND SEPARATOR */}
         <div className="w-full lg:col-span-8 flex flex-col gap-[8px] sm:gap-6 order-2 lg:order-1 bg-zinc-200 dark:bg-zinc-900 sm:bg-transparent">
           
-          {/* Post Composer */}
-          <div className="w-full bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left">
+          {/* Post Composer - ADDED COMPOSER SECTION CLASS */}
+          <div className="composer-section w-full bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left">
             <form onSubmit={handlePost}>
               <div className="flex gap-4">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 dark:border-zinc-800">
