@@ -85,6 +85,7 @@ export default function CommunityFeedPage() {
   const [topPosters, setTopPosters] = useState<any[]>([]);
   const [topEngaged, setTopEngaged] = useState<any[]>([]);
   const [leaderboardTab, setLeaderboardTab] = useState<'posts' | 'engagement'>('engagement');
+  const [currentUserStreak, setCurrentUserStreak] = useState(0); // Track active user's streak
   
   const [postMedia, setPostMedia] = useState<{url: string, type: string}[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -187,34 +188,73 @@ export default function CommunityFeedPage() {
         })).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       }));
 
+      // --- LEADERBOARD & STREAK AGGREGATION LOGIC ---
       const userStats: Record<string, any> = {};
 
       formattedPosts.forEach(post => {
         if (post.profiles?.role?.toLowerCase() === 'official') return;
 
         const userId = post.user_id;
+        const dateStr = new Date(post.created_at).toISOString().split('T')[0];
+
         if (!userStats[userId]) {
           userStats[userId] = {
             id: userId,
             profile: post.profiles,
             postCount: 0,
-            engagementCount: 0
+            engagementCount: 0,
+            postDates: new Set<string>()
           };
         }
         userStats[userId].postCount += 1;
         userStats[userId].engagementCount += (post.likes_count || 0) + (post.comments?.length || 0);
+        userStats[userId].postDates.add(dateStr);
+      });
+
+      // Calculate Streaks
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+      Object.values(userStats).forEach(stat => {
+        const dates = Array.from(stat.postDates).sort((a: any, b: any) => b.localeCompare(a));
+        let streak = 0;
+        
+        // If they posted today or yesterday, they have an active streak
+        if (dates.includes(todayStr) || dates.includes(yesterdayStr)) {
+          let checkDate = dates.includes(todayStr) ? new Date() : yesterday;
+          
+          while(true) {
+            const checkStr = checkDate.toISOString().split('T')[0];
+            if (dates.includes(checkStr)) {
+              streak++;
+              checkDate.setDate(checkDate.getDate() - 1);
+            } else {
+              break;
+            }
+          }
+        }
+        stat.streak = streak;
+
+        // Set the current user's streak for the composer header
+        if (stat.id === authUser.id) {
+          setCurrentUserStreak(streak);
+        }
       });
 
       const topByPosts = Object.values(userStats)
         .sort((a, b) => b.postCount - a.postCount)
-        .slice(0, 5); // Fetch top 5 for mobile swipeability
+        .slice(0, 5); 
       
       const topByEngagement = Object.values(userStats)
         .sort((a, b) => b.engagementCount - a.engagementCount)
-        .slice(0, 5); // Fetch top 5 for mobile swipeability
+        .slice(0, 5); 
 
       setTopPosters(topByPosts);
       setTopEngaged(topByEngagement);
+      // ----------------------------------------------
 
       const sortedPosts = formattedPosts.sort((a, b) => {
         const aOfficial = a.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
@@ -297,6 +337,9 @@ export default function CommunityFeedPage() {
         triggerHaptic([50, 100, 150]); 
       }
       
+      // Optimistically increase the streak if they just posted today for the first time
+      setCurrentUserStreak(prev => prev === 0 ? 1 : prev);
+
       setNewPost('');
       setPostMedia([]); 
     }
@@ -506,13 +549,21 @@ export default function CommunityFeedPage() {
         
         <div className="w-full lg:col-span-8 flex flex-col gap-[8px] sm:gap-6 order-2 lg:order-1 bg-zinc-200 dark:bg-zinc-900 sm:bg-transparent">
           
-          <div className="composer-section w-full bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left">
+          <div className="composer-section w-full bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left relative">
+            {/* CURRENT USER STREAK BADGE IN COMPOSER */}
+            {currentUserStreak > 0 && (
+              <div className="absolute top-4 right-4 sm:top-6 sm:right-6 bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <Flame size={14} className="text-orange-500 animate-pulse" />
+                <span className="text-xs font-bold text-orange-600 dark:text-orange-400">{currentUserStreak} Day Streak</span>
+              </div>
+            )}
+            
             <form onSubmit={handlePost}>
               <div className="flex gap-4">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 dark:border-zinc-800">
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-100 shrink-0 border border-zinc-200 dark:border-zinc-800 mt-2 sm:mt-0">
                   <img src={profile?.avatar_url} className="w-full h-full object-cover" />
                 </div>
-                <div className="flex-grow">
+                <div className="flex-grow mt-2 sm:mt-0">
                   <textarea 
                     ref={textAreaRef}
                     value={newPost} onChange={(e) => setNewPost(e.target.value)}
@@ -593,17 +644,25 @@ export default function CommunityFeedPage() {
                       <div className="absolute top-2 left-2 flex items-center justify-center w-6 h-6 bg-white dark:bg-black rounded-full shadow-sm border border-zinc-100 dark:border-zinc-800">
                         {index < 3 ? rankIcon : <span className="text-[10px] font-black text-zinc-400">#{index + 1}</span>}
                       </div>
+                      
+                      {userStat.streak >= 2 && (
+                        <div className="absolute top-2 right-2 flex items-center justify-center px-1.5 py-0.5 bg-orange-500/10 text-orange-500 rounded border border-orange-500/20">
+                          <Flame size={10} className="mr-0.5" /> <span className="text-[9px] font-bold">{userStat.streak}</span>
+                        </div>
+                      )}
+
                       <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-zinc-200 dark:border-zinc-700 mb-2 mt-1">
                         <img src={userStat.profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${userStat.profile?.full_name || 'User'}`} className="w-full h-full object-cover" />
                       </div>
-                      <p className="text-xs font-bold text-black dark:text-white w-full truncate mb-0.5">
+                      <p className="text-xs font-bold text-black dark:text-white w-full truncate mb-0.5 flex justify-center items-center gap-0.5">
                         {userStat.profile?.full_name?.split(' ')[0] || 'Builder'}
+                        {userStat.profile?.is_verified && <BadgeCheck size={10} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
                       </p>
                       <p className="text-[10px] font-medium text-zinc-500 flex items-center justify-center gap-1 w-full">
                         {leaderboardTab === 'posts' ? (
                           <><Edit size={10} /> {userStat.postCount}</>
                         ) : (
-                          <><Flame size={10} className="text-orange-500" /> {userStat.engagementCount}</>
+                          <><Heart size={10} className="text-rose-500" /> {userStat.engagementCount}</>
                         )}
                       </p>
                     </div>
@@ -850,12 +909,17 @@ export default function CommunityFeedPage() {
                           <p className="text-sm font-bold text-black dark:text-white truncate flex items-center gap-1 group-hover:text-[#9cf822] transition-colors">
                             {userStat.profile?.full_name || 'Anonymous Builder'}
                             {userStat.profile?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
+                            {userStat.streak >= 2 && (
+                              <span className="ml-1 text-[10px] text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-orange-500/20">
+                                <Flame size={10} /> {userStat.streak}
+                              </span>
+                            )}
                           </p>
                           <p className="text-[11px] font-medium text-zinc-500 flex items-center gap-1 mt-0.5">
                             {leaderboardTab === 'posts' ? (
                               <><Edit size={10} /> {userStat.postCount} updates</>
                             ) : (
-                              <><Flame size={10} className="text-orange-500" /> {userStat.engagementCount} interactions</>
+                              <><Heart size={10} className="text-rose-500" /> {userStat.engagementCount} interactions</>
                             )}
                           </p>
                         </div>
