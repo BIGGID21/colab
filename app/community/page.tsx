@@ -101,6 +101,10 @@ export default function CommunityFeedPage() {
   const [replyTo, setReplyTo] = useState<{commentId: string, userName: string} | null>(null);
 
   const [savedPosts, setSavedPosts] = useState<string[]>([]);
+  
+  // --- FIRST POST CELEBRATION STATE ---
+  const [hasPostedBefore, setHasPostedBefore] = useState(true); // Default true so it doesn't flash
+  const [showFirstPostModal, setShowFirstPostModal] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -141,6 +145,14 @@ export default function CommunityFeedPage() {
         .eq('user_id', authUser.id)
         .single();
       setProfile(userProfile);
+
+      // Check if user has posted before for the celebration modal
+      const { count: userPostCount } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', authUser.id);
+      
+      setHasPostedBefore(userPostCount ? userPostCount > 0 : false);
 
       const { data: postData, error } = await supabase
         .from('posts')
@@ -246,6 +258,13 @@ export default function CommunityFeedPage() {
       
       if (formattedInserted.content?.trim().length > 0) {
           setRecentActivity(prev => [formattedInserted, ...prev.slice(0, 4)]);
+      }
+      
+      // Check if this was their first post ever
+      if (!hasPostedBefore) {
+        setShowFirstPostModal(true);
+        setHasPostedBefore(true);
+        triggerHaptic([50, 100, 150]); // Extra celebration haptic
       }
       
       setNewPost('');
@@ -397,6 +416,30 @@ export default function CommunityFeedPage() {
   return (
     <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible">
       
+      {/* --- FIRST POST CELEBRATION MODAL --- */}
+      {showFirstPostModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setShowFirstPostModal(false)}>
+          <div 
+            className="bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full text-center animate-in zoom-in-95 duration-500"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-24 h-24 mx-auto bg-[#9cf822]/20 rounded-full flex items-center justify-center mb-6 animate-bounce">
+              <PartyPopper size={48} className="text-[#9cf822]" />
+            </div>
+            <h2 className="text-2xl font-black text-zinc-900 dark:text-white mb-3">First Post Live! 🎉</h2>
+            <p className="text-zinc-500 dark:text-zinc-400 mb-8 text-[15px] leading-relaxed">
+              Awesome job making your first contribution to the Community! Keep showing off your best work, asking questions, and collaborating.
+            </p>
+            <button 
+              onClick={() => setShowFirstPostModal(false)}
+              className="w-full py-4 bg-[#9cf822] text-black text-sm font-bold rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-[#9cf822]/20"
+            >
+              Keep Building
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Media Overlay */}
       {expandedMedia && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4" onClick={() => setExpandedMedia(null)}>
