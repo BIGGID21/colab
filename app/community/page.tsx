@@ -8,7 +8,7 @@ import {
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
   BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown, Bookmark,
-  VolumeX, Volume2, Trophy, Medal, Flame // <-- Added Trophy, Medal, and Flame icons
+  VolumeX, Volume2, Trophy, Medal, Flame
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -82,7 +82,6 @@ export default function CommunityFeedPage() {
   const [trendingTags, setTrendingTags] = useState<{tag: string, count: number}[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   
-  // --- LEADERBOARD STATE ---
   const [topPosters, setTopPosters] = useState<any[]>([]);
   const [topEngaged, setTopEngaged] = useState<any[]>([]);
   const [leaderboardTab, setLeaderboardTab] = useState<'posts' | 'engagement'>('engagement');
@@ -188,11 +187,9 @@ export default function CommunityFeedPage() {
         })).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       }));
 
-      // --- LEADERBOARD AGGREGATION LOGIC ---
       const userStats: Record<string, any> = {};
 
       formattedPosts.forEach(post => {
-        // Skip official accounts from leaderboards to keep it fair for regular users
         if (post.profiles?.role?.toLowerCase() === 'official') return;
 
         const userId = post.user_id;
@@ -205,23 +202,19 @@ export default function CommunityFeedPage() {
           };
         }
         userStats[userId].postCount += 1;
-        // Total engagement = Post Likes + Number of Comments received
         userStats[userId].engagementCount += (post.likes_count || 0) + (post.comments?.length || 0);
       });
 
-      // Calculate Top Posters
       const topByPosts = Object.values(userStats)
         .sort((a, b) => b.postCount - a.postCount)
-        .slice(0, 3);
+        .slice(0, 5); // Fetch top 5 for mobile swipeability
       
-      // Calculate Top Engaged
       const topByEngagement = Object.values(userStats)
         .sort((a, b) => b.engagementCount - a.engagementCount)
-        .slice(0, 3);
+        .slice(0, 5); // Fetch top 5 for mobile swipeability
 
       setTopPosters(topByPosts);
       setTopEngaged(topByEngagement);
-      // ------------------------------------
 
       const sortedPosts = formattedPosts.sort((a, b) => {
         const aOfficial = a.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
@@ -563,6 +556,63 @@ export default function CommunityFeedPage() {
             </form>
           </div>
 
+          {/* --- MOBILE LEADERBOARD (Visible < lg) --- */}
+          {(topPosters.length > 0 || topEngaged.length > 0) && (
+            <div className="lg:hidden w-full bg-white dark:bg-black p-4 sm:p-8 sm:rounded-[2.5rem] sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#9cf822] flex items-center gap-1.5">
+                  <Trophy size={14} /> Top Builders
+                </h4>
+                <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-lg p-1">
+                  <button 
+                    onClick={() => setLeaderboardTab('engagement')}
+                    className={`px-3 py-1.5 text-[10px] font-bold rounded-md transition-all ${leaderboardTab === 'engagement' ? 'bg-white dark:bg-[#222] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
+                  >
+                    Engaged
+                  </button>
+                  <button 
+                    onClick={() => setLeaderboardTab('posts')}
+                    className={`px-3 py-1.5 text-[10px] font-bold rounded-md transition-all ${leaderboardTab === 'posts' ? 'bg-white dark:bg-[#222] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
+                  >
+                    Active
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                {(leaderboardTab === 'posts' ? topPosters : topEngaged).map((userStat, index) => {
+                  const rankColors = ['text-yellow-500', 'text-zinc-400', 'text-amber-700'];
+                  const rankIcon = index === 0 ? <Trophy size={14} className={rankColors[index]} /> : <Medal size={14} className={rankColors[index] || 'text-zinc-500'} />;
+                  
+                  return (
+                    <div 
+                      key={userStat.id} 
+                      className="relative shrink-0 w-[130px] bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-4 flex flex-col items-center text-center cursor-pointer hover:border-[#9cf822]/50 transition-colors"
+                      onClick={() => router.push(`/profile/${userStat.id}`)}
+                    >
+                      <div className="absolute top-2 left-2 flex items-center justify-center w-6 h-6 bg-white dark:bg-black rounded-full shadow-sm border border-zinc-100 dark:border-zinc-800">
+                        {index < 3 ? rankIcon : <span className="text-[10px] font-black text-zinc-400">#{index + 1}</span>}
+                      </div>
+                      <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-zinc-200 dark:border-zinc-700 mb-2 mt-1">
+                        <img src={userStat.profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${userStat.profile?.full_name || 'User'}`} className="w-full h-full object-cover" />
+                      </div>
+                      <p className="text-xs font-bold text-black dark:text-white w-full truncate mb-0.5">
+                        {userStat.profile?.full_name?.split(' ')[0] || 'Builder'}
+                      </p>
+                      <p className="text-[10px] font-medium text-zinc-500 flex items-center justify-center gap-1 w-full">
+                        {leaderboardTab === 'posts' ? (
+                          <><Edit size={10} /> {userStat.postCount}</>
+                        ) : (
+                          <><Flame size={10} className="text-orange-500" /> {userStat.engagementCount}</>
+                        )}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {posts.map((post) => {
             const isOfficial = post.profiles?.role?.toLowerCase() === 'official';
             const isRepost = !!post.repost_id;
@@ -759,7 +809,7 @@ export default function CommunityFeedPage() {
               </div>
             </div>
 
-            {/* --- NEW LEADERBOARD WIDGET --- */}
+            {/* --- DESKTOP LEADERBOARD WIDGET --- */}
             {(topPosters.length > 0 || topEngaged.length > 0) && (
               <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
@@ -768,7 +818,6 @@ export default function CommunityFeedPage() {
                   </h4>
                 </div>
 
-                {/* Tab Switcher */}
                 <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-lg p-1 mb-6">
                   <button 
                     onClick={() => setLeaderboardTab('engagement')}
@@ -784,10 +833,8 @@ export default function CommunityFeedPage() {
                   </button>
                 </div>
 
-                {/* Leaderboard List */}
                 <div className="space-y-4">
                   {(leaderboardTab === 'posts' ? topPosters : topEngaged).map((userStat, index) => {
-                    // Assign colors based on rank
                     const rankColors = ['text-yellow-500', 'text-zinc-400', 'text-amber-700'];
                     const rankIcon = index === 0 ? <Trophy size={16} className={rankColors[index]} /> : <Medal size={16} className={rankColors[index] || 'text-zinc-500'} />;
 
