@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
-import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride'; // <-- ADDED JOYRIDE IMPORTS
 import { 
   Loader2, Send, MapPin, Coffee, Image as ImageIcon, 
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
@@ -41,7 +40,7 @@ function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const toggleMute = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevents the video from expanding when clicking mute
+    e.stopPropagation(); 
     if (videoRef.current) {
       videoRef.current.muted = !isMuted;
       setIsMuted(!isMuted);
@@ -60,7 +59,6 @@ function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
         autoPlay muted={isMuted} loop playsInline
       />
       
-      {/* Audio Toggle Button */}
       <button 
         onClick={toggleMute}
         className="absolute bottom-4 right-4 p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full text-white transition-all shadow-lg z-20"
@@ -103,9 +101,6 @@ export default function CommunityFeedPage() {
   const [replyTo, setReplyTo] = useState<{commentId: string, userName: string} | null>(null);
 
   const [savedPosts, setSavedPosts] = useState<string[]>([]);
-  
-  // --- ADDED JOYRIDE STATE ---
-  const [runTour, setRunTour] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -129,13 +124,6 @@ export default function CommunityFeedPage() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
-
-  // --- ADDED JOYRIDE CHECK (Runs for EVERYONE on load) ---
-  useEffect(() => {
-    if (!loading) {
-      setRunTour(true);
-    }
-  }, [loading]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -185,7 +173,6 @@ export default function CommunityFeedPage() {
         })).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       }));
 
-      // Sorting Logic: Forces 'official' roles to ALWAYS be at the top
       const sortedPosts = formattedPosts.sort((a, b) => {
         const aOfficial = a.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
         const bOfficial = b.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
@@ -249,7 +236,6 @@ export default function CommunityFeedPage() {
       const formattedInserted = { ...insertedPost, likes_count: 0, comments: [], _hasLiked: false };
       setPosts(prev => {
         const updated = [formattedInserted, ...prev];
-        // Ensure official posts remain at the top even after a new post is inserted
         return updated.sort((a, b) => {
           const aOfficial = a.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
           const bOfficial = b.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
@@ -406,65 +392,11 @@ export default function CommunityFeedPage() {
     return `${Math.floor(diff / 86400)}d`;
   };
 
-  // --- ADDED JOYRIDE CONFIG ---
-  const tourSteps: Step[] = [
-    {
-      target: '.sidebar-home',
-      content: 'Start here! This is your central hub for all updates.',
-      placement: 'right',
-      disableBeacon: true,
-    },
-    {
-      target: '.composer-section',
-      content: 'Share your progress with the community here.',
-      placement: 'bottom',
-    },
-    {
-      target: '.sidebar-community',
-      content: 'Explore what others are building and join the conversation.',
-      placement: 'right',
-    }
-  ];
-
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status } = data;
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status as any)) {
-      setRunTour(false); // Does not save to local storage, runs every time
-    }
-  };
-
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   return (
     <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible">
       
-      {/* THE TOUR GUIDE COMPONENT */}
-      <Joyride
-        steps={tourSteps}
-        run={runTour}
-        continuous
-        showProgress
-        showSkipButton
-        callback={handleJoyrideCallback}
-        styles={{
-          options: {
-            primaryColor: '#9cf822',
-            textColor: '#000',
-            zIndex: 1000,
-          },
-          tooltipContainer: {
-            textAlign: 'left',
-            borderRadius: '20px',
-          },
-          buttonNext: {
-            borderRadius: '12px',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            textTransform: 'uppercase',
-          }
-        }}
-      />
-
       {/* Media Overlay */}
       {expandedMedia && (
         <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4" onClick={() => setExpandedMedia(null)}>
@@ -500,13 +432,10 @@ export default function CommunityFeedPage() {
         </div>
       </div>
 
-      {/* Main Grid Container - Enforced w-full */}
       <div className="w-full max-w-5xl mx-auto px-0 sm:px-6 pt-0 sm:pt-8 grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
         
-        {/* Main Feed Column - FB STYLE BACKGROUND SEPARATOR */}
         <div className="w-full lg:col-span-8 flex flex-col gap-[8px] sm:gap-6 order-2 lg:order-1 bg-zinc-200 dark:bg-zinc-900 sm:bg-transparent">
           
-          {/* Post Composer - ADDED COMPOSER SECTION CLASS */}
           <div className="composer-section w-full bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left">
             <form onSubmit={handlePost}>
               <div className="flex gap-4">
@@ -521,7 +450,6 @@ export default function CommunityFeedPage() {
                     className="w-full bg-transparent resize-none text-black dark:text-white text-lg focus:outline-none min-h-[80px]"
                   />
                   
-                  {/* COMPOSER MEDIA PREVIEW */}
                   {postMedia.length > 0 && (
                     <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${postMedia.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
                       {postMedia.map((m, idx) => {
@@ -558,7 +486,6 @@ export default function CommunityFeedPage() {
             </form>
           </div>
 
-          {/* Posts List */}
           {posts.map((post) => {
             const isOfficial = post.profiles?.role?.toLowerCase() === 'official';
             const isRepost = !!post.repost_id;
@@ -572,7 +499,6 @@ export default function CommunityFeedPage() {
                     : 'sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm'
                 }`}
               >
-                {/* Official Pin Highlight Line */}
                 {isOfficial && <div className="absolute top-0 left-0 w-full h-1.5 bg-[#9cf822]"></div>}
 
                 {isRepost && (
@@ -581,7 +507,6 @@ export default function CommunityFeedPage() {
                   </div>
                 )}
 
-                {/* Header (Avatar + Name) */}
                 <div className="flex items-start gap-3 px-4 sm:px-0 mb-3 mt-1">
                   {isOfficial ? (
                     <div className="shrink-0">
@@ -629,7 +554,6 @@ export default function CommunityFeedPage() {
                   </div>
                 </div>
 
-                {/* Body Text */}
                 {editingPostId === post.id ? (
                   <div className="mt-2 mb-3 px-4 sm:px-0">
                     <textarea 
@@ -647,7 +571,6 @@ export default function CommunityFeedPage() {
                   <ExpandableText text={post.content} />
                 )}
                 
-                {/* Media Content - 100% Edge to Edge */}
                 {isRepost && post.repost ? (
                   <div className="mt-4 mx-4 sm:mx-0 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-black/40">
                     <div className="flex items-center gap-2 mb-2">
@@ -676,7 +599,6 @@ export default function CommunityFeedPage() {
                   )
                 )}
 
-                {/* Facebook Style Interaction Bar */}
                 <div className="flex items-center gap-6 px-4 sm:px-0 mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-900">
                   <button onClick={() => handleLike(post.id, post.likes_count, post._hasLiked)} className={`flex items-center gap-1.5 ${post._hasLiked ? 'text-rose-500' : 'text-zinc-500 hover:text-rose-500'} transition-colors`}>
                       <Heart size={20} fill={post._hasLiked ? 'currentColor' : 'none'} strokeWidth={post._hasLiked ? 1 : 1.5} />
@@ -705,7 +627,6 @@ export default function CommunityFeedPage() {
                   <div className="mt-4 px-4 sm:px-0 animate-in slide-in-from-top-2">
                     <div className="mb-4">{renderComments(post.id, post.comments)}</div>
                     
-                    {/* COMMENT INPUT WITH USER IMAGE */}
                     <div className="flex gap-3 items-start mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900">
                       <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 bg-zinc-100">
                          {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-400" />}
@@ -742,7 +663,6 @@ export default function CommunityFeedPage() {
           })}
         </div>
 
-        {/* Sidebar */}
         <div className="lg:col-span-4 space-y-8 order-1 lg:order-2 hidden lg:block">
           <div className="sticky top-24 space-y-8 max-h-[calc(100vh-6rem)] overflow-y-auto no-scrollbar pb-8 text-left">
             <div className="w-full bg-gradient-to-br from-[#1a2e05] to-[#0a1401] rounded-[2.5rem] p-8 border border-white/5 shadow-2xl relative overflow-hidden">
@@ -777,7 +697,6 @@ export default function CommunityFeedPage() {
         </div>
       </div>
 
-      {/* TWITTER-STYLE FLOATING ACTION BUTTON */}
       <button 
         onClick={() => { window.scrollTo({top: 0, behavior: 'smooth'}); textAreaRef.current?.focus(); }}
         className={`sm:hidden fixed right-6 bottom-24 bg-[#9cf822] text-black p-4 rounded-full shadow-[0_8px_30px_rgba(156,248,34,0.4)] z-50 transition-all duration-300 active:scale-90 ${
