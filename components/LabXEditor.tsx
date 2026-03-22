@@ -1,4 +1,3 @@
-// components/LabXEditor.tsx
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -31,7 +30,7 @@ export interface CanvasElement {
 interface LabXEditorProps {
   projectId: string;
   projectTitle: string;
-  initialElements: CanvasElement[];
+  initialElements: any; // Accept raw data to safely parse
   onExit: () => void;
   team: any[];
 }
@@ -43,7 +42,8 @@ export default function LabXEditor({ projectId, projectTitle, initialElements, o
   );
 
   // --- View State ---
-  const [colabView, setColabView] = useState<'home' | 'canvas'>('home');
+  // Default directly to the canvas instead of the home screen
+  const [colabView, setColabView] = useState<'home' | 'canvas'>('canvas');
   const [homeSidebarView, setHomeSidebarView] = useState<'home' | 'recent' | 'shared'>('home');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -57,8 +57,15 @@ export default function LabXEditor({ projectId, projectTitle, initialElements, o
   // --- Refs ---
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // --- Canvas State ---
-  const [elements, setElements] = useState<CanvasElement[]>(initialElements || []);
+  // --- Safe Canvas State Initialization ---
+  const [elements, setElements] = useState<CanvasElement[]>(() => {
+    if (Array.isArray(initialElements)) return initialElements;
+    if (typeof initialElements === 'string') {
+      try { return JSON.parse(initialElements); } catch { return []; }
+    }
+    return [];
+  });
+  
   const [past, setPast] = useState<CanvasElement[][]>([]);
   const [future, setFuture] = useState<CanvasElement[][]>([]);
   const [clipboard, setClipboard] = useState<CanvasElement[]>([]);
@@ -109,7 +116,7 @@ export default function LabXEditor({ projectId, projectTitle, initialElements, o
     if (clipboard.length === 0) return;
     const newIds: string[] = [];
     const pasted = clipboard.map(el => {
-      const newId = `el_${Math.random().toString(36).substr(2, 9)}`;
+      const newId = `el_${Math.random().toString(36).substring(2, 9)}`;
       newIds.push(newId);
       return { ...el, id: newId, x: el.x + 20, y: el.y + 20 };
     });
@@ -382,9 +389,9 @@ export default function LabXEditor({ projectId, projectTitle, initialElements, o
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 mr-2">
-               {team.slice(0, 3).map((m, i) => (
+               {team && team.slice(0, 3).map((m, i) => (
                  <div key={i} className="w-6 h-6 rounded-full bg-[#18181b] border border-[#383838] overflow-hidden">
-                    {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover"/> : <div className="m-auto mt-1.5 text-zinc-500">U</div>}
+                    {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" alt="User"/> : <div className="m-auto mt-1.5 text-zinc-500">U</div>}
                  </div>
                ))}
                <button onClick={() => alert('Link copied')} className="px-3 py-1 bg-[#9cf822] text-black text-[11px] font-bold rounded hover:opacity-90 transition-opacity">Share</button>
@@ -420,6 +427,7 @@ export default function LabXEditor({ projectId, projectTitle, initialElements, o
                  <h1 className="text-2xl font-semibold text-white tracking-tight">Let's create something.</h1>
                  <button onClick={() => startWithTemplate('Blank Canvas', 800, 600)} className="px-4 py-2 bg-[#9cf822] text-black font-bold rounded text-sm flex items-center gap-2 hover:opacity-90 transition-opacity"><Plus size={16}/> New design file</button>
               </div>
+
               {homeSidebarView === 'home' && (
                 <>
                   <div>
@@ -451,6 +459,34 @@ export default function LabXEditor({ projectId, projectTitle, initialElements, o
                   </div>
                 </>
               )}
+
+              {homeSidebarView === 'recent' && (
+                <div>
+                   <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">All Recent Files</h2>
+                   <div className="bg-[#2C2C2C] border border-[#383838] rounded-lg overflow-hidden">
+                      <div className="grid grid-cols-12 gap-4 px-4 py-2 border-b border-[#383838] text-[10px] font-bold text-zinc-500 tracking-wider">
+                        <div className="col-span-6">NAME</div><div className="col-span-3">TYPE</div><div className="col-span-3">RECENT</div>
+                      </div>
+                      <div onClick={() => setColabView('canvas')} className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-[#383838]/50 cursor-pointer transition-colors items-center">
+                        <div className="col-span-6 flex items-center gap-3">
+                           <div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center shrink-0 border border-zinc-700">
+                             <img src="/lab x.svg" className="w-4 h-4 object-contain opacity-50" alt="Lab X" />
+                           </div>
+                           <span className="text-sm font-medium text-white">{projectTitle} Canvas</span>
+                        </div>
+                        <div className="col-span-3 text-xs text-zinc-400">Design</div><div className="col-span-3 text-xs text-zinc-400">Just now</div>
+                      </div>
+                   </div>
+                </div>
+              )}
+
+              {homeSidebarView === 'shared' && (
+                <div className="flex flex-col items-center justify-center py-20 text-center opacity-50">
+                   <Users size={48} className="mb-4 text-zinc-500" strokeWidth={1} />
+                   <p className="text-sm">No files shared with you yet.</p>
+                </div>
+              )}
+
             </div>
           </div>
         </div>
@@ -463,7 +499,27 @@ export default function LabXEditor({ projectId, projectTitle, initialElements, o
             <div className="px-3 py-2.5 border-b border-[#383838] flex items-center gap-2 text-[11px] font-bold text-white"><Layers size={12} /> Layers</div>
             <div className="flex-grow overflow-y-auto p-2 space-y-0.5">
               {[...elements].reverse().map(el => (
-                <div key={el.id} onClick={(e) => { e.stopPropagation(); setActiveTool('select'); e.shiftKey ? setSelectedIds([...selectedIds, el.id].filter((v, i, a) => a.indexOf(v) === i)) : setSelectedIds([el.id]); }} onDoubleClick={(e) => { e.stopPropagation(); if (el.type === 'text') { setEditingTextId(el.id); setActiveTool('select'); } }} className={`flex items-center justify-between px-2 py-1.5 rounded text-[11px] cursor-pointer group ${selectedIds.includes(el.id) ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-300 hover:bg-[#383838]'}`}>
+                <div 
+                  key={el.id} 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setActiveTool('select'); 
+                    if (e.shiftKey) {
+                      const newArr = [...selectedIds, el.id];
+                      setSelectedIds(newArr.filter((v, i, a) => a.indexOf(v) === i));
+                    } else {
+                      setSelectedIds([el.id]);
+                    }
+                  }} 
+                  onDoubleClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (el.type === 'text') { 
+                      setEditingTextId(el.id); 
+                      setActiveTool('select'); 
+                    } 
+                  }} 
+                  className={`flex items-center justify-between px-2 py-1.5 rounded text-[11px] cursor-pointer group ${selectedIds.includes(el.id) ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-300 hover:bg-[#383838]'}`}
+                >
                   <div className="flex items-center gap-2 truncate">
                     {el.isMask ? <Scissors size={10} className="text-[#9cf822]" /> : el.type === 'text' ? <TypeIcon size={10}/> : el.type === 'image' ? <ImageIcon size={10}/> : el.type === 'frame' ? <Layout size={10}/> : <Square size={10}/>}
                     <span className="truncate flex-grow">{el.name} {el.groupId && <span className="opacity-50 ml-1 text-[9px]">(Grouped)</span>}</span>
@@ -673,7 +729,7 @@ function ToolBtn({ icon, active, onClick, tip }: any) {
   );
 }
 
-function FigmaInput({ icon, value, onChange }: any) {
+function FigmaInput({ icon, value, onChange }: { icon: React.ReactNode | string; value: string | number; onChange: (v: string) => void }) {
   return (
     <div className="flex items-center gap-1.5 border border-transparent hover:border-[#383838] focus-within:border-[#9cf822] rounded px-1.5 py-1 transition-colors cursor-text group">
       <span className="text-[10px] text-zinc-500 group-hover:text-zinc-400 w-3 flex-shrink-0 flex items-center justify-center">{icon}</span>
