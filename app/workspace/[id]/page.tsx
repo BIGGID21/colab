@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, use, useCallback } from 'react';
+import React, { useEffect, useState, useRef, use, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { useTheme } from 'next-themes';
@@ -26,7 +26,7 @@ import {
 import Link from 'next/link';
 
 // ----------------------------------------------------------------------
-// TYPES
+// TYPES & CONFIGURATIONS
 // ----------------------------------------------------------------------
 type ElementType = 'rectangle' | 'ellipse' | 'text' | 'path' | 'frame' | 'image' | 'arrow';
 
@@ -59,6 +59,27 @@ interface CanvasElement {
   startId?: string;
   endId?: string;   
 }
+
+interface CursorData {
+  x: number;
+  y: number;
+  name: string;
+  color: string;
+  lastSeen: number;
+}
+
+// DYNAMIC TOOL REGISTRY
+const DESIGN_TOOLS = [
+  { id: 'select', icon: MousePointer2, tip: 'Move (V)', key: 'v' },
+  { id: 'frame', icon: Layout, tip: 'Artboard/Frame (F)', key: 'f' },
+  { id: 'rectangle', icon: Square, tip: 'Rectangle (R)', key: 'r' },
+  { id: 'ellipse', icon: Circle, tip: 'Ellipse (O)', key: 'o' },
+  { id: 'text', icon: TypeIcon, tip: 'Text (T)', key: 't' },
+  { id: 'pen', icon: PenTool, tip: 'Pen/Draw (P)', key: 'p' }, 
+  { id: 'hand', icon: Hand, tip: 'Hand (H)', key: 'h' }
+] as const;
+
+type ToolId = typeof DESIGN_TOOLS[number]['id'] | 'image';
 
 const getCurrencySymbol = (currency: string) => {
   switch (currency?.toUpperCase()) {
@@ -113,6 +134,8 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const channelRef = useRef<any>(null);
+  const lastCursorUpdate = useRef(0);
 
   // --- App State ---
   const [project, setProject] = useState<any>(null);
@@ -138,14 +161,16 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const [past, setPast] = useState<CanvasElement[][]>([]);
   const [future, setFuture] = useState<CanvasElement[][]>([]);
   const [clipboard, setClipboard] = useState<CanvasElement[]>([]);
+  const [cursors, setCursors] = useState<Record<string, CursorData>>({});
   
-  const [activeTool, setActiveTool] = useState<'select' | 'hand' | 'frame' | 'rectangle' | 'ellipse' | 'text' | 'pen' | 'image'>('select');
+  const [activeTool, setActiveTool] = useState<ToolId>('select');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [isPanning, setIsPanning] = useState(false);
   const [dragState, setDragState] = useState<any>(null);
   const [prototypeDrag, setPrototypeDrag] = useState<{ startId: string, x: number, y: number } | null>(null); 
+  const [snapLines, setSnapLines] = useState<Array<{type: 'v'|'h', val: number, start: number, end: number}>>([]);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -156,52 +181,57 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(pattern);
   };
 
-  // --- HISTORY ENGINE ---
+  const myColor = useMemo(() => {
+    if (!user) return '#9cf822';
+    let hash = 0;
+    for (let i = 0; i < user.id.length; i++) { hash = user.id.charCodeAt(i) + ((hash << 5) - hash); }
+    const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+    return '#' + '00000'.substring(0, 6 - c.length) + c;
+  }, [user]);
+
+  // --- REALTIME ENGINE ---
+  useEffect(() => {
+    if (!projectId || !user) return;
+    const channel = supabase.channel(`room-${projectId}`, { config: { broadcast: { ack: false } } });
+    channel
+      .on('broadcast', { event: 'cursor' }, ({ payload }) => {
+        setCursors(prev => ({ ...prev, [payload.userId]: { x: payload.x, y: payload.y, name: payload.name, color: payload.color, lastSeen: Date.now() } }));
+      })
+      .on('broadcast', { event: 'update_elements' }, ({ payload }) => { setElements(payload.elements); })
+      .subscribe();
+    channelRef.current = channel;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setCursors(prev => {
+        let changed = false; const next = { ...prev };
+        for (const id in next) { if (now - next[id].lastSeen > 5000) { delete next[id]; changed = true; } }
+        return changed ? next : prev;
+      });
+    }, 2000);
+
+    return () => { supabase.removeChannel(channel); clearInterval(interval); };
+  }, [projectId, user, supabase]);
+
+  const broadcastElements = useCallback((newElements: CanvasElement[]) => {
+    if (channelRef.current) channelRef.current.send({ type: 'broadcast', event: 'update_elements', payload: { elements: newElements } });
+  }, []);
+
   const pushToHistory = useCallback((newElements: CanvasElement[]) => {
-    setPast(prev => [...prev, elements]);
-    setFuture([]);
-    setElements(newElements);
-  }, [elements]);
-
-  const handleUndo = () => {
-    if (past.length === 0) return;
-    const previous = past[past.length - 1];
-    setPast(prev => prev.slice(0, prev.length - 1));
-    setFuture(prev => [elements, ...prev]);
-    setElements(previous);
-  };
-
-  const handleRedo = () => {
-    if (future.length === 0) return;
-    const next = future[0];
-    setFuture(prev => prev.slice(1));
-    setPast(prev => [...prev, elements]);
-    setElements(next);
-  };
+    setPast(prev => [...prev, elements]); setFuture([]); setElements(newElements); broadcastElements(newElements);
+  }, [elements, broadcastElements]);
 
   // --- CLIPBOARD ENGINE ---
-  const handleCopy = () => {
-    const selected = elements.filter(el => selectedIds.includes(el.id));
-    if (selected.length > 0) setClipboard(selected);
-  };
-
-  const handleCut = () => {
-    handleCopy();
-    const remaining = elements.filter(el => !selectedIds.includes(el.id));
-    pushToHistory(remaining);
-    setSelectedIds([]);
-  };
-
+  const handleCopy = () => { const selected = elements.filter(el => selectedIds.includes(el.id)); if (selected.length > 0) setClipboard(selected); };
+  const handleCut = () => { handleCopy(); pushToHistory(elements.filter(el => !selectedIds.includes(el.id))); setSelectedIds([]); };
   const handlePaste = () => {
     if (clipboard.length === 0) return;
     const newIds: string[] = [];
     const pasted = clipboard.map(el => {
-      const newId = `el_${Math.random().toString(36).substr(2, 9)}`;
-      newIds.push(newId);
+      const newId = `el_${Math.random().toString(36).substr(2, 9)}`; newIds.push(newId);
       return { ...el, id: newId, x: el.x + 20, y: el.y + 20 };
     });
-    pushToHistory([...elements, ...pasted]);
-    setSelectedIds(newIds);
+    pushToHistory([...elements, ...pasted]); setSelectedIds(newIds);
   };
 
   // --- SCREEN SIZE DETECTION ---
@@ -215,41 +245,21 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   // --- INIT FETCH ---
   useEffect(() => {
     if (!document.querySelector('script[src="https://js.paystack.co/v1/inline.js"]')) {
-      const script = document.createElement('script');
-      script.src = 'https://js.paystack.co/v1/inline.js';
-      script.async = true;
-      document.body.appendChild(script);
+      const script = document.createElement('script'); script.src = 'https://js.paystack.co/v1/inline.js'; script.async = true; document.body.appendChild(script);
     }
-
     async function fetchWorkspaceData() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return router.push('/login');
       setUser(authUser);
-
       const { data: projectData } = await supabase.from('projects').select('*, profiles:user_id(full_name, avatar_url, role)').eq('id', projectId).single();
       if (!projectData) return router.push('/dashboard');
-
-      const isOwner = projectData.user_id === authUser.id;
-      setIsFounder(isOwner);
-
+      const isOwner = projectData.user_id === authUser.id; setIsFounder(isOwner);
       const { data: collaborators } = await supabase.from('collaborations').select('*, profiles:user_id(full_name, avatar_url, role)').eq('project_id', projectId).eq('status', 'accepted');
-      const isTeamMember = collaborators?.some(c => c.user_id === authUser.id);
-      if (!isOwner && !isTeamMember) return router.push(`/project/${projectId}`); 
-
+      if (!isOwner && !collaborators?.some(c => c.user_id === authUser.id)) return router.push(`/project/${projectId}`); 
       const { data: milestoneData } = await supabase.from('milestones').select('*').eq('project_id', projectId).order('id', { ascending: true });
       const { data: msgData } = await supabase.from('messages').select('*, profiles:user_id(full_name, avatar_url)').eq('project_id', projectId).order('created_at', { ascending: true });
-
-      if (projectData.canvas_data && Array.isArray(projectData.canvas_data) && projectData.canvas_data.length > 0) {
-        setElements(projectData.canvas_data);
-      } else {
-        setElements([]);
-      }
-
-      setProject(projectData);
-      setTeam(collaborators || []);
-      setMilestones(milestoneData || []);
-      setMessages(msgData || []);
-      setLoading(false);
+      if (projectData.canvas_data && Array.isArray(projectData.canvas_data) && projectData.canvas_data.length > 0) setElements(projectData.canvas_data);
+      setProject(projectData); setTeam(collaborators || []); setMilestones(milestoneData || []); setMessages(msgData || []); setLoading(false);
     }
     fetchWorkspaceData();
   }, [projectId, supabase, router]);
@@ -260,112 +270,65 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       if (activeTab !== 'colab' || colabView !== 'canvas') return;
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
 
-      if (e.key === 'v') setActiveTool('select');
-      if (e.key === 'r') setActiveTool('rectangle');
-      if (e.key === 'o') setActiveTool('ellipse');
-      if (e.key === 't') setActiveTool('text');
-      if (e.key === 'h') setActiveTool('hand');
-      if (e.key === 'f') setActiveTool('frame');
+      const tool = DESIGN_TOOLS.find(t => t.key === e.key);
+      if (tool) setActiveTool(tool.id);
       
       if ((e.ctrlKey || e.metaKey)) {
         if (e.key === 'c') { e.preventDefault(); handleCopy(); }
         if (e.key === 'x') { e.preventDefault(); handleCut(); }
-        if (e.key === 'v') { 
-          // Note: Browser paste event will handle images. This handles elements.
-          // Native paste event is caught below.
-          if(clipboard.length > 0) { e.preventDefault(); handlePaste(); }
-        }
+        if (e.key === 'v') { if(clipboard.length > 0) { e.preventDefault(); handlePaste(); } }
         if (e.key === 'z') {
            e.preventDefault();
-           if (e.shiftKey) handleRedo();
-           else handleUndo();
+           if (e.shiftKey) { if (future.length) { const n = future[0]; setFuture(f => f.slice(1)); setPast(p => [...p, elements]); setElements(n); broadcastElements(n); } }
+           else { if (past.length) { const p = past[past.length - 1]; setPast(prev => prev.slice(0, prev.length - 1)); setFuture(f => [elements, ...f]); setElements(p); broadcastElements(p); } }
         }
         if (e.key === 's') { e.preventDefault(); handleSaveDesign(); }
-        if (e.key === 'g') { e.preventDefault(); if (e.shiftKey) handleUngroup(); else handleGroup(); }
       } else {
-        if (e.key === 'Backspace' || e.key === 'Delete') {
-          pushToHistory(elements.filter(el => !selectedIds.includes(el.id)));
-          setSelectedIds([]);
-        }
-        if (e.key === '[') sendToBack();
-        if (e.key === ']') bringToFront();
+        if (e.key === 'Backspace' || e.key === 'Delete') { pushToHistory(elements.filter(el => !selectedIds.includes(el.id))); setSelectedIds([]); }
+        if (e.key === '[') pushToHistory([...elements.filter(el => selectedIds.includes(el.id)), ...elements.filter(el => !selectedIds.includes(el.id))]);
+        if (e.key === ']') pushToHistory([...elements.filter(el => !selectedIds.includes(el.id)), ...elements.filter(el => selectedIds.includes(el.id))]);
       }
     };
 
     const handlePasteEvent = (e: ClipboardEvent) => {
       if (activeTab !== 'colab' || colabView !== 'canvas') return;
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
-
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
+      const items = e.clipboardData?.items; if (!items) return;
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.indexOf('image') !== -1) {
-          e.preventDefault();
-          const file = items[i].getAsFile();
+          e.preventDefault(); const file = items[i].getAsFile();
           if (file) processImageFile(file, window.innerWidth / 2, window.innerHeight / 2);
-          break; // only process the first image pasted
+          break; 
         }
       }
     };
+    window.addEventListener('keydown', handleKeyDown); window.addEventListener('paste', handlePasteEvent);
+    return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('paste', handlePasteEvent); };
+  }, [activeTab, colabView, selectedIds, elements, clipboard, past, future, canvasTransform, pushToHistory, broadcastElements]);
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('paste', handlePasteEvent);
-    
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('paste', handlePasteEvent);
-    };
-  }, [activeTab, colabView, selectedIds, elements, clipboard, past, future, canvasTransform]);
-
-
-  // --- IMAGE UPLOAD ENGINE ---
+  // --- IMAGE ENGINE ---
   const processImageFile = async (file: File, clientX: number, clientY: number) => {
-    // 1. Instantly create a local object URL for immediate rendering (Zero Latency UX)
     const localUrl = URL.createObjectURL(file);
     const tempId = `img_${Date.now()}`;
-    
     const img = new Image();
     img.onload = async () => {
-       // Auto-scale massive images down
-       let w = img.width; let h = img.height;
-       const maxDim = 800;
-       if (w > maxDim || h > maxDim) {
-          const ratio = Math.min(maxDim / w, maxDim / h);
-          w *= ratio; h *= ratio;
-       }
-
-       // Get accurate placement on canvas
+       let w = img.width; let h = img.height; const maxDim = 800;
+       if (w > maxDim || h > maxDim) { const ratio = Math.min(maxDim / w, maxDim / h); w *= ratio; h *= ratio; }
        const rect = containerRef.current?.getBoundingClientRect();
        const x = rect ? (clientX - rect.left - canvasTransform.x) / canvasTransform.scale : 0;
        const y = rect ? (clientY - rect.top - canvasTransform.y) / canvasTransform.scale : 0;
 
-       const newImg: CanvasElement = {
-          id: tempId, name: `Image ${file.name.substring(0, 10)}`, type: 'image',
-          x, y, width: w, height: h, fill: 'transparent', fillOpacity: 100, stroke: 'transparent',
-          strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, imageUrl: localUrl
-       };
-
-       // Push to canvas immediately
-       setElements(prev => {
-          setPast(p => [...p, prev]);
-          setFuture([]);
-          return [...prev, newImg];
-       });
+       const newImg: CanvasElement = { id: tempId, name: `Image ${file.name.substring(0, 10)}`, type: 'image', x, y, width: w, height: h, fill: 'transparent', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, imageUrl: localUrl };
+       setElements(prev => { const newElements = [...prev, newImg]; setPast(p => [...p, prev]); setFuture([]); broadcastElements(newElements); return newElements; });
        setSelectedIds([tempId]);
 
-       // 2. Upload to Supabase Storage in the background
        const fileExt = file.name.split('.').pop() || 'png';
        const filePath = `${projectId}/canvas/${tempId}.${fileExt}`;
-       
        const { error: uploadError } = await supabase.storage.from('project_assets').upload(filePath, file);
        
        if (!uploadError) {
-          // Replace the local URL with the permanent Cloud URL
           const { data: publicUrlData } = supabase.storage.from('project_assets').getPublicUrl(filePath);
-          setElements(prev => prev.map(el => el.id === tempId ? { ...el, imageUrl: publicUrlData.publicUrl } : el));
-       } else {
-          console.error("Image upload failed:", uploadError);
+          setElements(prev => { const finalElements = prev.map(el => el.id === tempId ? { ...el, imageUrl: publicUrlData.publicUrl } : el); broadcastElements(finalElements); return finalElements; });
        }
     };
     img.src = localUrl;
@@ -374,18 +337,13 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (activeTab !== 'colab' || colabView !== 'canvas') return;
-    
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
        const file = e.dataTransfer.files[0];
-       if (file.type.startsWith('image/')) {
-          processImageFile(file, e.clientX, e.clientY);
-       }
+       if (file.type.startsWith('image/')) processImageFile(file, e.clientX, e.clientY);
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); // Necessary to allow dropping
-  };
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault(); 
 
   // --- ADVANCED ACTIONS ---
   const handleGroup = () => {
@@ -435,6 +393,17 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     pushToHistory(updated);
   };
 
+  const updateSelected = (updates: Partial<CanvasElement>) => pushToHistory(elements.map(el => selectedIds.includes(el.id) ? { ...el, ...updates } : el));
+
+  const getSelectionBounds = () => {
+    if (selectedIds.length === 0) return null;
+    const s = elements.filter(el => selectedIds.includes(el.id) && el.type !== 'arrow');
+    if(s.length === 0) return null;
+    const minX = Math.min(...s.map(el => el.x)); const minY = Math.min(...s.map(el => el.y));
+    const maxX = Math.max(...s.map(el => el.x + el.width)); const maxY = Math.max(...s.map(el => el.y + el.height));
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  };
+
   const handleExport = async () => {
     const bounds = getSelectionBounds();
     if (!bounds) return alert("Select a layer or frame to export.");
@@ -444,7 +413,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       if (!svgElement) throw new Error("SVG not found");
 
       const clone = svgElement.cloneNode(true) as SVGSVGElement;
-      clone.querySelectorAll('.selection-ui, .prototype-ui').forEach(el => el.remove());
+      clone.querySelectorAll('.selection-ui, .prototype-ui, .multiplayer-ui').forEach(el => el.remove());
 
       const mainG = clone.querySelector('g[data-transform-wrapper="true"]');
       if (mainG) mainG.setAttribute('transform', `matrix(1, 0, 0, 1, 0, 0)`);
@@ -493,13 +462,11 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   };
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || colabView !== 'canvas') return;
+    const container = containerRef.current; if (!container || colabView !== 'canvas') return;
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
-        const delta = -e.deltaY * 0.005;
-        const newScale = Math.min(Math.max(0.1, canvasTransform.scale + delta), 5);
+        const delta = -e.deltaY * 0.005; const newScale = Math.min(Math.max(0.1, canvasTransform.scale + delta), 5);
         const rect = container.getBoundingClientRect();
         const newX = (e.clientX - rect.left) - ((e.clientX - rect.left) - canvasTransform.x) * (newScale / canvasTransform.scale);
         const newY = (e.clientY - rect.top) - ((e.clientY - rect.top) - canvasTransform.y) * (newScale / canvasTransform.scale);
@@ -508,88 +475,101 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         setCanvasTransform(prev => ({ ...prev, x: prev.x - e.deltaX, y: prev.y - e.deltaY }));
       }
     };
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
+    container.addEventListener('wheel', handleWheel, { passive: false }); return () => container.removeEventListener('wheel', handleWheel);
   }, [canvasTransform, colabView]);
 
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (editingTextId) return; 
-    
-    // Disable drawing new shapes in Prototype mode
-    if (appMode === 'prototype') {
-        if (activeTool === 'select' && (e.target as HTMLElement).tagName === 'svg') setSelectedIds([]);
-        return;
-    }
-
-    if (isPanning || activeTool === 'hand' || e.button === 1) {
-      setDragState({ action: 'panning', startX: e.clientX, startY: e.clientY });
-      return;
-    }
+    if (appMode === 'prototype') { if (activeTool === 'select' && (e.target as HTMLElement).tagName === 'svg') setSelectedIds([]); return; }
+    if (isPanning || activeTool === 'hand' || e.button === 1) { setDragState({ action: 'panning', startX: e.clientX, startY: e.clientY }); return; }
     const { x, y } = getCanvasCoords(e);
     if (activeTool === 'select' && (e.target as HTMLElement).tagName === 'svg') {
       setSelectedIds([]);
-    } else if (activeTool !== 'select' && activeTool !== 'image') {
+    } else if (activeTool !== 'select' && activeTool !== 'image' && activeTool !== 'pen') {
       const isFrame = activeTool === 'frame';
       const containingFrame = isFrame ? undefined : [...elements].reverse().find(f => f.type === 'frame' && x >= f.x && x <= (f.x + f.width) && y >= f.y && y <= (f.y + f.height));
       pushToHistory([...elements, { id: `el_${Date.now()}`, name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), type: activeTool as any, x, y, width: isFrame ? 400 : 100, height: isFrame ? 300 : 100, fill: isFrame ? '#ffffff' : '#d4d4d8', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, text: activeTool === 'text' ? 'New Text' : undefined, fontSize: activeTool === 'text' ? 24 : undefined, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left', frameId: containingFrame ? containingFrame.id : undefined }]);
-      setSelectedIds([`el_${Date.now()}`]);
-      setActiveTool('select');
+      setSelectedIds([`el_${Date.now()}`]); setActiveTool('select');
     }
   };
 
   const handleElementPointerDown = (e: React.PointerEvent, el: CanvasElement) => {
     if (activeTool !== 'select' || isPanning || el.isLocked || !el.isVisible || editingTextId === el.id) return;
     e.stopPropagation();
-    
     const groupIdsToSelect = el.groupId ? elements.filter(e => e.groupId === el.groupId).map(e => e.id) : [el.id];
     let newSelection = [...selectedIds];
-    
     if (e.shiftKey) {
       const isAlreadySelected = groupIdsToSelect.every(id => selectedIds.includes(id));
       newSelection = isAlreadySelected ? selectedIds.filter(id => !groupIdsToSelect.includes(id)) : [...selectedIds, ...groupIdsToSelect].filter((value, index, self) => self.indexOf(value) === index);
-    } else {
-      if (!selectedIds.includes(el.id)) newSelection = groupIdsToSelect;
-    }
-    
+    } else { if (!selectedIds.includes(el.id)) newSelection = groupIdsToSelect; }
     setSelectedIds(newSelection);
     setDragState({ action: 'moving', startX: getCanvasCoords(e).x, startY: getCanvasCoords(e).y, originalElements: elements, hasDragged: false });
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    // Prototyping Drag Engine
-    if (prototypeDrag) {
-      const { x, y } = getCanvasCoords(e);
-      setPrototypeDrag({ ...prototypeDrag, x, y });
-      return;
+    const { x, y } = getCanvasCoords(e);
+
+    if (Date.now() - lastCursorUpdate.current > 50 && channelRef.current && user) {
+       channelRef.current.send({ type: 'broadcast', event: 'cursor', payload: { userId: user.id, name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Member', color: myColor, x, y } });
+       lastCursorUpdate.current = Date.now();
     }
 
+    if (prototypeDrag) { setPrototypeDrag({ ...prototypeDrag, x, y }); return; }
     if (!dragState) return;
 
     if (activeTool === 'hand' || dragState.action === 'panning') {
       setCanvasTransform(prev => ({ ...prev, x: prev.x + (e.clientX - dragState.startX), y: prev.y + (e.clientY - dragState.startY) }));
-      setDragState({ ...dragState, startX: e.clientX, startY: e.clientY });
-      return;
+      setDragState({ ...dragState, startX: e.clientX, startY: e.clientY }); return;
     }
 
     if (!dragState.hasDragged) setDragState({ ...dragState, hasDragged: true });
 
-    const { x, y } = getCanvasCoords(e);
     if (dragState.action === 'moving') {
-      const dx = x - dragState.startX;
-      const dy = y - dragState.startY;
+      let dx = x - dragState.startX;
+      let dy = y - dragState.startY;
+
+      // -------------------------------------------------------------
+      // SMART ALIGNMENT ENGINE
+      // -------------------------------------------------------------
+      const activeLines: Array<{type: 'v'|'h', val: number, start: number, end: number}> = [];
+      const SNAP_TOLERANCE = 5 / canvasTransform.scale;
       
+      if (selectedIds.length === 1) {
+        const primaryEl = dragState.originalElements.find((el: CanvasElement) => el.id === selectedIds[0]);
+        if (primaryEl && primaryEl.type !== 'arrow') {
+          let tempCX = primaryEl.x + dx + primaryEl.width / 2;
+          let tempCY = primaryEl.y + dy + primaryEl.height / 2;
+
+          dragState.originalElements.forEach((target: CanvasElement) => {
+            if (target.id === primaryEl.id || !target.isVisible || target.type === 'arrow') return;
+            const tCX = target.x + target.width / 2;
+            const tCY = target.y + target.height / 2;
+
+            if (Math.abs(tempCX - tCX) < SNAP_TOLERANCE) {
+              dx = tCX - primaryEl.width / 2 - primaryEl.x;
+              activeLines.push({ type: 'v', val: tCX, start: Math.min(primaryEl.y + dy, target.y) - 50, end: Math.max(primaryEl.y + dy + primaryEl.height, target.y + target.height) + 50 });
+            }
+            if (Math.abs(tempCY - tCY) < SNAP_TOLERANCE) {
+              dy = tCY - primaryEl.height / 2 - primaryEl.y;
+              activeLines.push({ type: 'h', val: tCY, start: Math.min(primaryEl.x + dx, target.x) - 50, end: Math.max(primaryEl.x + dx + primaryEl.width, target.x + target.width) + 50 });
+            }
+          });
+        }
+      }
+      setSnapLines(activeLines);
+
       const explicitlySelected = dragState.originalElements.filter((el: CanvasElement) => selectedIds.includes(el.id));
       const explicitlySelectedFrameIds = explicitlySelected.filter((el: CanvasElement) => el.type === 'frame').map((el: CanvasElement) => el.id);
       const childIds = dragState.originalElements.filter((el: CanvasElement) => el.frameId && explicitlySelectedFrameIds.includes(el.frameId)).map((el: CanvasElement) => el.id);
       const allMovingIds = [...selectedIds, ...childIds];
 
-      setElements(dragState.originalElements.map((el: CanvasElement) => allMovingIds.includes(el.id) ? { ...el, x: el.x + dx, y: el.y + dy } : el));
+      const updated = dragState.originalElements.map((el: CanvasElement) => allMovingIds.includes(el.id) ? { ...el, x: el.x + dx, y: el.y + dy } : el);
+      setElements(updated); broadcastElements(updated);
     } 
     else if (dragState.action === 'resizing' && dragState.handle && appMode === 'design') {
-      const dx = x - dragState.startX;
-      const dy = y - dragState.startY;
-      setElements(dragState.originalElements.map((el: CanvasElement) => {
+      const dx = x - dragState.startX; const dy = y - dragState.startY;
+      const updated = dragState.originalElements.map((el: CanvasElement) => {
         if (!selectedIds.includes(el.id)) return el;
         let newX = el.x, newY = el.y, newW = el.width, newH = el.height;
         const handle = dragState.handle!;
@@ -598,20 +578,18 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         if (handle.includes('w')) { newW = Math.max(10, el.width - dx); if (newW > 10) newX = el.x + dx; }
         if (handle.includes('n')) { newH = Math.max(10, el.height - dy); if (newH > 10) newY = el.y + dy; }
         return { ...el, x: newX, y: newY, width: newW, height: newH, fontSize: el.type === 'text' && el.fontSize && el.height ? Math.max(8, el.fontSize * (newH / el.height)) : el.fontSize };
-      }));
+      });
+      setElements(updated); broadcastElements(updated);
     }
   };
 
   const handlePointerUp = () => {
-    // Finalize Prototype Connection
+    setSnapLines([]); 
     if (prototypeDrag) {
       const { x, y } = prototypeDrag;
       const target = [...elements].reverse().find(el => el.id !== prototypeDrag.startId && el.type !== 'arrow' && x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height);
-      if (target) {
-        pushToHistory([...elements, { id: `el_${Date.now()}`, name: 'Interaction', type: 'arrow', startId: prototypeDrag.startId, endId: target.id, x: 0, y: 0, width: 0, height: 0, fill: 'transparent', fillOpacity: 100, stroke: '#3b82f6', strokeWidth: 2, cornerRadius: 0, isVisible: true, isLocked: false }]);
-      }
-      setPrototypeDrag(null);
-      return;
+      if (target) pushToHistory([...elements, { id: `el_${Date.now()}`, name: 'Interaction', type: 'arrow', startId: prototypeDrag.startId, endId: target.id, x: 0, y: 0, width: 0, height: 0, fill: 'transparent', fillOpacity: 100, stroke: '#3b82f6', strokeWidth: 2, cornerRadius: 0, isVisible: true, isLocked: false }]);
+      setPrototypeDrag(null); return;
     }
 
     if (dragState && dragState.action !== 'panning' && dragState.hasDragged) {
@@ -627,28 +605,14 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             return el;
          });
       }
-      setPast(prev => [...prev, finalElements]); setFuture([]); setElements(finalElements);
+      setPast(prev => [...prev, finalElements]); setFuture([]); setElements(finalElements); broadcastElements(finalElements);
     }
     setDragState(null);
   };
 
-  const handleResizeHandleDown = (e: React.PointerEvent, handle: string) => {
-    e.stopPropagation(); setDragState({ action: 'resizing', handle, startX: getCanvasCoords(e).x, startY: getCanvasCoords(e).y, originalElements: elements, hasDragged: false });
-  };
-
+  const handleResizeHandleDown = (e: React.PointerEvent, handle: string) => { e.stopPropagation(); setDragState({ action: 'resizing', handle, startX: getCanvasCoords(e).x, startY: getCanvasCoords(e).y, originalElements: elements, hasDragged: false }); };
   const handleSaveDesign = async () => { setIsSaving(true); await supabase.from('projects').update({ canvas_data: elements }).eq('id', projectId); setIsSaving(false); };
-  const bringToFront = () => pushToHistory([...elements.filter(el => !selectedIds.includes(el.id)), ...elements.filter(el => selectedIds.includes(el.id))]);
-  const sendToBack = () => pushToHistory([...elements.filter(el => selectedIds.includes(el.id)), ...elements.filter(el => !selectedIds.includes(el.id))]);
-  const updateSelected = (updates: Partial<CanvasElement>) => pushToHistory(elements.map(el => selectedIds.includes(el.id) ? { ...el, ...updates } : el));
-  const getSelectionBounds = () => {
-    if (selectedIds.length === 0) return null;
-    const s = elements.filter(el => selectedIds.includes(el.id) && el.type !== 'arrow');
-    if(s.length === 0) return null;
-    const minX = Math.min(...s.map(el => el.x)); const minY = Math.min(...s.map(el => el.y));
-    const maxX = Math.max(...s.map(el => el.x + el.width)); const maxY = Math.max(...s.map(el => el.y + el.height));
-    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-  };
-
+  
   // --- OVERVIEW / MISC HANDLERS ---
   const handleToggleMilestone = async (m: any) => {
     if (!isFounder) return; 
@@ -743,6 +707,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   return (
     <div className={`transition-colors duration-300 flex flex-col font-sans ${isFullscreen ? 'fixed inset-0 z-[9999] bg-[#1E1E1E]' : 'min-h-screen'} ${activeTab === 'colab' ? 'bg-[#1E1E1E] text-zinc-300 selection:bg-[#9cf822]/30 overflow-hidden' : 'bg-zinc-50 dark:bg-black text-left pb-20 relative'}`}>
       
+      {/* OVERVIEW HEADER */}
       {activeTab === 'overview' && !isFullscreen ? (
         <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-900 shrink-0">
           <div className="max-w-[1600px] mx-auto px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -761,8 +726,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
             <div className="flex items-center gap-4 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl self-start sm:self-auto">
               <button onClick={() => setActiveTab('overview')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-white dark:bg-black text-black dark:text-white shadow-sm"><LayoutDashboard size={14} /> Overview</button>
-              
-              {/* BRANDING: Uses plain text "(Lab X)" for the Overview tab */}
               <button onClick={() => isMobile ? setShowMobileWarning(true) : setActiveTab('colab')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-500 hover:text-[#9cf822]">(Lab X)</button>
             </div>
             
@@ -775,26 +738,26 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             <button onClick={() => setColabView('home')} className="p-1 hover:bg-[#383838] rounded transition-colors text-zinc-400 hover:text-white" title="Back to Home"><Home size={14} /></button>
             <div className="h-3 w-px bg-[#383838]" />
             <div className="text-xs font-medium text-white flex items-center gap-2 cursor-pointer hover:bg-[#383838] px-2 py-1 rounded truncate">
-              {project?.title} <span className="text-zinc-500">/</span> <span className="opacity-80">Draft</span> <ChevronDown size={12} className="text-zinc-500"/>
+              {project?.title} 
+              <span className="text-zinc-500">/</span> 
+              <span className="opacity-80">Draft</span> 
+              <ChevronDown size={12} className="text-zinc-500"/>
+              <div className="flex items-center gap-1 ml-2 bg-[#9cf822]/10 px-1.5 py-0.5 rounded border border-[#9cf822]/20 text-[#9cf822]"><div className="w-1.5 h-1.5 rounded-full bg-[#9cf822] animate-pulse"></div><span className="text-[9px] uppercase tracking-wider font-bold">Live</span></div>
             </div>
           </div>
 
           <div className="flex items-center justify-center flex-1 gap-4">
-             {/* DESIGN / PROTOTYPE SWITCHER */}
              <div className="flex bg-[#1E1E1E] rounded-md p-0.5 border border-[#383838]">
                 <button onClick={() => setAppMode('design')} className={`px-3 py-1 text-[11px] font-bold rounded-sm transition-colors ${appMode === 'design' ? 'bg-[#383838] text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>Design</button>
                 <button onClick={() => setAppMode('prototype')} className={`px-3 py-1 text-[11px] font-bold rounded-sm transition-colors flex items-center gap-1 ${appMode === 'prototype' ? 'bg-[#383838] text-white' : 'text-zinc-500 hover:text-zinc-300'}`}><Zap size={10} className={appMode === 'prototype' ? 'text-[#3b82f6] fill-[#3b82f6]' : ''}/> Prototype</button>
              </div>
 
-             {/* TOOLS (Only visible in Design Mode) */}
+             {/* DYNAMIC TOOLBAR */}
              {appMode === 'design' && (
                <div className="flex items-center gap-0.5 border-l border-[#383838] pl-4">
-                  <ToolBtn icon={<MousePointer2 size={14}/>} active={activeTool === 'select'} onClick={() => setActiveTool('select')} tip="Move (V)" />
-                  <ToolBtn icon={<Layout size={14}/>} active={activeTool === 'frame'} onClick={() => setActiveTool('frame')} tip="Artboard/Frame (F)" />
-                  <ToolBtn icon={<Square size={14}/>} active={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} tip="Rectangle (R)" />
-                  <ToolBtn icon={<Circle size={14}/>} active={activeTool === 'ellipse'} onClick={() => setActiveTool('ellipse')} tip="Ellipse (O)" />
-                  <ToolBtn icon={<TypeIcon size={14}/>} active={activeTool === 'text'} onClick={() => setActiveTool('text')} tip="Text (T)" />
-                  <ToolBtn icon={<Hand size={14}/>} active={activeTool === 'hand'} onClick={() => setActiveTool('hand')} tip="Hand (H)" />
+                 {DESIGN_TOOLS.map(tool => (
+                   <ToolBtn key={tool.id} icon={<tool.icon size={14}/>} active={activeTool === tool.id} onClick={() => setActiveTool(tool.id)} tip={tool.tip} />
+                 ))}
                </div>
              )}
           </div>
@@ -816,9 +779,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         </header>
       )}
 
+      {/* MAIN CONTENT AREA */}
       <div className="flex-grow flex flex-col relative">
         
-        {/* OVERVIEW TAB */}
+        {/* OVERVIEW TAB CONTENT */}
         {activeTab === 'overview' && !isFullscreen && (
           <div className="max-w-[1600px] w-full mx-auto px-6 pt-8 grid grid-cols-1 lg:grid-cols-12 gap-10 pb-20">
             <div className="lg:col-span-8 space-y-8">
@@ -938,8 +902,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         {activeTab === 'colab' && colabView === 'home' && (
           <div className="flex-grow flex bg-[#1E1E1E] text-zinc-300 relative h-full">
             <div className="w-60 bg-[#2C2C2C] border-r border-[#383838] flex flex-col p-4 hidden md:flex shrink-0">
-              
-              {/* BRANDING: Uses the lab x.png icon for the sidebar in the canvas */}
               <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => setActiveTab('overview')}>
                 <img src="/lab x.png" className="w-12 h-12 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
               </div>
@@ -977,10 +939,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                             <div className="col-span-6">NAME</div><div className="col-span-3">TYPE</div><div className="col-span-3">RECENT</div>
                           </div>
                           <div onClick={() => setColabView('canvas')} className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-[#383838]/50 cursor-pointer transition-colors items-center">
-                            
-                            {/* BRANDING: Uses the lab x.png icon for the recent list in the canvas */}
                             <div className="col-span-6 flex items-center gap-3"><div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center shrink-0 border border-zinc-700"><img src="/lab x.png" className="w-4 h-4 object-contain opacity-50" alt="Lab X" /></div><span className="text-sm font-medium text-white">{project?.title || 'Lab X Draft'}</span></div>
-                            
                             <div className="col-span-3 text-xs text-zinc-400">Design</div><div className="col-span-3 text-xs text-zinc-400">Just now</div>
                           </div>
                        </div>
@@ -1011,7 +970,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
               </div>
             </aside>
 
-            {/* Added onDrop and onDragOver to make the entire canvas accept Image drops */}
             <main 
               ref={containerRef} 
               className="flex-grow bg-[#1E1E1E] relative cursor-crosshair overflow-hidden" 
@@ -1036,7 +994,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
                 <g data-transform-wrapper="true" transform={`matrix(${canvasTransform.scale}, 0, 0, ${canvasTransform.scale}, ${canvasTransform.x}, ${canvasTransform.y})`}>
                   {elements.map(el => {
-                    if (!el.isVisible || el.type === 'arrow') return null; // We render arrows separately on top
+                    if (!el.isVisible || el.type === 'arrow') return null; 
                     const isSelected = selectedIds.includes(el.id);
                     const isEditing = editingTextId === el.id;
                     
@@ -1061,23 +1019,21 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                                 <text x={el.x} y={el.y + (el.fontSize || 24) * 0.85} fill={el.fill} fontSize={el.fontSize} fontFamily={el.fontFamily} fontWeight={el.fontWeight} textAnchor={el.textAlign === 'center' ? 'middle' : el.textAlign === 'right' ? 'end' : 'start'} dx={el.textAlign === 'center' ? el.width/2 : el.textAlign === 'right' ? el.width : 0} onPointerDown={(e) => handleElementPointerDown(e, el)} onDoubleClick={(e) => { e.stopPropagation(); setEditingTextId(el.id); setActiveTool('select'); }} className="select-none cursor-default">{el.text}</text>
                              )
                           )}
-                          {el.type === 'image' && el.imageUrl && <image href={el.imageUrl} x={el.x} y={el.y} width={el.width} height={el.height} preserveAspectRatio="none" onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
+                          {el.type === 'image' && el.imageUrl && <image href={el.imageUrl} x={el.x} y={el.y} width={el.width} height={el.height} preserveAspectRatio="none" onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} clipPath={`inset(0 0 0 0 round ${el.cornerRadius || 0}px)`} />}
                         </g>
                       </g>
                     );
                   })}
 
-                  {/* PROTOTYPE ENGINE: Render Connections */}
+                  {/* PROTOTYPE ENGINE */}
                   {appMode === 'prototype' && elements.filter(el => el.type === 'arrow').map(arrow => {
                      const startEl = elements.find(e => e.id === arrow.startId);
                      const endEl = elements.find(e => e.id === arrow.endId);
                      if (!startEl || !endEl || !startEl.isVisible || !endEl.isVisible) return null;
-                     
                      const sx = startEl.x + startEl.width; const sy = startEl.y + startEl.height / 2;
                      const ex = endEl.x; const ey = endEl.y + endEl.height / 2;
                      const dist = Math.abs(ex - sx);
                      const cpX = sx + Math.max(50, dist / 2);
-                     
                      return (
                         <g key={arrow.id} className="prototype-ui">
                            <path d={`M ${sx} ${sy} C ${cpX} ${sy}, ${ex - Math.max(50, dist / 2)} ${ey}, ${ex} ${ey}`} fill="none" stroke="#3b82f6" strokeWidth="2" opacity="0.8" />
@@ -1086,7 +1042,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                      )
                   })}
 
-                  {/* PROTOTYPE ENGINE: Live Dragging Arrow */}
                   {prototypeDrag && (() => {
                       const startEl = elements.find(e => e.id === prototypeDrag.startId);
                       if (!startEl) return null;
@@ -1101,17 +1056,19 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                       );
                   })()}
 
-                  {/* PROTOTYPE ENGINE: Interaction Node (+) */}
                   {appMode === 'prototype' && singleSelectedElement && singleSelectedElement.type !== 'arrow' && (
-                     <g 
-                        transform={`translate(${singleSelectedElement.x + singleSelectedElement.width + 10}, ${singleSelectedElement.y + singleSelectedElement.height / 2})`}
-                        className="cursor-pointer prototype-ui"
-                        onPointerDown={(e) => { e.stopPropagation(); setPrototypeDrag({ startId: singleSelectedElement.id, x: getCanvasCoords(e).x, y: getCanvasCoords(e).y }) }}
-                     >
+                     <g transform={`translate(${singleSelectedElement.x + singleSelectedElement.width + 10}, ${singleSelectedElement.y + singleSelectedElement.height / 2})`} className="cursor-pointer prototype-ui" onPointerDown={(e) => { e.stopPropagation(); setPrototypeDrag({ startId: singleSelectedElement.id, x: getCanvasCoords(e).x, y: getCanvasCoords(e).y }) }}>
                         <circle cx="0" cy="0" r="7" fill="#3b82f6" stroke="#ffffff" strokeWidth="1.5" />
                         <path d="M -3 0 L 3 0 M 0 -3 L 0 3" stroke="#ffffff" strokeWidth="1.5" />
                      </g>
                   )}
+
+                  {/* ALIGNMENT GUIDES RENDERER */}
+                  {snapLines.map((line, i) => (
+                    line.type === 'v' 
+                      ? <line key={`snap-v-${i}`} x1={line.val} y1={line.start} x2={line.val} y2={line.end} stroke="#ff3b30" strokeWidth={1/canvasTransform.scale} strokeDasharray="4" opacity={0.8} />
+                      : <line key={`snap-h-${i}`} x1={line.start} y1={line.val} x2={line.end} y2={line.val} stroke="#ff3b30" strokeWidth={1/canvasTransform.scale} strokeDasharray="4" opacity={0.8} />
+                  ))}
 
                   {/* BOUNDING BOX */}
                   {appMode === 'design' && bounds && activeTool === 'select' && (
@@ -1127,6 +1084,18 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                       )}
                     </g>
                   )}
+
+                  {/* MULTIPLAYER CURSORS */}
+                  {Object.entries(cursors).map(([id, cursor]) => {
+                    if (id === user?.id) return null;
+                    return (
+                      <g key={id} className="pointer-events-none multiplayer-ui transition-all duration-75 ease-linear" transform={`translate(${cursor.x}, ${cursor.y})`}>
+                        <path d="M5.65376 21.2586L1 1L21.2586 5.65376L13.7118 10.4357L18.8927 15.6165L15.6165 18.8927L10.4357 13.7118L5.65376 21.2586Z" fill={cursor.color} stroke="white" strokeWidth="1.5" />
+                        <rect x="12" y="20" width={cursor.name.length * 7 + 10} height="20" fill={cursor.color} rx="4" />
+                        <text x="17" y="33" fill="white" fontSize="10" fontWeight="bold" fontFamily="sans-serif">{cursor.name}</text>
+                      </g>
+                    );
+                  })}
                 </g>
               </svg>
             </main>
@@ -1158,6 +1127,22 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                       <div className="p-3 border-b border-[#383838]">
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2"><FigmaInput icon="X" value={Math.round(singleSelectedElement.x)} onChange={(v: string) => updateSelected({x: Number(v)})} /><FigmaInput icon="Y" value={Math.round(singleSelectedElement.y)} onChange={(v: string) => updateSelected({y: Number(v)})} /><FigmaInput icon="W" value={Math.round(singleSelectedElement.width)} onChange={(v: string) => updateSelected({width: Math.max(1, Number(v) || 1)})} /><FigmaInput icon="H" value={Math.round(singleSelectedElement.height)} onChange={(v: string) => updateSelected({height: Math.max(1, Number(v) || 1)})} /><FigmaInput icon="∠" value={"0°"} onChange={() => {}} /><FigmaInput icon="R" value={singleSelectedElement.cornerRadius || 0} onChange={(v: string) => updateSelected({cornerRadius: Number(v) || 0})} /></div>
                       </div>
+
+                      {/* CORNER RADIUS TOOL */}
+                      {(singleSelectedElement.type === 'rectangle' || singleSelectedElement.type === 'image' || singleSelectedElement.type === 'frame') && (
+                         <div className="p-3 border-b border-[#383838] space-y-3">
+                            <div className="flex items-center justify-between text-[11px] font-medium text-zinc-300">
+                               Corner Radius
+                               <span className="bg-[#1E1E1E] px-1.5 py-0.5 rounded border border-[#383838]">{singleSelectedElement.cornerRadius || 0}</span>
+                            </div>
+                            <input 
+                               type="range" min="0" max={Math.min(singleSelectedElement.width, singleSelectedElement.height) / 2} 
+                               value={singleSelectedElement.cornerRadius || 0} 
+                               onChange={(e) => updateSelected({cornerRadius: Number(e.target.value)})} 
+                               className="w-full h-1 bg-[#383838] rounded-lg appearance-none cursor-pointer accent-[#9cf822]" 
+                            />
+                         </div>
+                      )}
 
                       {singleSelectedElement.type === 'text' && (
                         <div className="p-3 border-b border-[#383838] space-y-2">
@@ -1227,7 +1212,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         )}
       </div>
 
-      {/* CHAT / MOBILE WARNING CODE REMAINS UNCHANGED ... */}
+      {/* CHAT INTERFACE */}
       {isChatOpen && (
         <div className="fixed inset-0 z-[10000] flex justify-end bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-all duration-300">
           <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] h-full shadow-2xl flex flex-col relative animate-in slide-in-from-right duration-300 border-l border-zinc-200 dark:border-zinc-900">
