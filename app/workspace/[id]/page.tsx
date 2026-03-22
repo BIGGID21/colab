@@ -28,7 +28,7 @@ import Link from 'next/link';
 // ----------------------------------------------------------------------
 // TYPES
 // ----------------------------------------------------------------------
-type ElementType = 'rectangle' | 'ellipse' | 'text' | 'path' | 'frame' | 'image';
+type ElementType = 'rectangle' | 'ellipse' | 'text' | 'path' | 'frame' | 'image' | 'arrow';
 
 interface CanvasElement {
   id: string;
@@ -55,7 +55,9 @@ interface CanvasElement {
   groupId?: string;
   clipMaskId?: string;
   isMask?: boolean;
-  frameId?: string; // NEW: Tracks which Artboard this element belongs to
+  frameId?: string; 
+  startId?: string; // For Prototyping Arrow
+  endId?: string;   // For Prototyping Arrow
 }
 
 const getCurrencySymbol = (currency: string) => {
@@ -110,7 +112,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   // --- Refs ---
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
-  const imageUploadRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // --- App State ---
@@ -132,6 +133,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const [selectedMedia, setSelectedMedia] = useState<any>(null);
 
   // --- Advanced Canvas State ---
+  const [appMode, setAppMode] = useState<'design' | 'prototype'>('design'); 
   const [elements, setElements] = useState<CanvasElement[]>([]);
   const [past, setPast] = useState<CanvasElement[][]>([]);
   const [future, setFuture] = useState<CanvasElement[][]>([]);
@@ -143,6 +145,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [isPanning, setIsPanning] = useState(false);
   const [dragState, setDragState] = useState<any>(null);
+  const [prototypeDrag, setPrototypeDrag] = useState<{ startId: string, x: number, y: number } | null>(null); 
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -288,7 +291,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTab, colabView, selectedIds, elements, clipboard, past, future]);
 
-  // --- ADVANCED ACTIONS (Group & Mask) ---
+  // --- ADVANCED ACTIONS ---
   const handleGroup = () => {
     if (selectedIds.length < 2) return;
     const newGroupId = `group_${Date.now()}`;
@@ -336,21 +339,16 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     pushToHistory(updated);
   };
 
-  // --- EXPORT ENGINE ---
   const handleExport = async () => {
     const bounds = getSelectionBounds();
     if (!bounds) return alert("Select a layer or frame to export.");
-
     setIsExporting(true);
-
     try {
       const svgElement = containerRef.current?.querySelector('svg');
       if (!svgElement) throw new Error("SVG not found");
 
       const clone = svgElement.cloneNode(true) as SVGSVGElement;
-      
-      const uiElements = clone.querySelectorAll('.selection-ui');
-      uiElements.forEach(el => el.remove());
+      clone.querySelectorAll('.selection-ui, .prototype-ui').forEach(el => el.remove());
 
       const mainG = clone.querySelector('g[data-transform-wrapper="true"]');
       if (mainG) mainG.setAttribute('transform', `matrix(1, 0, 0, 1, 0, 0)`);
@@ -362,17 +360,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       const svgData = new XMLSerializer().serializeToString(clone);
       const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(blob);
-
       const fileName = `${singleSelectedElement?.name || 'export'}-${Date.now()}`;
 
       if (exportFormat === 'SVG') {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${fileName}.svg`;
-        a.click();
-        URL.revokeObjectURL(url);
-        setIsExporting(false);
-        return;
+        const a = document.createElement('a'); a.href = url; a.download = `${fileName}.svg`; a.click(); URL.revokeObjectURL(url); setIsExporting(false); return;
       }
 
       const img = new Image();
@@ -382,56 +373,20 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         canvas.height = bounds.height * exportScale;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        
-        if (exportFormat === 'JPG') {
-           ctx.fillStyle = '#ffffff';
-           ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-        
+        if (exportFormat === 'JPG') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
-        const mimeType = exportFormat === 'JPG' ? 'image/jpeg' : 'image/png';
-        const dataUrl = canvas.toDataURL(mimeType, 1.0);
-        
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = `${fileName}.${exportFormat.toLowerCase()}`;
-        a.click();
-        
-        URL.revokeObjectURL(url);
-        setIsExporting(false);
+        const a = document.createElement('a'); a.href = canvas.toDataURL(exportFormat === 'JPG' ? 'image/jpeg' : 'image/png', 1.0); a.download = `${fileName}.${exportFormat.toLowerCase()}`; a.click(); URL.revokeObjectURL(url); setIsExporting(false);
       };
-      
-      img.onerror = () => {
-        alert("Error generating image. External images might block export.");
-        setIsExporting(false);
-      };
-      
-      img.crossOrigin = 'anonymous';
-      img.src = url;
-
-    } catch (err) {
-      console.error(err);
-      alert("Export failed.");
-      setIsExporting(false);
-    }
+      img.onerror = () => { alert("Error generating image."); setIsExporting(false); };
+      img.crossOrigin = 'anonymous'; img.src = url;
+    } catch (err) { alert("Export failed."); setIsExporting(false); }
   };
 
-  // --- TEMPLATE STARTER ---
   const startWithTemplate = (name: string, w: number, h: number) => {
     let finalW = w; let finalH = h; let finalName = name;
-    if (name === 'Blank Canvas') {
-        finalW = 1440; finalH = 1024; finalName = 'Desktop';
-    }
-    const newId = `el_${Date.now()}`;
-    const newFrame: CanvasElement = {
-      id: newId, name: finalName, type: 'frame', x: 100, y: 100, width: finalW, height: finalH, 
-      fill: '#ffffff', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, 
-      cornerRadius: 0, isVisible: true, isLocked: false, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left'
-    };
-    pushToHistory([...elements, newFrame]);
-    setColabView('canvas');
-    setActiveTool('select');
+    if (name === 'Blank Canvas') { finalW = 1440; finalH = 1024; finalName = 'Desktop'; }
+    const newFrame: CanvasElement = { id: `el_${Date.now()}`, name: finalName, type: 'frame', x: 100, y: 100, width: finalW, height: finalH, fill: '#ffffff', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left' };
+    pushToHistory([...elements, newFrame]); setColabView('canvas'); setActiveTool('select');
   };
 
   // --- CANVAS ENGINE ---
@@ -444,18 +399,14 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   useEffect(() => {
     const container = containerRef.current;
     if (!container || colabView !== 'canvas') return;
-
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
-        const zoomSensitivity = 0.005;
-        const delta = -e.deltaY * zoomSensitivity;
+        const delta = -e.deltaY * 0.005;
         const newScale = Math.min(Math.max(0.1, canvasTransform.scale + delta), 5);
         const rect = container.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        const newX = mouseX - (mouseX - canvasTransform.x) * (newScale / canvasTransform.scale);
-        const newY = mouseY - (mouseY - canvasTransform.y) * (newScale / canvasTransform.scale);
+        const newX = (e.clientX - rect.left) - ((e.clientX - rect.left) - canvasTransform.x) * (newScale / canvasTransform.scale);
+        const newY = (e.clientY - rect.top) - ((e.clientY - rect.top) - canvasTransform.y) * (newScale / canvasTransform.scale);
         setCanvasTransform({ x: newX, y: newY, scale: newScale });
       } else {
         setCanvasTransform(prev => ({ ...prev, x: prev.x - e.deltaX, y: prev.y - e.deltaY }));
@@ -468,6 +419,13 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (editingTextId) return; 
+    
+    // Disable drawing new shapes in Prototype mode
+    if (appMode === 'prototype') {
+        if (activeTool === 'select' && (e.target as HTMLElement).tagName === 'svg') setSelectedIds([]);
+        return;
+    }
+
     if (isPanning || activeTool === 'hand' || e.button === 1) {
       setDragState({ action: 'panning', startX: e.clientX, startY: e.clientY });
       return;
@@ -476,38 +434,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     if (activeTool === 'select' && (e.target as HTMLElement).tagName === 'svg') {
       setSelectedIds([]);
     } else if (activeTool !== 'select' && activeTool !== 'image') {
-      const newId = `el_${Date.now()}`;
       const isFrame = activeTool === 'frame';
-
-      // Smart Nesting: Check if drawn inside an existing Frame
-      const frames = elements.filter(el => el.type === 'frame');
-      const containingFrame = isFrame ? undefined : [...frames].reverse().find(f => 
-         x >= f.x && x <= (f.x + f.width) && 
-         y >= f.y && y <= (f.y + f.height)
-      );
-
-      pushToHistory([...elements, { 
-        id: newId, 
-        name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), 
-        type: activeTool as any, 
-        x, y, 
-        width: isFrame ? 400 : 100, 
-        height: isFrame ? 300 : 100, 
-        fill: isFrame ? '#ffffff' : '#d4d4d8', 
-        fillOpacity: 100, 
-        stroke: 'transparent', 
-        strokeWidth: 0, 
-        cornerRadius: 0, 
-        isVisible: true, 
-        isLocked: false, 
-        text: activeTool === 'text' ? 'New Text' : undefined, 
-        fontSize: activeTool === 'text' ? 24 : undefined, 
-        fontFamily: 'Inter', 
-        fontWeight: 'Normal', 
-        textAlign: 'left',
-        frameId: containingFrame ? containingFrame.id : undefined
-      }]);
-      setSelectedIds([newId]);
+      const containingFrame = isFrame ? undefined : [...elements].reverse().find(f => f.type === 'frame' && x >= f.x && x <= (f.x + f.width) && y >= f.y && y <= (f.y + f.height));
+      pushToHistory([...elements, { id: `el_${Date.now()}`, name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), type: activeTool as any, x, y, width: isFrame ? 400 : 100, height: isFrame ? 300 : 100, fill: isFrame ? '#ffffff' : '#d4d4d8', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, text: activeTool === 'text' ? 'New Text' : undefined, fontSize: activeTool === 'text' ? 24 : undefined, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left', frameId: containingFrame ? containingFrame.id : undefined }]);
+      setSelectedIds([`el_${Date.now()}`]);
       setActiveTool('select');
     }
   };
@@ -521,140 +451,105 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     
     if (e.shiftKey) {
       const isAlreadySelected = groupIdsToSelect.every(id => selectedIds.includes(id));
-      if (isAlreadySelected) {
-        newSelection = selectedIds.filter(id => !groupIdsToSelect.includes(id));
-      } else {
-        newSelection = [...selectedIds, ...groupIdsToSelect].filter((value, index, self) => self.indexOf(value) === index);
-      }
+      newSelection = isAlreadySelected ? selectedIds.filter(id => !groupIdsToSelect.includes(id)) : [...selectedIds, ...groupIdsToSelect].filter((value, index, self) => self.indexOf(value) === index);
     } else {
       if (!selectedIds.includes(el.id)) newSelection = groupIdsToSelect;
     }
     
     setSelectedIds(newSelection);
-    const { x, y } = getCanvasCoords(e);
-    setDragState({ action: 'moving', startX: x, startY: y, originalElements: elements, hasDragged: false });
+    setDragState({ action: 'moving', startX: getCanvasCoords(e).x, startY: getCanvasCoords(e).y, originalElements: elements, hasDragged: false });
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    // Prototyping Drag Engine
+    if (prototypeDrag) {
+      const { x, y } = getCanvasCoords(e);
+      setPrototypeDrag({ ...prototypeDrag, x, y });
+      return;
+    }
+
     if (!dragState) return;
 
     if (activeTool === 'hand' || dragState.action === 'panning') {
-      const dx = e.clientX - dragState.startX;
-      const dy = e.clientY - dragState.startY;
-      setCanvasTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+      setCanvasTransform(prev => ({ ...prev, x: prev.x + (e.clientX - dragState.startX), y: prev.y + (e.clientY - dragState.startY) }));
       setDragState({ ...dragState, startX: e.clientX, startY: e.clientY });
       return;
     }
 
-    if (!dragState.hasDragged) {
-      setDragState({ ...dragState, hasDragged: true });
-    }
+    if (!dragState.hasDragged) setDragState({ ...dragState, hasDragged: true });
 
     const { x, y } = getCanvasCoords(e);
-
     if (dragState.action === 'moving') {
       const dx = x - dragState.startX;
       const dy = y - dragState.startY;
       
-      // Artboard Group Movement: Dragging a frame automatically drags its nested children
       const explicitlySelected = dragState.originalElements.filter((el: CanvasElement) => selectedIds.includes(el.id));
       const explicitlySelectedFrameIds = explicitlySelected.filter((el: CanvasElement) => el.type === 'frame').map((el: CanvasElement) => el.id);
-      
-      const childIds = dragState.originalElements
-         .filter((el: CanvasElement) => el.frameId && explicitlySelectedFrameIds.includes(el.frameId))
-         .map((el: CanvasElement) => el.id);
-
+      const childIds = dragState.originalElements.filter((el: CanvasElement) => el.frameId && explicitlySelectedFrameIds.includes(el.frameId)).map((el: CanvasElement) => el.id);
       const allMovingIds = [...selectedIds, ...childIds];
 
       setElements(dragState.originalElements.map((el: CanvasElement) => allMovingIds.includes(el.id) ? { ...el, x: el.x + dx, y: el.y + dy } : el));
     } 
-    else if (dragState.action === 'resizing' && dragState.handle) {
+    else if (dragState.action === 'resizing' && dragState.handle && appMode === 'design') {
       const dx = x - dragState.startX;
       const dy = y - dragState.startY;
-      
       setElements(dragState.originalElements.map((el: CanvasElement) => {
         if (!selectedIds.includes(el.id)) return el;
         let newX = el.x, newY = el.y, newW = el.width, newH = el.height;
         const handle = dragState.handle!;
-
         if (handle.includes('e')) newW = Math.max(10, el.width + dx);
         if (handle.includes('s')) newH = Math.max(10, el.height + dy);
         if (handle.includes('w')) { newW = Math.max(10, el.width - dx); if (newW > 10) newX = el.x + dx; }
         if (handle.includes('n')) { newH = Math.max(10, el.height - dy); if (newH > 10) newY = el.y + dy; }
-
-        let newFontSize = el.fontSize;
-        if (el.type === 'text' && el.fontSize && el.height) newFontSize = Math.max(8, el.fontSize * (newH / el.height));
-        return { ...el, x: newX, y: newY, width: newW, height: newH, fontSize: newFontSize };
+        return { ...el, x: newX, y: newY, width: newW, height: newH, fontSize: el.type === 'text' && el.fontSize && el.height ? Math.max(8, el.fontSize * (newH / el.height)) : el.fontSize };
       }));
     }
   };
 
   const handlePointerUp = () => {
+    // Finalize Prototype Connection
+    if (prototypeDrag) {
+      const { x, y } = prototypeDrag;
+      const target = [...elements].reverse().find(el => el.id !== prototypeDrag.startId && el.type !== 'arrow' && x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height);
+      if (target) {
+        pushToHistory([...elements, { id: `el_${Date.now()}`, name: 'Interaction', type: 'arrow', startId: prototypeDrag.startId, endId: target.id, x: 0, y: 0, width: 0, height: 0, fill: 'transparent', fillOpacity: 100, stroke: '#3b82f6', strokeWidth: 2, cornerRadius: 0, isVisible: true, isLocked: false }]);
+      }
+      setPrototypeDrag(null);
+      return;
+    }
+
     if (dragState && dragState.action !== 'panning' && dragState.hasDragged) {
       let finalElements = [...elements];
-
       if (dragState.action === 'moving') {
-         // Smart Nesting: Recalculate frame containment for elements that were moved
          const frames = finalElements.filter(el => el.type === 'frame');
-
          finalElements = finalElements.map(el => {
-            if (selectedIds.includes(el.id) && el.type !== 'frame') {
-               const centerX = el.x + el.width / 2;
-               const centerY = el.y + el.height / 2;
-               // Find top-most frame containing the center
-               const containingFrame = [...frames].reverse().find(f => 
-                  centerX >= f.x && centerX <= (f.x + f.width) && 
-                  centerY >= f.y && centerY <= (f.y + f.height)
-               );
+            if (selectedIds.includes(el.id) && el.type !== 'frame' && el.type !== 'arrow') {
+               const centerX = el.x + el.width / 2; const centerY = el.y + el.height / 2;
+               const containingFrame = [...frames].reverse().find(f => centerX >= f.x && centerX <= (f.x + f.width) && centerY >= f.y && centerY <= (f.y + f.height));
                return { ...el, frameId: containingFrame ? containingFrame.id : undefined };
             }
             return el;
          });
       }
-
-      setPast(prev => [...prev, finalElements]);
-      setFuture([]);
-      setElements(finalElements);
+      setPast(prev => [...prev, finalElements]); setFuture([]); setElements(finalElements);
     }
     setDragState(null);
   };
 
   const handleResizeHandleDown = (e: React.PointerEvent, handle: string) => {
-    e.stopPropagation();
-    const { x, y } = getCanvasCoords(e);
-    setDragState({ action: 'resizing', handle, startX: x, startY: y, originalElements: elements, hasDragged: false });
+    e.stopPropagation(); setDragState({ action: 'resizing', handle, startX: getCanvasCoords(e).x, startY: getCanvasCoords(e).y, originalElements: elements, hasDragged: false });
   };
 
-  const handleSaveDesign = async () => {
-    setIsSaving(true);
-    await supabase.from('projects').update({ canvas_data: elements }).eq('id', projectId);
-    setIsSaving(false);
-  };
-
-  const bringToFront = () => {
-    const unselected = elements.filter(el => !selectedIds.includes(el.id));
-    const selected = elements.filter(el => selectedIds.includes(el.id));
-    pushToHistory([...unselected, ...selected]);
-  };
-
-  const sendToBack = () => {
-    const unselected = elements.filter(el => !selectedIds.includes(el.id));
-    const selected = elements.filter(el => selectedIds.includes(el.id));
-    pushToHistory([...selected, ...unselected]);
-  };
-
-  const updateSelected = (updates: Partial<CanvasElement>) => {
-    const newElements = elements.map(el => selectedIds.includes(el.id) ? { ...el, ...updates } : el);
-    pushToHistory(newElements);
-  };
-
+  const handleSaveDesign = async () => { setIsSaving(true); await supabase.from('projects').update({ canvas_data: elements }).eq('id', projectId); setIsSaving(false); };
+  const bringToFront = () => pushToHistory([...elements.filter(el => !selectedIds.includes(el.id)), ...elements.filter(el => selectedIds.includes(el.id))]);
+  const sendToBack = () => pushToHistory([...elements.filter(el => selectedIds.includes(el.id)), ...elements.filter(el => !selectedIds.includes(el.id))]);
+  const updateSelected = (updates: Partial<CanvasElement>) => pushToHistory(elements.map(el => selectedIds.includes(el.id) ? { ...el, ...updates } : el));
   const getSelectionBounds = () => {
     if (selectedIds.length === 0) return null;
-    const selectedEls = elements.filter(el => selectedIds.includes(el.id));
-    const minX = Math.min(...selectedEls.map(el => el.x));
-    const minY = Math.min(...selectedEls.map(el => el.y));
-    const maxX = Math.max(...selectedEls.map(el => el.x + el.width));
-    const maxY = Math.max(...selectedEls.map(el => el.y + el.height));
+    const s = elements.filter(el => selectedIds.includes(el.id) && el.type !== 'arrow');
+    if(s.length === 0) return null;
+    const minX = Math.min(...s.map(el => el.x)); const minY = Math.min(...s.map(el => el.y));
+    const maxX = Math.max(...s.map(el => el.x + el.width)); const maxY = Math.max(...s.map(el => el.y + el.height));
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   };
 
@@ -667,104 +562,61 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   };
   
   const handlePayment = (amount: number, milestoneId: string) => {
-    if (!user) return;
-    setIsProcessing(milestoneId);
+    if (!user) return; setIsProcessing(milestoneId);
     try {
       // @ts-ignore
       if (typeof window.PaystackPop === 'undefined') { alert("Payment gateway loading."); setIsProcessing(null); return; }
-      const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
-      const finalAmountInKobo = Math.round(amount * 100 * 1500);
-      
       // @ts-ignore
-      const handler = window.PaystackPop.setup({
-        key: paystackKey, email: user.email || 'founder@labx.com', amount: finalAmountInKobo, currency: 'NGN',
-        callback: async (response: any) => {
+      const handler = window.PaystackPop.setup({ key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY, email: user.email || 'founder@labx.com', amount: Math.round(amount * 100 * 1500), currency: 'NGN', callback: async (response: any) => {
           const { error } = await supabase.from('milestones').update({ payment_status: 'escrow_funded', payment_reference: response.reference }).eq('id', milestoneId);
-          if (!error) {
-            setMilestones((prev) => prev.map((m) => m.id === milestoneId ? { ...m, payment_status: 'escrow_funded' } : m));
-            triggerHaptic([10, 50, 10]);
-          }
+          if (!error) { setMilestones((prev) => prev.map((m) => m.id === milestoneId ? { ...m, payment_status: 'escrow_funded' } : m)); triggerHaptic([10, 50, 10]); }
           setIsProcessing(null);
-        },
-        onClose: () => setIsProcessing(null)
-      });
-      handler.openIframe();
+        }, onClose: () => setIsProcessing(null)
+      }); handler.openIframe();
     } catch (error: any) { alert(`Gateway Error: ${error.message}`); setIsProcessing(null); }
   };
 
   const handleProjectPayment = () => {
-    if (!user) return;
-    setIsProcessing('project_funding');
+    if (!user) return; setIsProcessing('project_funding');
     try {
       // @ts-ignore
       if (typeof window.PaystackPop === 'undefined') { alert("Payment gateway loading."); setIsProcessing(null); return; }
-      const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
-      const rawBudget = project?.budget || project?.valuation || 0;
-      const cleanBudget = typeof rawBudget === 'string' ? rawBudget.replace(/[^0-9.]/g, '') : rawBudget;
-      const finalAmountInKobo = Math.round((Number(cleanBudget) || 0) * 100 * 1500);
-
+      const cleanBudget = typeof (project?.budget || project?.valuation) === 'string' ? (project?.budget || project?.valuation).replace(/[^0-9.]/g, '') : (project?.budget || project?.valuation);
       // @ts-ignore
-      const handler = window.PaystackPop.setup({
-        key: paystackKey, email: user.email || 'founder@labx.com', amount: finalAmountInKobo, currency: 'NGN',
-        callback: async (response: any) => {
+      const handler = window.PaystackPop.setup({ key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY, email: user.email || 'founder@labx.com', amount: Math.round((Number(cleanBudget) || 0) * 100 * 1500), currency: 'NGN', callback: async (response: any) => {
           const { error } = await supabase.from('projects').update({ payment_status: 'escrow_funded', payment_reference: response.reference }).eq('id', projectId);
-          if (!error) {
-            setProject((prev: any) => ({ ...prev, payment_status: 'escrow_funded' }));
-            triggerHaptic([10, 50, 10]);
-          }
+          if (!error) { setProject((prev: any) => ({ ...prev, payment_status: 'escrow_funded' })); triggerHaptic([10, 50, 10]); }
           setIsProcessing(null);
-        },
-        onClose: () => setIsProcessing(null)
-      });
-      handler.openIframe();
-    } catch (error: any) { alert(`Gateway Error: ${error.message}`); setIsProcessing(null); }
+        }, onClose: () => setIsProcessing(null)
+      }); handler.openIframe();
+    } catch (error: any) { alert(`Gateway Error`); setIsProcessing(null); }
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() && !pendingAttachment) return;
-    setIsSending(true);
-    let attachmentUrl = null;
-
+    e.preventDefault(); if (!newMessage.trim() && !pendingAttachment) return;
+    setIsSending(true); let attachmentUrl = null;
     try {
       if (pendingAttachment) {
         setIsChatUploading(true);
-        const fileName = `${Math.random()}.${pendingAttachment.name.split('.').pop()}`;
-        const filePath = `${projectId}/chat/${fileName}`;
+        const filePath = `${projectId}/chat/${Math.random()}.${pendingAttachment.name.split('.').pop()}`;
         const { error: uploadError } = await supabase.storage.from('project_assets').upload(filePath, pendingAttachment);
         if (uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from('project_assets').getPublicUrl(filePath);
-        attachmentUrl = publicUrl;
+        attachmentUrl = supabase.storage.from('project_assets').getPublicUrl(filePath).data.publicUrl;
       }
       await supabase.from('messages').insert({ project_id: projectId, user_id: user.id, content: newMessage.trim(), attachment_url: attachmentUrl, attachment_type: pendingAttachment?.type.includes('image') ? 'image' : pendingAttachment ? 'document' : null, attachment_name: pendingAttachment?.name });
-      setNewMessage(''); setPendingAttachment(null);
-      if (chatFileInputRef.current) chatFileInputRef.current.value = '';
-    } finally {
-      setIsSending(false); setIsChatUploading(false);
-    }
+      setNewMessage(''); setPendingAttachment(null); if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+    } finally { setIsSending(false); setIsChatUploading(false); }
   };
 
   // --- RENDER HELPERS ---
-  const topLevelElements = [...elements].reverse().filter(el => !el.frameId);
+  const topLevelElements = [...elements].reverse().filter(el => !el.frameId && el.type !== 'arrow');
   const renderLayerItem = (el: CanvasElement, depth: number) => {
-    const isSelected = selectedIds.includes(el.id);
     return (
       <div 
         key={el.id} 
-        onClick={(e) => {
-          e.stopPropagation();
-          setActiveTool('select');
-          if (e.shiftKey) setSelectedIds([...selectedIds, el.id].filter((v, i, a) => a.indexOf(v) === i));
-          else setSelectedIds([el.id]);
-        }} 
-        onDoubleClick={(e) => {
-          e.stopPropagation();
-          if (el.type === 'text') {
-             setEditingTextId(el.id);
-             setActiveTool('select');
-          }
-        }}
-        className={`flex items-center justify-between py-1.5 pr-2 rounded text-[11px] cursor-pointer group ${isSelected ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-300 hover:bg-[#383838]'}`}
+        onClick={(e) => { e.stopPropagation(); setActiveTool('select'); if (e.shiftKey) setSelectedIds([...selectedIds, el.id].filter((v, i, a) => a.indexOf(v) === i)); else setSelectedIds([el.id]); }} 
+        onDoubleClick={(e) => { e.stopPropagation(); if (el.type === 'text') { setEditingTextId(el.id); setActiveTool('select'); } }}
+        className={`flex items-center justify-between py-1.5 pr-2 rounded text-[11px] cursor-pointer group ${selectedIds.includes(el.id) ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-300 hover:bg-[#383838]'}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
         <div className="flex items-center gap-2 truncate">
@@ -780,16 +632,12 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     );
   };
 
-  // ----------------------------------------------------------------------
-  // RENDER
-  // ----------------------------------------------------------------------
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   const totalBudget = project?.budget || project?.valuation || 0;
   const currencySymbol = getCurrencySymbol(project?.currency);
   const displayImage = project?.cover_image_url || project?.image_url;
-  const completedMilestones = milestones?.filter(m => m.status === 'completed').length || 0;
-  const progressPercentage = milestones?.length > 0 ? Math.round((completedMilestones / milestones.length) * 100) : 0;
+  const progressPercentage = milestones?.length > 0 ? Math.round((milestones?.filter(m => m.status === 'completed').length / milestones.length) * 100) : 0;
   const pinnedMessage = messages.find((m: any) => m.is_pinned === true);
 
   const bounds = getSelectionBounds();
@@ -799,16 +647,11 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   return (
     <div className={`transition-colors duration-300 flex flex-col font-sans ${isFullscreen ? 'fixed inset-0 z-[9999] bg-[#1E1E1E]' : 'min-h-screen'} ${activeTab === 'colab' ? 'bg-[#1E1E1E] text-zinc-300 selection:bg-[#9cf822]/30 overflow-hidden' : 'bg-zinc-50 dark:bg-black text-left pb-20 relative'}`}>
       
-      {/* ------------------------------------------------------------------ */}
-      {/* HEADER (OVERVIEW vs CANVAS) */}
-      {/* ------------------------------------------------------------------ */}
       {activeTab === 'overview' && !isFullscreen ? (
         <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-900 shrink-0">
           <div className="max-w-[1600px] mx-auto px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <Link href={isFounder ? "/dashboard" : "/discover"} className="p-2 text-zinc-400 hover:text-black dark:hover:text-white transition-colors bg-zinc-100 dark:bg-zinc-900 rounded-full">
-                <ArrowLeft size={18} />
-              </Link>
+              <Link href={isFounder ? "/dashboard" : "/discover"} className="p-2 text-zinc-400 hover:text-black dark:hover:text-white transition-colors bg-zinc-100 dark:bg-zinc-900 rounded-full"><ArrowLeft size={18} /></Link>
               <div className="flex items-center gap-3">
                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-zinc-200 dark:bg-zinc-800 shrink-0">
                     {displayImage ? <img src={displayImage} className="w-full h-full object-cover" alt="Project" /> : <div className="w-full h-full flex items-center justify-center"><Layout size={16} className="text-zinc-400"/></div>}
@@ -821,52 +664,44 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             </div>
 
             <div className="flex items-center gap-4 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl self-start sm:self-auto">
-              <button onClick={() => setActiveTab('overview')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-white dark:bg-black text-black dark:text-white shadow-sm">
-                <LayoutDashboard size={14} /> Overview
-              </button>
-              
-              <button 
-                onClick={() => {
-                  if (isMobile) {
-                    setShowMobileWarning(true);
-                  } else {
-                    setActiveTab('colab');
-                    setColabView('home'); 
-                  }
-                }} 
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-500 hover:text-[#9cf822]"
-              >
-                <img src="/lab x.svg" className="w-6 h-6 object-contain" alt="Lab X" />
-              </button>
+              <button onClick={() => setActiveTab('overview')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-white dark:bg-black text-black dark:text-white shadow-sm"><LayoutDashboard size={14} /> Overview</button>
+              <button onClick={() => isMobile ? setShowMobileWarning(true) : setActiveTab('colab')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-500 hover:text-[#9cf822]"><img src="/lab x.svg" className="w-6 h-6 object-contain" alt="Lab X" /></button>
             </div>
             
-            <button onClick={() => setIsChatOpen(true)} className="hidden sm:flex px-5 py-2.5 bg-black text-white dark:bg-white dark:text-black rounded-xl text-sm font-bold hover:scale-[1.02] transition-transform shadow-lg shadow-black/10 dark:shadow-white/10 items-center gap-2">
-              <MessageSquare size={16} /> Team Sync
-            </button>
+            <button onClick={() => setIsChatOpen(true)} className="hidden sm:flex px-5 py-2.5 bg-black text-white dark:bg-white dark:text-black rounded-xl text-sm font-bold hover:scale-[1.02] transition-transform shadow-lg shadow-black/10 dark:shadow-white/10 items-center gap-2"><MessageSquare size={16} /> Team Sync</button>
           </div>
         </header>
       ) : activeTab === 'colab' && colabView === 'canvas' && (
         <header className="h-11 bg-[#2C2C2C] border-b border-[#383838] flex items-center justify-between px-4 shrink-0 z-50">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setColabView('home')} className="p-1 hover:bg-[#383838] rounded transition-colors text-zinc-400 hover:text-white" title="Back to Home">
-              <Home size={14} />
-            </button>
+          <div className="flex items-center gap-3 w-[240px]">
+            <button onClick={() => setColabView('home')} className="p-1 hover:bg-[#383838] rounded transition-colors text-zinc-400 hover:text-white" title="Back to Home"><Home size={14} /></button>
             <div className="h-3 w-px bg-[#383838]" />
-            <div className="text-xs font-medium text-white flex items-center gap-2 cursor-pointer hover:bg-[#383838] px-2 py-1 rounded">
+            <div className="text-xs font-medium text-white flex items-center gap-2 cursor-pointer hover:bg-[#383838] px-2 py-1 rounded truncate">
               {project?.title} <span className="text-zinc-500">/</span> <span className="opacity-80">Draft</span> <ChevronDown size={12} className="text-zinc-500"/>
             </div>
           </div>
 
-          <div className="flex items-center gap-0.5">
-            <ToolBtn icon={<MousePointer2 size={14}/>} active={activeTool === 'select'} onClick={() => setActiveTool('select')} tip="Move (V)" />
-            <ToolBtn icon={<Layout size={14}/>} active={activeTool === 'frame'} onClick={() => setActiveTool('frame')} tip="Artboard/Frame (F)" />
-            <ToolBtn icon={<Square size={14}/>} active={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} tip="Rectangle (R)" />
-            <ToolBtn icon={<Circle size={14}/>} active={activeTool === 'ellipse'} onClick={() => setActiveTool('ellipse')} tip="Ellipse (O)" />
-            <ToolBtn icon={<TypeIcon size={14}/>} active={activeTool === 'text'} onClick={() => setActiveTool('text')} tip="Text (T)" />
-            <ToolBtn icon={<Hand size={14}/>} active={activeTool === 'hand'} onClick={() => setActiveTool('hand')} tip="Hand (H)" />
+          <div className="flex items-center justify-center flex-1 gap-4">
+             {/* DESIGN / PROTOTYPE SWITCHER */}
+             <div className="flex bg-[#1E1E1E] rounded-md p-0.5 border border-[#383838]">
+                <button onClick={() => setAppMode('design')} className={`px-3 py-1 text-[11px] font-bold rounded-sm transition-colors ${appMode === 'design' ? 'bg-[#383838] text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>Design</button>
+                <button onClick={() => setAppMode('prototype')} className={`px-3 py-1 text-[11px] font-bold rounded-sm transition-colors flex items-center gap-1 ${appMode === 'prototype' ? 'bg-[#383838] text-white' : 'text-zinc-500 hover:text-zinc-300'}`}><Zap size={10} className={appMode === 'prototype' ? 'text-[#3b82f6] fill-[#3b82f6]' : ''}/> Prototype</button>
+             </div>
+
+             {/* TOOLS (Only visible in Design Mode) */}
+             {appMode === 'design' && (
+               <div className="flex items-center gap-0.5 border-l border-[#383838] pl-4">
+                  <ToolBtn icon={<MousePointer2 size={14}/>} active={activeTool === 'select'} onClick={() => setActiveTool('select')} tip="Move (V)" />
+                  <ToolBtn icon={<Layout size={14}/>} active={activeTool === 'frame'} onClick={() => setActiveTool('frame')} tip="Artboard/Frame (F)" />
+                  <ToolBtn icon={<Square size={14}/>} active={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} tip="Rectangle (R)" />
+                  <ToolBtn icon={<Circle size={14}/>} active={activeTool === 'ellipse'} onClick={() => setActiveTool('ellipse')} tip="Ellipse (O)" />
+                  <ToolBtn icon={<TypeIcon size={14}/>} active={activeTool === 'text'} onClick={() => setActiveTool('text')} tip="Text (T)" />
+                  <ToolBtn icon={<Hand size={14}/>} active={activeTool === 'hand'} onClick={() => setActiveTool('hand')} tip="Hand (H)" />
+               </div>
+             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-end gap-3 w-[240px]">
             <div className="flex items-center gap-2 mr-2">
                {team.slice(0, 3).map((m, i) => (
                  <div key={i} className="w-6 h-6 rounded-full bg-[#18181b] border border-[#383838] overflow-hidden">
@@ -876,28 +711,18 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                <button onClick={() => alert('Sharing link copied to clipboard!')} className="px-3 py-1 bg-[#9cf822] text-black text-[11px] font-bold rounded hover:opacity-90 transition-opacity">Share</button>
             </div>
             <div className="w-px h-4 bg-[#383838]"></div>
-            <button onClick={() => setShowGrid(!showGrid)} className={`p-1 rounded transition-colors ${showGrid ? 'text-[#9cf822]' : 'text-zinc-400 hover:text-white'}`} title="Toggle Grid">
-              <Grid size={14} />
-            </button>
-            <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 text-zinc-400 hover:text-white rounded transition-colors" title="Toggle Fullscreen">
-              {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
-            </button>
-            <button onClick={handleSaveDesign} disabled={isSaving} className="p-1 text-zinc-400 hover:text-[#9cf822] rounded transition-colors disabled:opacity-50">
-              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            </button>
+            <button onClick={() => setShowGrid(!showGrid)} className={`p-1 rounded transition-colors ${showGrid ? 'text-[#9cf822]' : 'text-zinc-400 hover:text-white'}`}><Grid size={14} /></button>
+            <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 text-zinc-400 hover:text-white rounded transition-colors">{isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}</button>
+            <button onClick={handleSaveDesign} disabled={isSaving} className="p-1 text-zinc-400 hover:text-[#9cf822] rounded transition-colors disabled:opacity-50">{isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}</button>
           </div>
         </header>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* TAB CONTENT */}
-      {/* ------------------------------------------------------------------ */}
       <div className="flex-grow flex flex-col relative">
         
-        {/* ================= OVERVIEW TAB ================= */}
+        {/* OVERVIEW TAB */}
         {activeTab === 'overview' && !isFullscreen && (
           <div className="max-w-[1600px] w-full mx-auto px-6 pt-8 grid grid-cols-1 lg:grid-cols-12 gap-10 pb-20">
-            {/* ROADMAP COLUMN */}
             <div className="lg:col-span-8 space-y-8">
               <div className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-900 rounded-[2rem] p-8 shadow-sm">
                 <div className="flex justify-between items-end mb-4">
@@ -915,9 +740,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
               <div className="space-y-4">
                 {milestones.length > 0 ? milestones.map((m, index) => {
                   const mockPrice = m.price || (totalBudget / (milestones.length || 1)).toFixed(0);
-                  const isFunded = m.payment_status === 'escrow_funded'; 
-                  const isCompleted = m.status === 'completed';
-
+                  const isFunded = m.payment_status === 'escrow_funded'; const isCompleted = m.status === 'completed';
                   return (
                     <div key={m.id} className={`bg-white dark:bg-[#0a0a0a] border rounded-[2rem] p-6 transition-all duration-300 ${isCompleted ? 'border-[#9cf822]/30 bg-[#9cf822]/5 shadow-sm' : 'border-zinc-200 dark:border-zinc-900'}`}>
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-6">
@@ -958,7 +781,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
               </div>
             </div>
 
-            {/* TEAM/FINANCIALS COLUMN */}
             <div className="lg:col-span-4">
               <div className="sticky top-28 space-y-6">
                 <section className="bg-black text-white dark:bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
@@ -1014,41 +836,27 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
           </div>
         )}
 
-        {/* ================= CO-LAB HOME (ILLUSTRATOR VIBE) ================= */}
+        {/* LAB X HOME VIEW */}
         {activeTab === 'colab' && colabView === 'home' && (
           <div className="flex-grow flex bg-[#1E1E1E] text-zinc-300 relative h-full">
-            
-            {/* Sidebar */}
             <div className="w-60 bg-[#2C2C2C] border-r border-[#383838] flex flex-col p-4 hidden md:flex shrink-0">
-              <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => setActiveTab('overview')}>
-                <img src="/lab x.svg" className="w-12 h-12 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
-              </div>
+              <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => setActiveTab('overview')}><img src="/lab x.svg" className="w-12 h-12 hover:opacity-80 transition-opacity object-contain" alt="Lab X" /></div>
               <div className="space-y-0.5">
                  <button onClick={() => setHomeSidebarView('home')} className={`w-full flex items-center gap-3 px-2 py-2 rounded text-sm font-medium transition-colors ${homeSidebarView === 'home' ? 'bg-[#383838] text-white' : 'text-zinc-400 hover:text-white hover:bg-[#383838]/50'}`}><Home size={16}/> Home</button>
                  <button onClick={() => setHomeSidebarView('recent')} className={`w-full flex items-center gap-3 px-2 py-2 rounded text-sm font-medium transition-colors ${homeSidebarView === 'recent' ? 'bg-[#383838] text-white' : 'text-zinc-400 hover:text-white hover:bg-[#383838]/50'}`}><Clock size={16}/> Recent</button>
                  <button onClick={() => setHomeSidebarView('shared')} className={`w-full flex items-center gap-3 px-2 py-2 rounded text-sm font-medium transition-colors ${homeSidebarView === 'shared' ? 'bg-[#383838] text-white' : 'text-zinc-400 hover:text-white hover:bg-[#383838]/50'}`}><Users size={16}/> Shared with you</button>
               </div>
-              
-              <div className="mt-auto">
-                <button onClick={() => setActiveTab('overview')} className="w-full flex items-center justify-center gap-2 px-2 py-2 border border-[#383838] text-zinc-400 hover:text-white hover:bg-[#383838]/50 rounded text-sm font-medium transition-colors">
-                  <ArrowLeft size={16}/> Exit to Overview
-                </button>
-              </div>
+              <div className="mt-auto"><button onClick={() => setActiveTab('overview')} className="w-full flex items-center justify-center gap-2 px-2 py-2 border border-[#383838] text-zinc-400 hover:text-white hover:bg-[#383838]/50 rounded text-sm font-medium transition-colors"><ArrowLeft size={16}/> Exit to Overview</button></div>
             </div>
 
-            {/* Main Content */}
             <div className="flex-grow p-8 md:p-12 overflow-y-auto">
               <div className="max-w-5xl mx-auto space-y-12">
-                
-                {/* Header */}
                 <div className="flex items-center justify-between">
                    <h1 className="text-2xl font-semibold text-white tracking-tight">Let's create something.</h1>
                    <button onClick={() => startWithTemplate('Blank Canvas', 800, 600)} className="px-4 py-2 bg-[#9cf822] text-black font-bold rounded text-sm flex items-center gap-2 hover:opacity-90 transition-opacity"><Plus size={16}/> New design file</button>
                 </div>
-
                 {homeSidebarView === 'home' && (
                   <>
-                    {/* Templates Grid */}
                     <div>
                        <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Start a new file fast</h2>
                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -1059,78 +867,34 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                           <TemplateCard name="More Presets" size="Explore" icon={<MoreHorizontal size={24} strokeWidth={1.5}/>} onClick={() => alert("Loading more presets...")} />
                        </div>
                     </div>
-
-                    {/* Recent Workspace */}
                     <div>
                        <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Recent</h2>
                        <div className="bg-[#2C2C2C] border border-[#383838] rounded-lg overflow-hidden">
                           <div className="grid grid-cols-12 gap-4 px-4 py-2 border-b border-[#383838] text-[10px] font-bold text-zinc-500 tracking-wider">
-                            <div className="col-span-6">NAME</div>
-                            <div className="col-span-3">TYPE</div>
-                            <div className="col-span-3">RECENT</div>
+                            <div className="col-span-6">NAME</div><div className="col-span-3">TYPE</div><div className="col-span-3">RECENT</div>
                           </div>
                           <div onClick={() => setColabView('canvas')} className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-[#383838]/50 cursor-pointer transition-colors items-center">
-                            <div className="col-span-6 flex items-center gap-3">
-                               <div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center shrink-0 border border-zinc-700">
-                                 <img src="/lab x.svg" className="w-4 h-4 object-contain opacity-50" alt="Lab X" />
-                               </div>
-                               <span className="text-sm font-medium text-white">{project?.title || 'Lab X Draft'}</span>
-                            </div>
-                            <div className="col-span-3 text-xs text-zinc-400">Design</div>
-                            <div className="col-span-3 text-xs text-zinc-400">Just now</div>
+                            <div className="col-span-6 flex items-center gap-3"><div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center shrink-0 border border-zinc-700"><img src="/lab x.svg" className="w-4 h-4 object-contain opacity-50" alt="Lab X" /></div><span className="text-sm font-medium text-white">{project?.title || 'Lab X Draft'}</span></div>
+                            <div className="col-span-3 text-xs text-zinc-400">Design</div><div className="col-span-3 text-xs text-zinc-400">Just now</div>
                           </div>
                        </div>
                     </div>
                   </>
-                )}
-
-                {homeSidebarView === 'recent' && (
-                  <div>
-                     <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">All Recent Files</h2>
-                     <div className="bg-[#2C2C2C] border border-[#383838] rounded-lg overflow-hidden">
-                        <div className="grid grid-cols-12 gap-4 px-4 py-2 border-b border-[#383838] text-[10px] font-bold text-zinc-500 tracking-wider">
-                          <div className="col-span-6">NAME</div>
-                          <div className="col-span-3">TYPE</div>
-                          <div className="col-span-3">RECENT</div>
-                        </div>
-                        <div onClick={() => setColabView('canvas')} className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-[#383838]/50 cursor-pointer transition-colors items-center">
-                          <div className="col-span-6 flex items-center gap-3">
-                             <div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center shrink-0 border border-zinc-700">
-                               <img src="/lab x.svg" className="w-4 h-4 object-contain opacity-50" alt="Lab X" />
-                             </div>
-                             <span className="text-sm font-medium text-white">{project?.title || 'Lab X Draft'}</span>
-                          </div>
-                          <div className="col-span-3 text-xs text-zinc-400">Design</div>
-                          <div className="col-span-3 text-xs text-zinc-400">Just now</div>
-                        </div>
-                     </div>
-                  </div>
-                )}
-
-                {homeSidebarView === 'shared' && (
-                  <div className="flex flex-col items-center justify-center py-20 text-center opacity-50">
-                     <Users size={48} className="mb-4 text-zinc-500" strokeWidth={1} />
-                     <p className="text-sm">No files shared with you yet.</p>
-                  </div>
                 )}
               </div>
             </div>
           </div>
         )}
 
-        {/* ================= CO-LAB CANVAS EDITOR ================= */}
+        {/* LAB X CANVAS EDITOR */}
         {activeTab === 'colab' && colabView === 'canvas' && (
           <div className="flex-grow flex relative overflow-hidden">
             
-            {/* LEFT PANEL: LAYERS */}
             <aside className="w-[240px] bg-[#2C2C2C] border-r border-[#383838] flex flex-col z-20 shrink-0">
-              <div className="px-3 py-2.5 border-b border-[#383838] flex items-center gap-2 text-[11px] font-bold text-white">
-                <Layers size={12} /> Layers
-              </div>
+              <div className="px-3 py-2.5 border-b border-[#383838] flex items-center gap-2 text-[11px] font-bold text-white"><Layers size={12} /> Layers</div>
               <div className="flex-grow overflow-y-auto p-2 space-y-0.5">
-                 {/* Smart Layers: Indent elements under their parent frames */}
                  {topLevelElements.map(el => {
-                    const children = el.type === 'frame' ? [...elements].reverse().filter(c => c.frameId === el.id) : [];
+                    const children = el.type === 'frame' ? [...elements].reverse().filter(c => c.frameId === el.id && c.type !== 'arrow') : [];
                     return (
                        <React.Fragment key={el.id}>
                           {renderLayerItem(el, 0)}
@@ -1141,68 +905,34 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
               </div>
             </aside>
 
-            {/* CENTER: INFINITE CANVAS */}
-            <main 
-              ref={containerRef}
-              className="flex-grow bg-[#1E1E1E] relative cursor-crosshair overflow-hidden"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerLeave={handlePointerUp}
-            >
-              {showGrid && (
-                 <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: `${20 * canvasTransform.scale}px ${20 * canvasTransform.scale}px`, backgroundPosition: `${canvasTransform.x}px ${canvasTransform.y}px` }} />
-              )}
+            <main ref={containerRef} className="flex-grow bg-[#1E1E1E] relative cursor-crosshair overflow-hidden" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}>
+              {showGrid && <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: `${20 * canvasTransform.scale}px ${20 * canvasTransform.scale}px`, backgroundPosition: `${canvasTransform.x}px ${canvasTransform.y}px` }} />}
 
               <svg className="w-full h-full absolute inset-0">
                 <defs>
-                  {/* Figma-Style Artboard Drop Shadow */}
                   <filter id="artboard-shadow" x="-20%" y="-20%" width="140%" height="140%">
                      <feDropShadow dx="0" dy="8" stdDeviation="24" floodOpacity="0.08" floodColor="#000000"/>
                      <feDropShadow dx="0" dy="2" stdDeviation="6" floodOpacity="0.04" floodColor="#000000"/>
                   </filter>
-
-                  {/* Frame Clipping Paths */}
-                  {elements.filter(e => e.type === 'frame').map(f => (
-                     <clipPath id={`clip_frame_${f.id}`} key={`clip_frame_${f.id}`}>
-                        <rect x={f.x} y={f.y} width={f.width} height={f.height} />
-                     </clipPath>
-                  ))}
-
-                  {/* Mask Clipping Paths */}
-                  {elements.filter(e => e.isMask).map(maskEl => (
-                    <clipPath id={`clip_${maskEl.id}`} key={`clip_${maskEl.id}`}>
-                       {maskEl.type === 'rectangle' && <rect x={maskEl.x} y={maskEl.y} width={maskEl.width} height={maskEl.height} rx={maskEl.cornerRadius} />}
-                       {maskEl.type === 'ellipse' && <ellipse cx={maskEl.x + maskEl.width/2} cy={maskEl.y + maskEl.height/2} rx={maskEl.width/2} ry={maskEl.height/2} />}
-                    </clipPath>
-                  ))}
+                  {elements.filter(e => e.type === 'frame').map(f => (<clipPath id={`clip_frame_${f.id}`} key={`clip_frame_${f.id}`}><rect x={f.x} y={f.y} width={f.width} height={f.height} /></clipPath>))}
+                  {elements.filter(e => e.isMask).map(maskEl => (<clipPath id={`clip_${maskEl.id}`} key={`clip_${maskEl.id}`}>{maskEl.type === 'rectangle' && <rect x={maskEl.x} y={maskEl.y} width={maskEl.width} height={maskEl.height} rx={maskEl.cornerRadius} />}{maskEl.type === 'ellipse' && <ellipse cx={maskEl.x + maskEl.width/2} cy={maskEl.y + maskEl.height/2} rx={maskEl.width/2} ry={maskEl.height/2} />}</clipPath>))}
                 </defs>
 
                 <g data-transform-wrapper="true" transform={`matrix(${canvasTransform.scale}, 0, 0, ${canvasTransform.scale}, ${canvasTransform.x}, ${canvasTransform.y})`}>
                   {elements.map(el => {
-                    if (!el.isVisible) return null;
+                    if (!el.isVisible || el.type === 'arrow') return null; // We render arrows separately on top
                     const isSelected = selectedIds.includes(el.id);
                     const isEditing = editingTextId === el.id;
                     
-                    // IF IT IS AN ARTBOARD
                     if (el.type === 'frame') {
                        return (
                          <g key={el.id}>
                            <text x={el.x} y={el.y - 8} fontSize={12 / canvasTransform.scale} fill="#a1a1aa" fontWeight="600" className="select-none pointer-events-none">{el.name}</text>
-                           <rect 
-                             x={el.x} y={el.y} width={el.width} height={el.height} 
-                             fill={el.fill} 
-                             filter="url(#artboard-shadow)" 
-                             stroke={isSelected ? '#9cf822' : 'transparent'} 
-                             strokeWidth={isSelected ? 2/canvasTransform.scale : 0} 
-                             onPointerDown={(e) => handleElementPointerDown(e, el)} 
-                             className={el.isLocked ? 'pointer-events-none' : ''}
-                           />
+                           <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} filter="url(#artboard-shadow)" stroke={isSelected ? '#9cf822' : 'transparent'} strokeWidth={isSelected ? 2/canvasTransform.scale : 0} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>
                          </g>
                        );
                     }
 
-                    // IF IT IS A NORMAL SHAPE
                     return (
                       <g key={el.id} clipPath={el.frameId ? `url(#clip_frame_${el.frameId})` : undefined}>
                         <g opacity={el.fillOpacity / 100} clipPath={el.clipMaskId ? `url(#clip_${el.clipMaskId})` : undefined}>
@@ -1210,16 +940,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                           {el.type === 'ellipse' && <ellipse cx={el.x + el.width/2} cy={el.y + el.height/2} rx={el.width/2} ry={el.height/2} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
                           {el.type === 'text' && (
                              isEditing ? (
-                                <foreignObject x={el.x} y={el.y} width={Math.max(300, el.width * 2)} height={(el.fontSize || 24) * 2} className="overflow-visible pointer-events-auto">
-                                  <input 
-                                    autoFocus
-                                    defaultValue={el.text}
-                                    onPointerDown={(e) => e.stopPropagation()}
-                                    onBlur={(e) => { updateSelected({text: e.target.value}); setEditingTextId(null); }}
-                                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur(); }}
-                                    style={{ fontSize: el.fontSize, fontFamily: el.fontFamily, color: el.fill, background: 'transparent', outline: '1px solid #9cf822', border: 'none', margin: 0, padding: 0, width: '100%', lineHeight: 1, fontWeight: el.fontWeight, textAlign: el.textAlign }} 
-                                  />
-                                </foreignObject>
+                                <foreignObject x={el.x} y={el.y} width={Math.max(300, el.width * 2)} height={(el.fontSize || 24) * 2} className="overflow-visible pointer-events-auto"><input autoFocus defaultValue={el.text} onPointerDown={(e) => e.stopPropagation()} onBlur={(e) => { updateSelected({text: e.target.value}); setEditingTextId(null); }} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur(); }} style={{ fontSize: el.fontSize, fontFamily: el.fontFamily, color: el.fill, background: 'transparent', outline: '1px solid #9cf822', border: 'none', margin: 0, padding: 0, width: '100%', lineHeight: 1, fontWeight: el.fontWeight, textAlign: el.textAlign }} /></foreignObject>
                              ) : (
                                 <text x={el.x} y={el.y + (el.fontSize || 24) * 0.85} fill={el.fill} fontSize={el.fontSize} fontFamily={el.fontFamily} fontWeight={el.fontWeight} textAnchor={el.textAlign === 'center' ? 'middle' : el.textAlign === 'right' ? 'end' : 'start'} dx={el.textAlign === 'center' ? el.width/2 : el.textAlign === 'right' ? el.width : 0} onPointerDown={(e) => handleElementPointerDown(e, el)} onDoubleClick={(e) => { e.stopPropagation(); setEditingTextId(el.id); setActiveTool('select'); }} className="select-none cursor-default">{el.text}</text>
                              )
@@ -1230,8 +951,54 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                     );
                   })}
 
-                  {/* BOUNDING BOX (Tagged for exclusion during export) */}
-                  {bounds && activeTool === 'select' && (
+                  {/* PROTOTYPE ENGINE: Render Connections */}
+                  {appMode === 'prototype' && elements.filter(el => el.type === 'arrow').map(arrow => {
+                     const startEl = elements.find(e => e.id === arrow.startId);
+                     const endEl = elements.find(e => e.id === arrow.endId);
+                     if (!startEl || !endEl || !startEl.isVisible || !endEl.isVisible) return null;
+                     
+                     const sx = startEl.x + startEl.width; const sy = startEl.y + startEl.height / 2;
+                     const ex = endEl.x; const ey = endEl.y + endEl.height / 2;
+                     const dist = Math.abs(ex - sx);
+                     const cpX = sx + Math.max(50, dist / 2);
+                     
+                     return (
+                        <g key={arrow.id} className="prototype-ui">
+                           <path d={`M ${sx} ${sy} C ${cpX} ${sy}, ${ex - Math.max(50, dist / 2)} ${ey}, ${ex} ${ey}`} fill="none" stroke="#3b82f6" strokeWidth="2" opacity="0.8" />
+                           <polygon points={`${ex},${ey} ${ex-6},${ey-4} ${ex-6},${ey+4}`} fill="#3b82f6" opacity="0.8" />
+                        </g>
+                     )
+                  })}
+
+                  {/* PROTOTYPE ENGINE: Live Dragging Arrow */}
+                  {prototypeDrag && (() => {
+                      const startEl = elements.find(e => e.id === prototypeDrag.startId);
+                      if (!startEl) return null;
+                      const sx = startEl.x + startEl.width; const sy = startEl.y + startEl.height / 2;
+                      const ex = prototypeDrag.x; const ey = prototypeDrag.y;
+                      const dist = Math.abs(ex - sx);
+                      return (
+                         <g className="prototype-ui pointer-events-none">
+                            <path d={`M ${sx} ${sy} C ${sx + Math.max(50, dist / 2)} ${sy}, ${ex - Math.max(50, dist / 2)} ${ey}, ${ex} ${ey}`} fill="none" stroke="#3b82f6" strokeWidth="2" />
+                            <polygon points={`${ex},${ey} ${ex-6},${ey-4} ${ex-6},${ey+4}`} fill="#3b82f6" />
+                         </g>
+                      );
+                  })()}
+
+                  {/* PROTOTYPE ENGINE: Interaction Node (+) */}
+                  {appMode === 'prototype' && singleSelectedElement && singleSelectedElement.type !== 'arrow' && (
+                     <g 
+                        transform={`translate(${singleSelectedElement.x + singleSelectedElement.width + 10}, ${singleSelectedElement.y + singleSelectedElement.height / 2})`}
+                        className="cursor-pointer prototype-ui"
+                        onPointerDown={(e) => { e.stopPropagation(); setPrototypeDrag({ startId: singleSelectedElement.id, x: getCanvasCoords(e).x, y: getCanvasCoords(e).y }) }}
+                     >
+                        <circle cx="0" cy="0" r="7" fill="#3b82f6" stroke="#ffffff" strokeWidth="1.5" />
+                        <path d="M -3 0 L 3 0 M 0 -3 L 0 3" stroke="#ffffff" strokeWidth="1.5" />
+                     </g>
+                  )}
+
+                  {/* BOUNDING BOX */}
+                  {appMode === 'design' && bounds && activeTool === 'select' && (
                     <g className="selection-ui">
                       <rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} fill="none" stroke="#9cf822" strokeWidth={1.5 / canvasTransform.scale} pointerEvents="none" />
                       {!isMultiSelect && (
@@ -1248,254 +1015,129 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
               </svg>
             </main>
 
-            {/* FIGMA-STYLE RIGHT PANEL: INSPECTOR */}
+            {/* RIGHT PANEL: INSPECTOR */}
             <aside className="w-[240px] bg-[#2C2C2C] border-l border-[#383838] overflow-y-auto z-20 shrink-0 text-white select-none">
               
-              {/* Alignment Bar */}
-              <div className="flex items-center justify-between p-3 border-b border-[#383838] text-zinc-400">
-                <div className="flex gap-2">
-                   <button onClick={() => handleAlign('left')} className="hover:text-white transition-colors" title="Align left"><AlignLeft size={14}/></button>
-                   <button onClick={() => handleAlign('center')} className="hover:text-white transition-colors" title="Align horizontal centers"><AlignCenter size={14}/></button>
-                   <button onClick={() => handleAlign('right')} className="hover:text-white transition-colors" title="Align right"><AlignRight size={14}/></button>
-                </div>
-                <div className="flex gap-2">
-                   <button onClick={() => handleAlign('top')} className="hover:text-white transition-colors rotate-90" title="Align top"><AlignLeft size={14}/></button>
-                   <button onClick={() => handleAlign('middle')} className="hover:text-white transition-colors rotate-90" title="Align vertical centers"><AlignCenter size={14}/></button>
-                   <button onClick={() => handleAlign('bottom')} className="hover:text-white transition-colors rotate-90" title="Align bottom"><AlignRight size={14}/></button>
-                </div>
-              </div>
-
-              {isMultiSelect ? (
-                <div className="p-3 border-b border-[#383838] space-y-3">
-                  <div className="text-[11px] font-medium text-white">Selection</div>
-                  <div className="text-[10px] text-zinc-400 flex items-center gap-2 bg-[#383838]/50 p-2 rounded"><Layers size={12}/> {selectedIds.length} layers selected</div>
-                  
-                  <div className="grid grid-cols-2 gap-2 mt-4">
-                     <button onClick={handleGroup} className="py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><Link2 size={12}/> Group</button>
-                     <button onClick={handleMakeMask} className="py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><Scissors size={12}/> Mask</button>
-                  </div>
-                </div>
-              ) : singleSelectedElement ? (
-                <>
-                  {/* Transform Section */}
-                  <div className="p-3 border-b border-[#383838]">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                      <FigmaInput icon="X" value={Math.round(singleSelectedElement.x)} onChange={(v: string) => updateSelected({x: Number(v)})} />
-                      <FigmaInput icon="Y" value={Math.round(singleSelectedElement.y)} onChange={(v: string) => updateSelected({y: Number(v)})} />
-                      <FigmaInput icon="W" value={Math.round(singleSelectedElement.width)} onChange={(v: string) => updateSelected({width: Math.max(1, Number(v) || 1)})} />
-                      <FigmaInput icon="H" value={Math.round(singleSelectedElement.height)} onChange={(v: string) => updateSelected({height: Math.max(1, Number(v) || 1)})} />
-                      <FigmaInput icon="∠" value={"0°"} onChange={() => {}} />
-                      <FigmaInput icon="R" value={singleSelectedElement.cornerRadius || 0} onChange={(v: string) => updateSelected({cornerRadius: Number(v) || 0})} />
-                    </div>
-                  </div>
-
-                  {/* Text Properties Section */}
-                  {singleSelectedElement.type === 'text' && (
-                    <div className="p-3 border-b border-[#383838] space-y-2">
-                       <div className="text-[11px] font-medium mb-2">Text</div>
-                       
-                       <div className="flex items-center gap-2">
-                          <div className="flex-1 flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group relative">
-                             <span className="text-[11px]">{singleSelectedElement.fontFamily}</span>
-                             <ChevronDown size={12} className="text-zinc-500 group-hover:text-white" />
-                             <select className="absolute inset-0 opacity-0 cursor-pointer" value={singleSelectedElement.fontFamily} onChange={(e) => updateSelected({fontFamily: e.target.value})}>
-                               <option value="Inter">Inter</option>
-                               <option value="Arial">Arial</option>
-                               <option value="Helvetica">Helvetica</option>
-                               <option value="Times New Roman">Times New Roman</option>
-                             </select>
-                          </div>
-                       </div>
-                       <div className="grid grid-cols-2 gap-2">
-                          <div className="flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group relative">
-                             <span className="text-[11px]">{singleSelectedElement.fontWeight}</span>
-                             <ChevronDown size={12} className="text-zinc-500 group-hover:text-white" />
-                             <select className="absolute inset-0 opacity-0 cursor-pointer" value={singleSelectedElement.fontWeight} onChange={(e) => updateSelected({fontWeight: e.target.value})}>
-                               <option value="Normal">Normal</option>
-                               <option value="Bold">Bold</option>
-                               <option value="Bolder">Bolder</option>
-                               <option value="Lighter">Lighter</option>
-                             </select>
-                          </div>
-                          <FigmaInput icon={<TypeIcon size={12}/>} value={singleSelectedElement.fontSize || 16} onChange={(v: string) => updateSelected({fontSize: Number(v) || 16})} />
-                       </div>
-                       
-                       <div className="flex items-center gap-1 mt-2 text-zinc-400">
-                          <button onClick={() => updateSelected({textAlign: 'left'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'left' ? 'bg-[#383838] text-white' : ''}`}><AlignLeft size={12}/></button>
-                          <button onClick={() => updateSelected({textAlign: 'center'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'center' ? 'bg-[#383838] text-white' : ''}`}><AlignCenter size={12}/></button>
-                          <button onClick={() => updateSelected({textAlign: 'right'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'right' ? 'bg-[#383838] text-white' : ''}`}><AlignRight size={12}/></button>
-                       </div>
-                    </div>
-                  )}
-
-                  {/* Fill Section */}
-                  {singleSelectedElement.type !== 'image' && (
-                    <div className="p-3 border-b border-[#383838]">
-                      <div className="flex items-center justify-between group cursor-pointer mb-2">
-                        <span className="text-[11px] font-medium">Fill</span>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                           <button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white"><Plus size={12}/></button>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 group">
-                         <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: singleSelectedElement.fill }}>
-                            {singleSelectedElement.fillOpacity < 100 && <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)', backgroundSize: '8px 8px', backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0px', zIndex: -1}}/>}
-                            <input type="color" value={singleSelectedElement.fill} onChange={(e) => updateSelected({fill: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" />
-                         </div>
-                         <input type="text" value={singleSelectedElement.fill.toUpperCase()} onChange={(e) => updateSelected({fill: e.target.value})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none w-16" />
-                         <input type="number" value={singleSelectedElement.fillOpacity} onChange={(e) => updateSelected({fillOpacity: Number(e.target.value) || 0})} className="w-10 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] text-right outline-none" /><span className="text-[10px] text-zinc-500">%</span>
-                         <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                           <button onClick={() => updateSelected({fillOpacity: singleSelectedElement.fillOpacity === 0 ? 100 : 0})} className="p-1 text-zinc-400 hover:text-white">
-                             {singleSelectedElement.fillOpacity === 0 ? <EyeOff size={12}/> : <Eye size={12}/>}
-                           </button>
-                           <button className="p-1 text-zinc-400 hover:text-white"><Minus size={12}/></button>
-                         </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Stroke Section */}
-                  {singleSelectedElement.type !== 'image' && (
-                    <div className="p-3 border-b border-[#383838]">
-                      <div className="flex items-center justify-between group cursor-pointer mb-2">
-                        <span className="text-[11px] font-medium">Stroke</span>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                           <button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white" onClick={() => updateSelected({stroke: '#000000', strokeWidth: 1})}><Plus size={12}/></button>
-                        </div>
-                      </div>
-                      
-                      {singleSelectedElement.stroke && singleSelectedElement.stroke !== 'transparent' && singleSelectedElement.strokeWidth > 0 ? (
-                        <>
-                          <div className="flex items-center gap-2 group mb-2">
-                             <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: singleSelectedElement.stroke }}>
-                                <input type="color" value={singleSelectedElement.stroke} onChange={(e) => updateSelected({stroke: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" />
-                             </div>
-                             <input type="text" value={singleSelectedElement.stroke.toUpperCase()} onChange={(e) => updateSelected({stroke: e.target.value})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none w-16" />
-                             <div className="w-10 text-right text-[11px]">100%</div>
-                             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                               <button className="p-1 text-zinc-400 hover:text-white"><Eye size={12}/></button>
-                               <button className="p-1 text-zinc-400 hover:text-white" onClick={() => updateSelected({strokeWidth: 0})}><Minus size={12}/></button>
-                             </div>
-                          </div>
-                          <div className="flex items-center gap-2 pl-6">
-                            <div className="flex items-center gap-2 bg-transparent border border-transparent hover:border-[#383838] px-1.5 py-1 rounded w-16 cursor-text">
-                               <Minus size={10} className="text-zinc-500"/>
-                               <input type="number" value={singleSelectedElement.strokeWidth} onChange={(e) => updateSelected({strokeWidth: Number(e.target.value) || 0})} className="bg-transparent text-[11px] w-full outline-none" />
-                            </div>
-                            <div className="flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group w-16">
-                               <span className="text-[11px]">Inside</span>
-                               <ChevronDown size={10} className="text-zinc-500 group-hover:text-white" />
-                            </div>
-                            <button className="p-1 hover:bg-[#383838] rounded ml-auto text-zinc-400"><MoreHorizontal size={12}/></button>
-                          </div>
-                        </>
-                      ) : (
-                         <div className="text-[10px] text-zinc-500 pl-1">No strokes applied.</div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Effects Section */}
-                  <div className="p-3 border-b border-[#383838]">
-                    <div className="flex items-center justify-between group cursor-pointer mb-2">
-                      <span className="text-[11px] font-medium">Effects</span>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white"><Plus size={12}/></button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Export Section */}
-                  <div className="p-3">
-                    <div className="text-[11px] font-medium mb-3">Export</div>
-                    
-                    <div className="flex gap-2 mb-3">
-                       <div className="flex items-center justify-between border border-[#383838] hover:border-[#555] px-2 py-1.5 rounded cursor-pointer group w-16 bg-[#1E1E1E] relative">
-                          <span className="text-[11px]">{exportScale}x</span>
-                          <ChevronDown size={10} className="text-zinc-500 group-hover:text-white" />
-                          <select className="absolute opacity-0 inset-0 cursor-pointer" value={exportScale} onChange={(e) => setExportScale(Number(e.target.value))}>
-                             <option value={1}>1x</option>
-                             <option value={2}>2x</option>
-                             <option value={3}>3x</option>
-                             <option value={4}>4x</option>
-                          </select>
-                       </div>
-                       <div className="flex-1 flex items-center justify-between border border-[#383838] hover:border-[#555] px-2 py-1.5 rounded cursor-pointer group bg-[#1E1E1E] relative">
-                          <span className="text-[11px]">{exportFormat}</span>
-                          <ChevronDown size={10} className="text-zinc-500 group-hover:text-white" />
-                          <select className="absolute opacity-0 inset-0 cursor-pointer" value={exportFormat} onChange={(e) => setExportFormat(e.target.value as any)}>
-                             <option value="PNG">PNG</option>
-                             <option value="JPG">JPG</option>
-                             <option value="SVG">SVG</option>
-                          </select>
-                       </div>
-                    </div>
-
-                    <button onClick={handleExport} disabled={isExporting} className="w-full py-1.5 bg-[#1E1E1E] hover:bg-[#383838] text-white rounded text-[11px] font-medium transition-colors border border-[#383838] flex justify-center items-center gap-2">
-                       {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12}/>} Export {singleSelectedElement.name}
-                    </button>
-                  </div>
-
-                </>
+              {appMode === 'prototype' ? (
+                 <div className="p-6 text-center text-zinc-500 h-full flex flex-col items-center justify-center">
+                   <Zap size={32} className="mb-4 opacity-20 text-[#3b82f6]" />
+                   <h3 className="text-white text-[13px] font-semibold mb-2">Prototype Mode</h3>
+                   <p className="text-[11px] leading-relaxed">Select a frame or element, then drag the blue node to connect it to another screen.</p>
+                 </div>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 p-6">
-                  <MousePointer2 size={24} className="mb-4 opacity-20"/>
-                  <p className="text-[11px]">Select a layer to view properties.</p>
-                </div>
+                <>
+                  <div className="flex items-center justify-between p-3 border-b border-[#383838] text-zinc-400">
+                    <div className="flex gap-2"><button onClick={() => handleAlign('left')} className="hover:text-white transition-colors" title="Align left"><AlignLeft size={14}/></button><button onClick={() => handleAlign('center')} className="hover:text-white transition-colors" title="Align horizontal centers"><AlignCenter size={14}/></button><button onClick={() => handleAlign('right')} className="hover:text-white transition-colors" title="Align right"><AlignRight size={14}/></button></div>
+                    <div className="flex gap-2"><button onClick={() => handleAlign('top')} className="hover:text-white transition-colors rotate-90" title="Align top"><AlignLeft size={14}/></button><button onClick={() => handleAlign('middle')} className="hover:text-white transition-colors rotate-90" title="Align vertical centers"><AlignCenter size={14}/></button><button onClick={() => handleAlign('bottom')} className="hover:text-white transition-colors rotate-90" title="Align bottom"><AlignRight size={14}/></button></div>
+                  </div>
+
+                  {isMultiSelect ? (
+                    <div className="p-3 border-b border-[#383838] space-y-3">
+                      <div className="text-[11px] font-medium text-white">Selection</div>
+                      <div className="text-[10px] text-zinc-400 flex items-center gap-2 bg-[#383838]/50 p-2 rounded"><Layers size={12}/> {selectedIds.length} layers selected</div>
+                      <div className="grid grid-cols-2 gap-2 mt-4"><button onClick={handleGroup} className="py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><Link2 size={12}/> Group</button><button onClick={handleMakeMask} className="py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><Scissors size={12}/> Mask</button></div>
+                    </div>
+                  ) : singleSelectedElement ? (
+                    <>
+                      <div className="p-3 border-b border-[#383838]">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2"><FigmaInput icon="X" value={Math.round(singleSelectedElement.x)} onChange={(v: string) => updateSelected({x: Number(v)})} /><FigmaInput icon="Y" value={Math.round(singleSelectedElement.y)} onChange={(v: string) => updateSelected({y: Number(v)})} /><FigmaInput icon="W" value={Math.round(singleSelectedElement.width)} onChange={(v: string) => updateSelected({width: Math.max(1, Number(v) || 1)})} /><FigmaInput icon="H" value={Math.round(singleSelectedElement.height)} onChange={(v: string) => updateSelected({height: Math.max(1, Number(v) || 1)})} /><FigmaInput icon="∠" value={"0°"} onChange={() => {}} /><FigmaInput icon="R" value={singleSelectedElement.cornerRadius || 0} onChange={(v: string) => updateSelected({cornerRadius: Number(v) || 0})} /></div>
+                      </div>
+
+                      {singleSelectedElement.type === 'text' && (
+                        <div className="p-3 border-b border-[#383838] space-y-2">
+                           <div className="text-[11px] font-medium mb-2">Text</div>
+                           <div className="flex items-center gap-2">
+                              <div className="flex-1 flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group relative"><span className="text-[11px]">{singleSelectedElement.fontFamily}</span><ChevronDown size={12} className="text-zinc-500 group-hover:text-white" /><select className="absolute inset-0 opacity-0 cursor-pointer" value={singleSelectedElement.fontFamily} onChange={(e) => updateSelected({fontFamily: e.target.value})}><option value="Inter">Inter</option><option value="Arial">Arial</option><option value="Helvetica">Helvetica</option><option value="Times New Roman">Times New Roman</option></select></div>
+                           </div>
+                           <div className="grid grid-cols-2 gap-2">
+                              <div className="flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group relative"><span className="text-[11px]">{singleSelectedElement.fontWeight}</span><ChevronDown size={12} className="text-zinc-500 group-hover:text-white" /><select className="absolute inset-0 opacity-0 cursor-pointer" value={singleSelectedElement.fontWeight} onChange={(e) => updateSelected({fontWeight: e.target.value})}><option value="Normal">Normal</option><option value="Bold">Bold</option><option value="Bolder">Bolder</option><option value="Lighter">Lighter</option></select></div>
+                              <FigmaInput icon={<TypeIcon size={12}/>} value={singleSelectedElement.fontSize || 16} onChange={(v: string) => updateSelected({fontSize: Number(v) || 16})} />
+                           </div>
+                           <div className="flex items-center gap-1 mt-2 text-zinc-400"><button onClick={() => updateSelected({textAlign: 'left'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'left' ? 'bg-[#383838] text-white' : ''}`}><AlignLeft size={12}/></button><button onClick={() => updateSelected({textAlign: 'center'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'center' ? 'bg-[#383838] text-white' : ''}`}><AlignCenter size={12}/></button><button onClick={() => updateSelected({textAlign: 'right'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'right' ? 'bg-[#383838] text-white' : ''}`}><AlignRight size={12}/></button></div>
+                        </div>
+                      )}
+
+                      {singleSelectedElement.type !== 'image' && (
+                        <div className="p-3 border-b border-[#383838]">
+                          <div className="flex items-center justify-between group cursor-pointer mb-2"><span className="text-[11px] font-medium">Fill</span><div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white"><Plus size={12}/></button></div></div>
+                          <div className="flex items-center gap-2 group">
+                             <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: singleSelectedElement.fill }}>
+                                {singleSelectedElement.fillOpacity < 100 && <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)', backgroundSize: '8px 8px', backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0px', zIndex: -1}}/>}
+                                <input type="color" value={singleSelectedElement.fill} onChange={(e) => updateSelected({fill: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" />
+                             </div>
+                             <input type="text" value={singleSelectedElement.fill.toUpperCase()} onChange={(e) => updateSelected({fill: e.target.value})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none w-16" />
+                             <input type="number" value={singleSelectedElement.fillOpacity} onChange={(e) => updateSelected({fillOpacity: Number(e.target.value) || 0})} className="w-10 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] text-right outline-none" /><span className="text-[10px] text-zinc-500">%</span>
+                             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => updateSelected({fillOpacity: singleSelectedElement.fillOpacity === 0 ? 100 : 0})} className="p-1 text-zinc-400 hover:text-white">{singleSelectedElement.fillOpacity === 0 ? <EyeOff size={12}/> : <Eye size={12}/>}</button><button className="p-1 text-zinc-400 hover:text-white"><Minus size={12}/></button></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {singleSelectedElement.type !== 'image' && (
+                        <div className="p-3 border-b border-[#383838]">
+                          <div className="flex items-center justify-between group cursor-pointer mb-2"><span className="text-[11px] font-medium">Stroke</span><div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white" onClick={() => updateSelected({stroke: '#000000', strokeWidth: 1})}><Plus size={12}/></button></div></div>
+                          {singleSelectedElement.stroke && singleSelectedElement.stroke !== 'transparent' && singleSelectedElement.strokeWidth > 0 ? (
+                            <>
+                              <div className="flex items-center gap-2 group mb-2">
+                                 <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: singleSelectedElement.stroke }}><input type="color" value={singleSelectedElement.stroke} onChange={(e) => updateSelected({stroke: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" /></div>
+                                 <input type="text" value={singleSelectedElement.stroke.toUpperCase()} onChange={(e) => updateSelected({stroke: e.target.value})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none w-16" />
+                                 <div className="w-10 text-right text-[11px]">100%</div>
+                                 <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity"><button className="p-1 text-zinc-400 hover:text-white"><Eye size={12}/></button><button className="p-1 text-zinc-400 hover:text-white" onClick={() => updateSelected({strokeWidth: 0})}><Minus size={12}/></button></div>
+                              </div>
+                              <div className="flex items-center gap-2 pl-6">
+                                <div className="flex items-center gap-2 bg-transparent border border-transparent hover:border-[#383838] px-1.5 py-1 rounded w-16 cursor-text"><Minus size={10} className="text-zinc-500"/><input type="number" value={singleSelectedElement.strokeWidth} onChange={(e) => updateSelected({strokeWidth: Number(e.target.value) || 0})} className="bg-transparent text-[11px] w-full outline-none" /></div>
+                                <div className="flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group w-16"><span className="text-[11px]">Inside</span><ChevronDown size={10} className="text-zinc-500 group-hover:text-white" /></div><button className="p-1 hover:bg-[#383838] rounded ml-auto text-zinc-400"><MoreHorizontal size={12}/></button>
+                              </div>
+                            </>
+                          ) : ( <div className="text-[10px] text-zinc-500 pl-1">No strokes applied.</div> )}
+                        </div>
+                      )}
+
+                      <div className="p-3">
+                        <div className="text-[11px] font-medium mb-3">Export</div>
+                        <div className="flex gap-2 mb-3">
+                           <div className="flex items-center justify-between border border-[#383838] hover:border-[#555] px-2 py-1.5 rounded cursor-pointer group w-16 bg-[#1E1E1E] relative"><span className="text-[11px]">{exportScale}x</span><ChevronDown size={10} className="text-zinc-500 group-hover:text-white" /><select className="absolute opacity-0 inset-0 cursor-pointer" value={exportScale} onChange={(e) => setExportScale(Number(e.target.value))}><option value={1}>1x</option><option value={2}>2x</option><option value={3}>3x</option><option value={4}>4x</option></select></div>
+                           <div className="flex-1 flex items-center justify-between border border-[#383838] hover:border-[#555] px-2 py-1.5 rounded cursor-pointer group bg-[#1E1E1E] relative"><span className="text-[11px]">{exportFormat}</span><ChevronDown size={10} className="text-zinc-500 group-hover:text-white" /><select className="absolute opacity-0 inset-0 cursor-pointer" value={exportFormat} onChange={(e) => setExportFormat(e.target.value as any)}><option value="PNG">PNG</option><option value="JPG">JPG</option><option value="SVG">SVG</option></select></div>
+                        </div>
+                        <button onClick={handleExport} disabled={isExporting} className="w-full py-1.5 bg-[#1E1E1E] hover:bg-[#383838] text-white rounded text-[11px] font-medium transition-colors border border-[#383838] flex justify-center items-center gap-2">{isExporting ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12}/>} Export {singleSelectedElement.name}</button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 p-6"><MousePointer2 size={24} className="mb-4 opacity-20"/><p className="text-[11px]">Select a layer to view properties.</p></div>
+                  )}
+                </>
               )}
             </aside>
           </div>
         )}
       </div>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* SLIDE-OVER CHAT (Available in Overview Mode) */}
-      {/* ------------------------------------------------------------------ */}
+      {/* CHAT / MOBILE WARNING CODE REMAINS UNCHANGED ... */}
       {isChatOpen && (
         <div className="fixed inset-0 z-[10000] flex justify-end bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-all duration-300">
           <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] h-full shadow-2xl flex flex-col relative animate-in slide-in-from-right duration-300 border-l border-zinc-200 dark:border-zinc-900">
             <ChatWallpaper />
             <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-900 flex justify-between items-center bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-md relative z-20">
-              <div>
-                <h3 className="text-sm font-bold text-black dark:text-white flex items-center gap-2"><Zap size={16} className="text-[#9cf822] fill-[#9cf822]" /> Team Sync</h3>
-                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">{team.length + 1} Members</p>
-              </div>
+              <div><h3 className="text-sm font-bold text-black dark:text-white flex items-center gap-2"><Zap size={16} className="text-[#9cf822] fill-[#9cf822]" /> Team Sync</h3><p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">{team.length + 1} Members</p></div>
               <button onClick={() => setIsChatOpen(false)} className="p-2 text-zinc-400 hover:text-black dark:hover:text-white bg-zinc-100 dark:bg-zinc-900 rounded-full transition-colors"><X size={16} /></button>
             </div>
             {pinnedMessage && (
                <div className="px-6 py-3 bg-zinc-100/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 relative z-10 shadow-sm">
-                 <div className="flex items-center gap-3 overflow-hidden">
-                   <Pin size={14} className="text-[#9cf822] fill-[#9cf822]/20 shrink-0" />
-                   <div className="flex-1 min-w-0">
-                     <p className="text-[10px] font-bold text-black dark:text-white truncate">Pinned by Lead</p>
-                     <p className="text-xs text-zinc-600 dark:text-zinc-400 truncate mt-0.5">{pinnedMessage.content || 'Attached a file'}</p>
-                   </div>
-                 </div>
+                 <div className="flex items-center gap-3 overflow-hidden"><Pin size={14} className="text-[#9cf822] fill-[#9cf822]/20 shrink-0" /><div className="flex-1 min-w-0"><p className="text-[10px] font-bold text-black dark:text-white truncate">Pinned by Lead</p><p className="text-xs text-zinc-600 dark:text-zinc-400 truncate mt-0.5">{pinnedMessage.content || 'Attached a file'}</p></div></div>
                </div>
             )}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 relative z-10" ref={scrollRef}>
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
-                   <MessageSquare size={48} className="text-zinc-300 dark:text-zinc-700 mb-4" strokeWidth={1} />
-                   <p className="text-sm font-medium text-black dark:text-white">Workspace initialized.</p>
-                </div>
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-50"><MessageSquare size={48} className="text-zinc-300 dark:text-zinc-700 mb-4" strokeWidth={1} /><p className="text-sm font-medium text-black dark:text-white">Workspace initialized.</p></div>
               ) : (
                 messages.map((msg, i) => {
                   const isMe = msg.user_id === user?.id;
                   return (
                     <div key={msg.id} className={`flex gap-3 max-w-[85%] group ${isMe ? 'ml-auto flex-row-reverse' : ''}`}>
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 shrink-0 border border-zinc-100 dark:border-zinc-900">
-                        {msg.profiles?.avatar_url ? <img src={msg.profiles.avatar_url} className="w-full h-full object-cover" alt="User" /> : <User size={14} className="m-auto mt-2 text-zinc-500" />}
-                      </div>
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800 shrink-0 border border-zinc-100 dark:border-zinc-900">{msg.profiles?.avatar_url ? <img src={msg.profiles.avatar_url} className="w-full h-full object-cover" alt="User" /> : <User size={14} className="m-auto mt-2 text-zinc-500" />}</div>
                       <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} relative`}>
                         <div className={`p-4 rounded-2xl text-sm mt-1 ${isMe ? 'bg-[#9cf822] text-black rounded-tr-sm' : 'bg-zinc-100 dark:bg-zinc-900 text-black dark:text-white rounded-tl-sm border border-zinc-200 dark:border-zinc-800'}`}>
                           {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
-                          {msg.attachment_url && (
-                             <div className="mt-2">
-                               {msg.attachment_type === 'image' ? <img src={msg.attachment_url} className="w-full max-w-[200px] rounded-xl cursor-pointer hover:opacity-90" onClick={() => setSelectedMedia(msg.attachment_url)} alt="Attachment" /> : <a href={msg.attachment_url} target="_blank" className="font-bold underline text-xs">Download File</a>}
-                             </div>
-                          )}
+                          {msg.attachment_url && (<div className="mt-2">{msg.attachment_type === 'image' ? <img src={msg.attachment_url} className="w-full max-w-[200px] rounded-xl cursor-pointer hover:opacity-90" onClick={() => setSelectedMedia(msg.attachment_url)} alt="Attachment" /> : <a href={msg.attachment_url} target="_blank" className="font-bold underline text-xs">Download File</a>}</div>)}
                         </div>
                       </div>
                     </div>
@@ -1522,9 +1164,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         </div>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* MOBILE WARNING MODAL */}
-      {/* ------------------------------------------------------------------ */}
       {showMobileWarning && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center relative">
@@ -1561,9 +1200,7 @@ function FigmaInput({ icon, value, onChange }: any) {
 function TemplateCard({ name, size, icon, onClick }: any) {
   return (
     <button onClick={onClick} className="group flex flex-col items-center justify-center p-6 bg-[#2C2C2C] border border-[#383838] hover:border-[#9cf822] rounded-lg transition-all duration-300 text-left w-full">
-      <div className="h-12 flex items-center justify-center text-zinc-500 group-hover:text-[#9cf822] transition-colors mb-3 group-hover:scale-110 duration-300">
-        {icon}
-      </div>
+      <div className="h-12 flex items-center justify-center text-zinc-500 group-hover:text-[#9cf822] transition-colors mb-3 group-hover:scale-110 duration-300">{icon}</div>
       <span className="text-[13px] font-medium text-white w-full text-center">{name}</span>
       <span className="text-[10px] text-zinc-500 w-full text-center mt-0.5">{size}</span>
     </button>
