@@ -1,3 +1,4 @@
+// components/LabXEditor.tsx
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -108,7 +109,7 @@ export default function LabXEditor({ projectId, projectTitle, initialElements, o
     if (clipboard.length === 0) return;
     const newIds: string[] = [];
     const pasted = clipboard.map(el => {
-      const newId = `el_${Math.random().toString(36).substring(2, 9)}`;
+      const newId = `el_${Math.random().toString(36).substr(2, 9)}`;
       newIds.push(newId);
       return { ...el, id: newId, x: el.x + 20, y: el.y + 20 };
     });
@@ -383,7 +384,7 @@ export default function LabXEditor({ projectId, projectTitle, initialElements, o
             <div className="flex items-center gap-2 mr-2">
                {team.slice(0, 3).map((m, i) => (
                  <div key={i} className="w-6 h-6 rounded-full bg-[#18181b] border border-[#383838] overflow-hidden">
-                    {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" alt="User"/> : <div className="m-auto mt-1.5 text-zinc-500">U</div>}
+                    {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover"/> : <div className="m-auto mt-1.5 text-zinc-500">U</div>}
                  </div>
                ))}
                <button onClick={() => alert('Link copied')} className="px-3 py-1 bg-[#9cf822] text-black text-[11px] font-bold rounded hover:opacity-90 transition-opacity">Share</button>
@@ -462,27 +463,7 @@ export default function LabXEditor({ projectId, projectTitle, initialElements, o
             <div className="px-3 py-2.5 border-b border-[#383838] flex items-center gap-2 text-[11px] font-bold text-white"><Layers size={12} /> Layers</div>
             <div className="flex-grow overflow-y-auto p-2 space-y-0.5">
               {[...elements].reverse().map(el => (
-                <div 
-                  key={el.id} 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    setActiveTool('select'); 
-                    if (e.shiftKey) {
-                      const newArr = [...selectedIds, el.id];
-                      setSelectedIds(newArr.filter((v, i, a) => a.indexOf(v) === i));
-                    } else {
-                      setSelectedIds([el.id]);
-                    }
-                  }} 
-                  onDoubleClick={(e) => { 
-                    e.stopPropagation(); 
-                    if (el.type === 'text') { 
-                      setEditingTextId(el.id); 
-                      setActiveTool('select'); 
-                    } 
-                  }} 
-                  className={`flex items-center justify-between px-2 py-1.5 rounded text-[11px] cursor-pointer group ${selectedIds.includes(el.id) ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-300 hover:bg-[#383838]'}`}
-                >
+                <div key={el.id} onClick={(e) => { e.stopPropagation(); setActiveTool('select'); e.shiftKey ? setSelectedIds([...selectedIds, el.id].filter((v, i, a) => a.indexOf(v) === i)) : setSelectedIds([el.id]); }} onDoubleClick={(e) => { e.stopPropagation(); if (el.type === 'text') { setEditingTextId(el.id); setActiveTool('select'); } }} className={`flex items-center justify-between px-2 py-1.5 rounded text-[11px] cursor-pointer group ${selectedIds.includes(el.id) ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-300 hover:bg-[#383838]'}`}>
                   <div className="flex items-center gap-2 truncate">
                     {el.isMask ? <Scissors size={10} className="text-[#9cf822]" /> : el.type === 'text' ? <TypeIcon size={10}/> : el.type === 'image' ? <ImageIcon size={10}/> : el.type === 'frame' ? <Layout size={10}/> : <Square size={10}/>}
                     <span className="truncate flex-grow">{el.name} {el.groupId && <span className="opacity-50 ml-1 text-[9px]">(Grouped)</span>}</span>
@@ -692,7 +673,7 @@ function ToolBtn({ icon, active, onClick, tip }: any) {
   );
 }
 
-function FigmaInput({ icon, value, onChange }: { icon: React.ReactNode | string; value: string | number; onChange: (v: string) => void }) {
+function FigmaInput({ icon, value, onChange }: any) {
   return (
     <div className="flex items-center gap-1.5 border border-transparent hover:border-[#383838] focus-within:border-[#9cf822] rounded px-1.5 py-1 transition-colors cursor-text group">
       <span className="text-[10px] text-zinc-500 group-hover:text-zinc-400 w-3 flex-shrink-0 flex items-center justify-center">{icon}</span>
