@@ -7,7 +7,7 @@ import { useTheme } from 'next-themes';
 import { 
   Loader2, ArrowLeft, Users, Target, Zap, 
   MessageSquare, Layout, Shield, FileText, 
-  CheckCircle2, Circle, Clock, Plus, 
+  CheckCircle2, Circle, Clock, Plus, Minus,
   X, Send, User, Compass, TrendingUp, 
   Briefcase, Code, PencilRuler, Upload, 
   Wallet, Lock, DollarSign, CreditCard,
@@ -19,7 +19,9 @@ import {
   Type as TypeIcon, Hand, ImagePlus, Save,
   BringToFront, SendToBack, MonitorSmartphone,
   Pipette, MoveUp, MoveDown, Scissors,
-  Unlink, Link2, Monitor, Smartphone, LayoutGrid, Home
+  Unlink, Link2, Monitor, Smartphone, LayoutGrid, Home,
+  AlignLeft, AlignCenter, AlignRight, AlignVerticalSpaceAround,
+  AlignHorizontalSpaceAround, ChevronDown, MoreHorizontal
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -44,6 +46,9 @@ interface CanvasElement {
   cornerRadius: number;
   text?: string;
   fontSize?: number;
+  fontFamily?: string;
+  fontWeight?: string;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
   imageUrl?: string;
   isVisible: boolean;
   isLocked: boolean;
@@ -130,8 +135,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-
-  const colorPresets = ['#000000', '#ffffff', '#9cf822', '#ff4d4d', '#4d94ff', '#ffbe0b', '#7209b7', '#4895ef'];
 
   const triggerHaptic = (pattern: number | number[] = 10) => {
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(pattern);
@@ -252,7 +255,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     const newFrame: CanvasElement = {
       id: newId, name: name, type: 'frame', x: 100, y: 100, width: w, height: h, 
       fill: '#ffffff', fillOpacity: 100, stroke: '#e4e4e7', strokeWidth: 1, 
-      cornerRadius: 0, isVisible: true, isLocked: false
+      cornerRadius: 0, isVisible: true, isLocked: false, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left'
     };
     setElements([...elements, newFrame]);
     setColabView('canvas');
@@ -300,7 +303,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       setSelectedIds([]);
     } else if (activeTool !== 'select' && activeTool !== 'image') {
       const newId = `el_${Date.now()}`;
-      setElements([...elements, { id: newId, name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), type: activeTool as any, x, y, width: 100, height: 100, fill: '#d4d4d8', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, text: activeTool === 'text' ? 'New Text' : undefined, fontSize: activeTool === 'text' ? 24 : undefined }]);
+      setElements([...elements, { id: newId, name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), type: activeTool as any, x, y, width: 100, height: 100, fill: '#d4d4d8', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, text: activeTool === 'text' ? 'New Text' : undefined, fontSize: activeTool === 'text' ? 24 : undefined, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left' }]);
       setSelectedIds([newId]);
       setActiveTool('select');
     }
@@ -392,6 +395,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     const unselected = elements.filter(el => !selectedIds.includes(el.id));
     const selected = elements.filter(el => selectedIds.includes(el.id));
     setElements([...selected, ...unselected]);
+  };
+
+  const updateSelected = (updates: Partial<CanvasElement>) => {
+    setElements(elements.map(el => selectedIds.includes(el.id) ? { ...el, ...updates } : el));
   };
 
   const getSelectionBounds = () => {
@@ -556,48 +563,41 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
           </div>
         </header>
       ) : activeTab === 'colab' && colabView === 'canvas' && (
-        <header className="h-12 bg-[#1E1E1E] border-b border-[#2C2C2C] flex items-center justify-between px-4 shrink-0 z-50">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setColabView('home')} className="p-1.5 hover:bg-[#2C2C2C] rounded-md transition-colors text-zinc-400 hover:text-white" title="Back to Home">
-              <Home size={16} />
+        <header className="h-11 bg-[#2C2C2C] border-b border-[#383838] flex items-center justify-between px-4 shrink-0 z-50">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setColabView('home')} className="p-1 hover:bg-[#383838] rounded transition-colors text-zinc-400 hover:text-white" title="Back to Home">
+              <Home size={14} />
             </button>
-            <div className="h-4 w-px bg-[#2C2C2C]" />
-            <div className="text-sm font-medium text-white flex items-center gap-2">
-              {project?.title} <span className="bg-[#2C2C2C] text-[#9cf822] text-[10px] px-2 py-0.5 rounded font-bold tracking-widest uppercase">Canvas</span>
+            <div className="h-3 w-px bg-[#383838]" />
+            <div className="text-xs font-medium text-white flex items-center gap-2 cursor-pointer hover:bg-[#383838] px-2 py-1 rounded">
+              {project?.title} <span className="text-zinc-500">/</span> <span className="opacity-80">Draft</span> <ChevronDown size={12} className="text-zinc-500"/>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-[#121212] p-1 rounded-lg border border-[#2C2C2C]">
-            <ToolBtn icon={<MousePointer2 size={16}/>} active={activeTool === 'select'} onClick={() => setActiveTool('select')} tip="Select (V)" />
-            <ToolBtn icon={<Hand size={16}/>} active={activeTool === 'hand'} onClick={() => setActiveTool('hand')} tip="Hand (H)" />
-            <div className="w-px h-4 bg-[#2C2C2C] mx-1"></div>
-            <ToolBtn icon={<Square size={16}/>} active={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} tip="Rectangle (R)" />
-            <ToolBtn icon={<Circle size={16}/>} active={activeTool === 'ellipse'} onClick={() => setActiveTool('ellipse')} tip="Ellipse (O)" />
-            <ToolBtn icon={<TypeIcon size={16}/>} active={activeTool === 'text'} onClick={() => setActiveTool('text')} tip="Text (T)" />
-            <ToolBtn icon={<ImagePlus size={16}/>} onClick={() => { setActiveTool('image'); imageUploadRef.current?.click(); }} tip="Image" />
-            <input type="file" ref={imageUploadRef} className="hidden" accept="image/*" onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                  if (ev.target?.result) {
-                    const newId = `el_${Date.now()}`;
-                    setElements([...elements, { id: newId, name: 'Image', type: 'image', x: -canvasTransform.x / canvasTransform.scale + 100, y: -canvasTransform.y / canvasTransform.scale + 100, width: 300, height: 300, fill: 'transparent', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, imageUrl: ev.target.result as string }]);
-                    setSelectedIds([newId]);
-                    setActiveTool('select');
-                  }
-                };
-                reader.readAsDataURL(e.target.files[0]);
-              }
-            }} />
+          <div className="flex items-center gap-0.5">
+            <ToolBtn icon={<MousePointer2 size={14}/>} active={activeTool === 'select'} onClick={() => setActiveTool('select')} tip="Move (V)" />
+            <ToolBtn icon={<Layout size={14}/>} active={activeTool === 'frame'} onClick={() => setActiveTool('frame')} tip="Frame (F)" />
+            <ToolBtn icon={<Square size={14}/>} active={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} tip="Rectangle (R)" />
+            <ToolBtn icon={<Circle size={14}/>} active={activeTool === 'ellipse'} onClick={() => setActiveTool('ellipse')} tip="Ellipse (O)" />
+            <ToolBtn icon={<TypeIcon size={14}/>} active={activeTool === 'text'} onClick={() => setActiveTool('text')} tip="Text (T)" />
+            <ToolBtn icon={<Hand size={14}/>} active={activeTool === 'hand'} onClick={() => setActiveTool('hand')} tip="Hand (H)" />
           </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1.5 text-zinc-400 hover:text-white rounded-md transition-colors" title="Toggle Fullscreen">
-              {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+            <div className="flex items-center gap-2 mr-2">
+               {team.slice(0, 3).map((m, i) => (
+                 <div key={i} className="w-6 h-6 rounded-full bg-[#18181b] border border-[#383838] overflow-hidden">
+                    {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover"/> : <User size={12} className="m-auto mt-1.5 text-zinc-500" />}
+                 </div>
+               ))}
+               <button className="px-3 py-1 bg-[#9cf822] text-black text-[11px] font-bold rounded hover:opacity-90 transition-opacity">Share</button>
+            </div>
+            <div className="w-px h-4 bg-[#383838]"></div>
+            <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 text-zinc-400 hover:text-white rounded transition-colors" title="Toggle Fullscreen">
+              {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
             </button>
-            <div className="w-px h-4 bg-[#2C2C2C]"></div>
-            <button onClick={handleSaveDesign} disabled={isSaving} className="px-3 py-1.5 bg-[#9cf822] text-black text-xs font-bold rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50">
-              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
+            <button onClick={handleSaveDesign} disabled={isSaving} className="p-1 text-zinc-400 hover:text-[#9cf822] rounded transition-colors disabled:opacity-50">
+              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             </button>
           </div>
         </header>
@@ -730,22 +730,22 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
         {/* ================= CO-LAB HOME (ILLUSTRATOR VIBE) ================= */}
         {activeTab === 'colab' && colabView === 'home' && (
-          <div className="flex-grow flex bg-[#121212] text-zinc-300 relative h-full">
+          <div className="flex-grow flex bg-[#1E1E1E] text-zinc-300 relative h-full">
             
             {/* Sidebar */}
-            <div className="w-64 bg-[#18181b] border-r border-[#27272a] flex flex-col p-6 hidden md:flex shrink-0">
-              <div className="flex items-center gap-3 mb-10 cursor-pointer" onClick={() => setActiveTab('overview')}>
-                <img src="/lab x.svg" className="w-8 h-8 hover:opacity-80 transition-opacity" alt="Lab X" />
+            <div className="w-60 bg-[#2C2C2C] border-r border-[#383838] flex flex-col p-4 hidden md:flex shrink-0">
+              <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => setActiveTab('overview')}>
+                <img src="/lab x.svg" className="w-6 h-6 hover:opacity-80 transition-opacity" alt="Lab X" />
                 <span className="font-bold text-white tracking-widest text-sm uppercase">Lab X</span>
               </div>
-              <div className="space-y-1">
-                 <button className="w-full flex items-center gap-3 px-3 py-2.5 bg-[#27272a] text-white rounded-lg text-sm font-medium"><Home size={16}/> Home</button>
-                 <button className="w-full flex items-center gap-3 px-3 py-2.5 text-zinc-400 hover:text-white hover:bg-[#27272a]/50 rounded-lg text-sm font-medium transition-colors"><Clock size={16}/> Recent</button>
-                 <button className="w-full flex items-center gap-3 px-3 py-2.5 text-zinc-400 hover:text-white hover:bg-[#27272a]/50 rounded-lg text-sm font-medium transition-colors"><Users size={16}/> Shared with you</button>
+              <div className="space-y-0.5">
+                 <button className="w-full flex items-center gap-3 px-2 py-2 bg-[#383838] text-white rounded text-sm font-medium"><Home size={16}/> Home</button>
+                 <button className="w-full flex items-center gap-3 px-2 py-2 text-zinc-400 hover:text-white hover:bg-[#383838]/50 rounded text-sm font-medium transition-colors"><Clock size={16}/> Recent</button>
+                 <button className="w-full flex items-center gap-3 px-2 py-2 text-zinc-400 hover:text-white hover:bg-[#383838]/50 rounded text-sm font-medium transition-colors"><Users size={16}/> Shared with you</button>
               </div>
               
               <div className="mt-auto">
-                <button onClick={() => setActiveTab('overview')} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 border border-[#27272a] text-zinc-400 hover:text-white hover:bg-[#27272a]/50 rounded-lg text-sm font-medium transition-colors">
+                <button onClick={() => setActiveTab('overview')} className="w-full flex items-center justify-center gap-2 px-2 py-2 border border-[#383838] text-zinc-400 hover:text-white hover:bg-[#383838]/50 rounded text-sm font-medium transition-colors">
                   <ArrowLeft size={16}/> Exit to Overview
                 </button>
               </div>
@@ -753,38 +753,38 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
             {/* Main Content */}
             <div className="flex-grow p-8 md:p-12 overflow-y-auto">
-              <div className="max-w-6xl mx-auto space-y-16">
+              <div className="max-w-5xl mx-auto space-y-12">
                 
                 {/* Header */}
                 <div className="flex items-center justify-between">
-                   <h1 className="text-3xl font-semibold text-white tracking-tight">Let's create something.</h1>
-                   <button onClick={() => setColabView('canvas')} className="px-5 py-2.5 bg-[#9cf822] text-black font-bold rounded-lg text-sm flex items-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(156,248,34,0.15)]"><Plus size={16}/> New Canvas</button>
+                   <h1 className="text-2xl font-semibold text-white tracking-tight">Let's create something.</h1>
+                   <button onClick={() => setColabView('canvas')} className="px-4 py-2 bg-[#9cf822] text-black font-bold rounded text-sm flex items-center gap-2 hover:opacity-90 transition-opacity"><Plus size={16}/> New design file</button>
                 </div>
 
                 {/* Templates Grid */}
                 <div>
                    <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Start a new design</h2>
-                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <TemplateCard name="Web Large" size="1440 x 1024 px" icon={<Monitor size={28} strokeWidth={1.5}/>} onClick={() => startWithTemplate('Web Large', 1440, 1024)} />
-                      <TemplateCard name="iPhone 14 Pro" size="390 x 844 px" icon={<Smartphone size={28} strokeWidth={1.5}/>} onClick={() => startWithTemplate('iPhone 14 Pro', 390, 844)} />
-                      <TemplateCard name="Instagram Post" size="1080 x 1080 px" icon={<LayoutGrid size={28} strokeWidth={1.5}/>} onClick={() => startWithTemplate('Instagram Post', 1080, 1080)} />
-                      <TemplateCard name="Blank Canvas" size="Infinite" icon={<Square size={28} strokeWidth={1.5}/>} onClick={() => setColabView('canvas')} />
+                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <TemplateCard name="Web Large" size="1440 x 1024" icon={<Monitor size={24} strokeWidth={1.5}/>} onClick={() => startWithTemplate('Web Large', 1440, 1024)} />
+                      <TemplateCard name="iPhone 14 Pro" size="390 x 844" icon={<Smartphone size={24} strokeWidth={1.5}/>} onClick={() => startWithTemplate('iPhone 14 Pro', 390, 844)} />
+                      <TemplateCard name="Instagram Post" size="1080 x 1080" icon={<LayoutGrid size={24} strokeWidth={1.5}/>} onClick={() => startWithTemplate('Instagram Post', 1080, 1080)} />
+                      <TemplateCard name="Blank Canvas" size="Infinite" icon={<Square size={24} strokeWidth={1.5}/>} onClick={() => setColabView('canvas')} />
                    </div>
                 </div>
 
                 {/* Recent Workspace */}
                 <div>
                    <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Current Workspace</h2>
-                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                      <div onClick={() => setColabView('canvas')} className="group cursor-pointer">
-                        <div className="h-52 bg-[#18181b] border border-[#27272a] group-hover:border-[#9cf822] transition-colors rounded-xl flex items-center justify-center mb-4 relative overflow-hidden">
+                        <div className="h-40 bg-[#2C2C2C] border border-[#383838] group-hover:border-[#9cf822] transition-colors rounded-lg flex items-center justify-center mb-3 relative overflow-hidden">
                            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
-                           <img src="/lab x.svg" className="w-12 h-12 opacity-20 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 relative z-10" alt="Icon" />
+                           <img src="/lab x.svg" className="w-10 h-10 opacity-20 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 relative z-10" alt="Icon" />
                         </div>
                         <div className="flex items-start justify-between px-1">
                            <div>
-                             <h3 className="text-white font-medium text-sm">{project?.title || 'Untitled'} Canvas</h3>
-                             <p className="text-xs text-zinc-500 mt-1">{elements.length} layers • Edited recently</p>
+                             <h3 className="text-white font-medium text-[13px]">{project?.title || 'Untitled'} Canvas</h3>
+                             <p className="text-[11px] text-zinc-500 mt-0.5">{elements.length} layers • Edited recently</p>
                            </div>
                         </div>
                      </div>
@@ -800,9 +800,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
           <div className="flex-grow flex relative overflow-hidden">
             
             {/* LEFT PANEL: LAYERS */}
-            <aside className="w-[240px] bg-[#18181b] border-r border-[#27272a] flex flex-col z-20 shrink-0">
-              <div className="px-4 py-3 border-b border-[#27272a] flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider">
-                <Layers size={14} /> Layers
+            <aside className="w-[240px] bg-[#2C2C2C] border-r border-[#383838] flex flex-col z-20 shrink-0">
+              <div className="px-3 py-2.5 border-b border-[#383838] flex items-center gap-2 text-[11px] font-bold text-white">
+                <Layers size={12} /> Layers
               </div>
               <div className="flex-grow overflow-y-auto p-2 space-y-0.5">
                 {[...elements].reverse().map(el => (
@@ -817,10 +817,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                         setSelectedIds([el.id]);
                       }
                     }} 
-                    className={`flex items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer group ${selectedIds.includes(el.id) ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-400 hover:bg-[#27272a] hover:text-zinc-200'}`}
+                    className={`flex items-center justify-between px-2 py-1.5 rounded text-[11px] cursor-pointer group ${selectedIds.includes(el.id) ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-300 hover:bg-[#383838]'}`}
                   >
                     <div className="flex items-center gap-2 truncate">
-                      {el.isMask ? <Scissors size={12} className="text-[#9cf822]" /> : el.type === 'text' ? <TypeIcon size={12}/> : el.type === 'image' ? <ImageIcon size={12}/> : el.type === 'frame' ? <Layout size={12}/> : <Square size={12}/>}
+                      {el.isMask ? <Scissors size={10} className="text-[#9cf822]" /> : el.type === 'text' ? <TypeIcon size={10}/> : el.type === 'image' ? <ImageIcon size={10}/> : el.type === 'frame' ? <Layout size={10}/> : <Square size={10}/>}
                       <span className="truncate flex-grow">{el.name} {el.groupId && <span className="opacity-50 ml-1 text-[9px]">(Grouped)</span>}</span>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -836,13 +836,13 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             {/* CENTER: INFINITE CANVAS */}
             <main 
               ref={containerRef}
-              className="flex-grow bg-[#121212] relative cursor-crosshair overflow-hidden"
+              className="flex-grow bg-[#1E1E1E] relative cursor-crosshair overflow-hidden"
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerLeave={handlePointerUp}
             >
-              <div className="absolute inset-0 pointer-events-none opacity-10" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: `${20 * canvasTransform.scale}px ${20 * canvasTransform.scale}px`, backgroundPosition: `${canvasTransform.x}px ${canvasTransform.y}px` }} />
+              <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: `${20 * canvasTransform.scale}px ${20 * canvasTransform.scale}px`, backgroundPosition: `${canvasTransform.x}px ${canvasTransform.y}px` }} />
 
               <svg className="w-full h-full absolute inset-0">
                 <defs>
@@ -863,13 +863,13 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                       <g key={el.id} opacity={el.fillOpacity / 100} clipPath={el.clipMaskId ? `url(#clip_${el.clipMaskId})` : undefined}>
                         {el.type === 'frame' && (
                           <g>
-                            <text x={el.x} y={el.y - 8} fontSize={12 / canvasTransform.scale} fill="#71717a" fontWeight="bold">{el.name}</text>
-                            <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} stroke={isSelected ? '#9cf822' : '#27272a'} strokeWidth={isSelected ? 2/canvasTransform.scale : 1} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>
+                            <text x={el.x} y={el.y - 8} fontSize={10 / canvasTransform.scale} fill="#71717a" fontWeight="bold">{el.name}</text>
+                            <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} stroke={isSelected ? '#9cf822' : '#27272a'} strokeWidth={isSelected ? 1.5/canvasTransform.scale : 1} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>
                           </g>
                         )}
                         {el.type === 'rectangle' && <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} rx={el.cornerRadius} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>}
                         {el.type === 'ellipse' && <ellipse cx={el.x + el.width/2} cy={el.y + el.height/2} rx={el.width/2} ry={el.height/2} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
-                        {el.type === 'text' && <text x={el.x} y={el.y + (el.fontSize || 24)} fill={el.fill} fontSize={el.fontSize} fontFamily="Inter, sans-serif" onPointerDown={(e) => handleElementPointerDown(e, el)} className="select-none cursor-default">{el.text}</text>}
+                        {el.type === 'text' && <text x={el.x} y={el.y + (el.fontSize || 24)} fill={el.fill} fontSize={el.fontSize} fontFamily={el.fontFamily} fontWeight={el.fontWeight} textAnchor={el.textAlign === 'center' ? 'middle' : el.textAlign === 'right' ? 'end' : 'start'} dx={el.textAlign === 'center' ? el.width/2 : el.textAlign === 'right' ? el.width : 0} onPointerDown={(e) => handleElementPointerDown(e, el)} className="select-none cursor-default">{el.text}</text>}
                         {el.type === 'image' && el.imageUrl && <image href={el.imageUrl} x={el.x} y={el.y} width={el.width} height={el.height} preserveAspectRatio="none" onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
                       </g>
                     );
@@ -881,10 +881,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                       <rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} fill="none" stroke="#9cf822" strokeWidth={1.5 / canvasTransform.scale} pointerEvents="none" />
                       {!isMultiSelect && (
                         <>
-                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'nw')} x={bounds.x - 4/canvasTransform.scale} y={bounds.y - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nwse-resize" />
-                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'ne')} x={bounds.x + bounds.width - 4/canvasTransform.scale} y={bounds.y - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nesw-resize" />
-                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'sw')} x={bounds.x - 4/canvasTransform.scale} y={bounds.y + bounds.height - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nesw-resize" />
-                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'se')} x={bounds.x + bounds.width - 4/canvasTransform.scale} y={bounds.y + bounds.height - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nwse-resize" />
+                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'nw')} x={bounds.x - 3/canvasTransform.scale} y={bounds.y - 3/canvasTransform.scale} width={6/canvasTransform.scale} height={6/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1/canvasTransform.scale} className="cursor-nwse-resize" />
+                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'ne')} x={bounds.x + bounds.width - 3/canvasTransform.scale} y={bounds.y - 3/canvasTransform.scale} width={6/canvasTransform.scale} height={6/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1/canvasTransform.scale} className="cursor-nesw-resize" />
+                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'sw')} x={bounds.x - 3/canvasTransform.scale} y={bounds.y + bounds.height - 3/canvasTransform.scale} width={6/canvasTransform.scale} height={6/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1/canvasTransform.scale} className="cursor-nesw-resize" />
+                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'se')} x={bounds.x + bounds.width - 3/canvasTransform.scale} y={bounds.y + bounds.height - 3/canvasTransform.scale} width={6/canvasTransform.scale} height={6/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1/canvasTransform.scale} className="cursor-nwse-resize" />
                         </>
                       )}
                     </g>
@@ -893,74 +893,165 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
               </svg>
             </main>
 
-            {/* RIGHT PANEL: INSPECTOR */}
-            <aside className="w-[260px] bg-[#18181b] border-l border-[#27272a] overflow-y-auto z-20 shrink-0">
+            {/* FIGMA-STYLE RIGHT PANEL: INSPECTOR */}
+            <aside className="w-[240px] bg-[#2C2C2C] border-l border-[#383838] overflow-y-auto z-20 shrink-0 text-white select-none">
+              
+              {/* Alignment Bar */}
+              <div className="flex items-center justify-between p-3 border-b border-[#383838] text-zinc-400">
+                <div className="flex gap-2">
+                   <button className="hover:text-white transition-colors" title="Align left"><AlignLeft size={14}/></button>
+                   <button className="hover:text-white transition-colors" title="Align horizontal centers"><AlignCenter size={14}/></button>
+                   <button className="hover:text-white transition-colors" title="Align right"><AlignRight size={14}/></button>
+                </div>
+                <div className="flex gap-2">
+                   <button className="hover:text-white transition-colors rotate-90" title="Align top"><AlignLeft size={14}/></button>
+                   <button className="hover:text-white transition-colors rotate-90" title="Align vertical centers"><AlignCenter size={14}/></button>
+                   <button className="hover:text-white transition-colors rotate-90" title="Align bottom"><AlignRight size={14}/></button>
+                </div>
+              </div>
+
               {isMultiSelect ? (
-                <div className="p-5 space-y-4">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Multiple Selection</div>
-                  <p className="text-xs text-zinc-400 mb-4">{selectedIds.length} layers selected.</p>
-                  <button onClick={handleGroup} className="w-full py-2 bg-[#27272a] hover:bg-[#3f3f46] text-white rounded text-[10px] font-bold flex items-center justify-center gap-2 transition-colors"><Link2 size={14}/> GROUP SELECTION</button>
-                  <button onClick={handleMakeMask} className="w-full py-2 bg-[#9cf822]/10 hover:bg-[#9cf822]/20 text-[#9cf822] border border-[#9cf822]/20 rounded text-[10px] font-bold flex items-center justify-center gap-2 transition-colors"><Scissors size={14}/> MAKE CLIPPING MASK</button>
-                  <p className="text-[10px] text-zinc-500 text-center mt-1">Bottom layer will act as the mask.</p>
-                  <div className="pt-4 border-t border-[#27272a] space-y-2 mt-4">
-                     {elements.some(el => selectedIds.includes(el.id) && el.groupId) && (
-                        <button onClick={handleUngroup} className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-[10px] font-bold flex items-center justify-center gap-2 transition-colors"><Unlink size={14}/> UNGROUP ALL</button>
-                     )}
-                     {elements.some(el => selectedIds.includes(el.id) && (el.isMask || el.clipMaskId)) && (
-                        <button onClick={handleReleaseMask} className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-[10px] font-bold flex items-center justify-center gap-2 transition-colors"><Scissors size={14}/> RELEASE MASKS</button>
-                     )}
+                <div className="p-3 border-b border-[#383838] space-y-3">
+                  <div className="text-[11px] font-medium text-white">Selection</div>
+                  <div className="text-[10px] text-zinc-400 flex items-center gap-2 bg-[#383838]/50 p-2 rounded"><Layers size={12}/> {selectedIds.length} layers selected</div>
+                  
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                     <button onClick={handleGroup} className="py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><Link2 size={12}/> Group</button>
+                     <button onClick={handleMakeMask} className="py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><Scissors size={12}/> Mask</button>
                   </div>
                 </div>
               ) : singleSelectedElement ? (
-                <div className="divide-y divide-[#27272a]">
-                  <div className="p-5 space-y-4">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex justify-between items-center">
-                      Transform {singleSelectedElement.groupId && <span className="bg-[#27272a] px-1.5 py-0.5 rounded text-[9px] text-white">Grouped</span>}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <InspectorField label="X" value={Math.round(singleSelectedElement.x)} />
-                      <InspectorField label="Y" value={Math.round(singleSelectedElement.y)} />
-                      <InspectorField label="W" value={Math.round(singleSelectedElement.width)} />
-                      <InspectorField label="H" value={Math.round(singleSelectedElement.height)} />
+                <>
+                  {/* Transform Section */}
+                  <div className="p-3 border-b border-[#383838]">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      <FigmaInput icon="X" value={Math.round(singleSelectedElement.x)} onChange={(v: string) => updateSelected({x: Number(v)})} />
+                      <FigmaInput icon="Y" value={Math.round(singleSelectedElement.y)} onChange={(v: string) => updateSelected({y: Number(v)})} />
+                      <FigmaInput icon="W" value={Math.round(singleSelectedElement.width)} onChange={(v: string) => updateSelected({width: Math.max(1, Number(v))})} />
+                      <FigmaInput icon="H" value={Math.round(singleSelectedElement.height)} onChange={(v: string) => updateSelected({height: Math.max(1, Number(v))})} />
+                      <FigmaInput icon="∠" value={"0°"} onChange={() => {}} />
+                      <FigmaInput icon="R" value={singleSelectedElement.cornerRadius || 0} onChange={(v: string) => updateSelected({cornerRadius: Number(v)})} />
                     </div>
                   </div>
 
+                  {/* Text Properties Section */}
                   {singleSelectedElement.type === 'text' && (
-                    <div className="p-5 space-y-3">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Text Properties</div>
-                      <input type="text" value={singleSelectedElement.text} onChange={(e) => setElements(elements.map(el => el.id === singleSelectedElement.id ? {...el, text: e.target.value} : el))} className="w-full bg-[#121212] border border-[#27272a] rounded px-3 py-2 text-xs text-white focus:border-[#9cf822] outline-none" />
+                    <div className="p-3 border-b border-[#383838] space-y-2">
+                       <div className="text-[11px] font-medium mb-2">Text</div>
+                       
+                       {/* Value Input */}
+                       <input type="text" value={singleSelectedElement.text} onChange={(e) => updateSelected({ text: e.target.value })} className="w-full bg-transparent border border-[#383838] hover:border-[#555] focus:border-[#9cf822] rounded px-2 py-1 text-[11px] outline-none transition-colors mb-2" />
+                       
+                       <div className="flex items-center gap-2">
+                          <div className="flex-1 flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group">
+                             <span className="text-[11px]">{singleSelectedElement.fontFamily}</span>
+                             <ChevronDown size={12} className="text-zinc-500 group-hover:text-white" />
+                          </div>
+                       </div>
+                       <div className="grid grid-cols-2 gap-2">
+                          <div className="flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group">
+                             <span className="text-[11px]">{singleSelectedElement.fontWeight}</span>
+                             <ChevronDown size={12} className="text-zinc-500 group-hover:text-white" />
+                          </div>
+                          <FigmaInput icon={<TypeIcon size={12}/>} value={singleSelectedElement.fontSize || 16} onChange={(v:string) => updateSelected({fontSize: Number(v)})} />
+                       </div>
+                       
+                       <div className="flex items-center gap-1 mt-2 text-zinc-400">
+                          <button onClick={() => updateSelected({textAlign: 'left'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'left' ? 'bg-[#383838] text-white' : ''}`}><AlignLeft size={12}/></button>
+                          <button onClick={() => updateSelected({textAlign: 'center'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'center' ? 'bg-[#383838] text-white' : ''}`}><AlignCenter size={12}/></button>
+                          <button onClick={() => updateSelected({textAlign: 'right'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'right' ? 'bg-[#383838] text-white' : ''}`}><AlignRight size={12}/></button>
+                       </div>
                     </div>
                   )}
 
+                  {/* Fill Section */}
                   {singleSelectedElement.type !== 'image' && (
-                    <div className="p-5 space-y-4">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center justify-between">Fill <Plus size={12}/></div>
-                      <div className="flex flex-wrap gap-2">
-                        {colorPresets.map(c => (
-                          <button key={c} onClick={() => setElements(elements.map(e => e.id === singleSelectedElement.id ? {...e, fill: c} : e))} className="w-6 h-6 rounded-full border border-[#27272a] hover:scale-110 transition-transform" style={{ background: c }} />
-                        ))}
+                    <div className="p-3 border-b border-[#383838]">
+                      <div className="flex items-center justify-between group cursor-pointer mb-2">
+                        <span className="text-[11px] font-medium">Fill</span>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                           <button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white"><Plus size={12}/></button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 bg-[#121212] p-1.5 rounded-lg border border-[#27272a]">
-                         <Pipette size={14} className="text-zinc-500 ml-1" />
-                         <input type="text" value={singleSelectedElement.fill.toUpperCase()} onChange={(e) => setElements(elements.map(el => el.id === singleSelectedElement.id ? {...el, fill: e.target.value} : el))} className="bg-transparent text-[11px] font-mono outline-none w-full uppercase text-zinc-300" />
-                         <input type="number" value={singleSelectedElement.fillOpacity} onChange={(e) => setElements(elements.map(el => el.id === singleSelectedElement.id ? {...el, fillOpacity: Number(e.target.value)} : el))} className="w-12 bg-transparent text-[11px] font-mono outline-none text-right text-zinc-300 mr-1" />%
+                      
+                      <div className="flex items-center gap-2 group">
+                         <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden" style={{ background: singleSelectedElement.fill }}>
+                            {singleSelectedElement.fillOpacity < 100 && <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)', backgroundSize: '8px 8px', backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0px', zIndex: -1}}/>}
+                         </div>
+                         <input type="text" value={singleSelectedElement.fill.toUpperCase()} onChange={(e) => updateSelected({fill: e.target.value})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none w-16" />
+                         <input type="number" value={singleSelectedElement.fillOpacity} onChange={(e) => updateSelected({fillOpacity: Number(e.target.value)})} className="w-10 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] text-right outline-none" /><span className="text-[10px] text-zinc-500">%</span>
+                         <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                           <button className="p-1 text-zinc-400 hover:text-white"><Eye size={12}/></button>
+                           <button className="p-1 text-zinc-400 hover:text-white"><Minus size={12}/></button>
+                         </div>
                       </div>
                     </div>
                   )}
 
-                  <div className="p-5 space-y-2">
-                    <button onClick={bringToFront} className="w-full py-2.5 bg-[#27272a] hover:bg-[#3f3f46] rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 text-white transition-colors"><MoveUp size={12}/> BRING TO FRONT</button>
-                    <button onClick={sendToBack} className="w-full py-2.5 bg-[#27272a] hover:bg-[#3f3f46] rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 text-white transition-colors"><MoveDown size={12}/> SEND TO BACK</button>
-                    
-                    <div className="pt-4 mt-2">
-                       <button onClick={() => setElements(elements.filter(el => el.id !== singleSelectedElement.id))} className="w-full py-2 border border-red-500/20 text-xs font-bold text-red-500 rounded-lg hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"><Trash2 size={14} /> Delete Layer</button>
+                  {/* Stroke Section */}
+                  {singleSelectedElement.type !== 'image' && (
+                    <div className="p-3 border-b border-[#383838]">
+                      <div className="flex items-center justify-between group cursor-pointer mb-2">
+                        <span className="text-[11px] font-medium">Stroke</span>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                           <button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white" onClick={() => updateSelected({stroke: '#000000', strokeWidth: 1})}><Plus size={12}/></button>
+                        </div>
+                      </div>
+                      
+                      {singleSelectedElement.stroke && singleSelectedElement.stroke !== 'transparent' ? (
+                        <>
+                          <div className="flex items-center gap-2 group mb-2">
+                             <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm" style={{ background: singleSelectedElement.stroke }} />
+                             <input type="text" value={singleSelectedElement.stroke.toUpperCase()} onChange={(e) => updateSelected({stroke: e.target.value})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none w-16" />
+                             <div className="w-10 text-right text-[11px]">100%</div>
+                             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                               <button className="p-1 text-zinc-400 hover:text-white"><Eye size={12}/></button>
+                               <button className="p-1 text-zinc-400 hover:text-white" onClick={() => updateSelected({stroke: 'transparent'})}><Minus size={12}/></button>
+                             </div>
+                          </div>
+                          <div className="flex items-center gap-2 pl-6">
+                            <div className="flex items-center gap-2 bg-transparent border border-transparent hover:border-[#383838] px-1.5 py-1 rounded w-16 cursor-text">
+                               <Minus size={10} className="text-zinc-500"/>
+                               <input type="number" value={singleSelectedElement.strokeWidth} onChange={(e) => updateSelected({strokeWidth: Number(e.target.value)})} className="bg-transparent text-[11px] w-full outline-none" />
+                            </div>
+                            <div className="flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group w-16">
+                               <span className="text-[11px]">Inside</span>
+                               <ChevronDown size={10} className="text-zinc-500 group-hover:text-white" />
+                            </div>
+                            <button className="p-1 hover:bg-[#383838] rounded ml-auto text-zinc-400"><MoreHorizontal size={12}/></button>
+                          </div>
+                        </>
+                      ) : (
+                         <div className="text-[10px] text-zinc-500 pl-1">No strokes applied.</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Effects Section */}
+                  <div className="p-3 border-b border-[#383838]">
+                    <div className="flex items-center justify-between group cursor-pointer mb-2">
+                      <span className="text-[11px] font-medium">Effects</span>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white"><Plus size={12}/></button>
+                      </div>
                     </div>
                   </div>
-                </div>
+
+                  {/* Export Section */}
+                  <div className="p-3">
+                    <div className="flex items-center justify-between group cursor-pointer mb-2">
+                      <span className="text-[11px] font-medium">Export</span>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white"><Plus size={12}/></button>
+                      </div>
+                    </div>
+                  </div>
+
+                </>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center text-zinc-600 p-6">
-                  <div className="w-16 h-16 rounded-2xl bg-[#27272a] flex items-center justify-center mb-4"><MousePointer2 size={24} className="text-zinc-500"/></div>
-                  <p className="text-xs font-medium">Select a layer to view and edit its properties.</p>
+                <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 p-6">
+                  <MousePointer2 size={24} className="mb-4 opacity-20"/>
+                  <p className="text-[11px]">Select a layer to view properties.</p>
                 </div>
               )}
             </aside>
@@ -1061,30 +1152,30 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 // --- Helper Components ---
 function ToolBtn({ icon, active, onClick, tip }: any) {
   return (
-    <button onClick={onClick} className={`p-2 rounded-md transition-all group relative ${active ? 'bg-[#9cf822] text-black' : 'text-zinc-400 hover:text-white hover:bg-[#27272a]'}`}>
+    <button onClick={onClick} className={`p-1.5 rounded transition-all group relative ${active ? 'bg-[#9cf822] text-black' : 'text-zinc-400 hover:text-white hover:bg-[#383838]'}`}>
       {icon}
-      <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-[9px] text-white font-bold rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[100]">{tip}</span>
+      <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-[9px] text-white font-bold rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[100] shadow-xl">{tip}</span>
     </button>
   );
 }
 
-function InspectorField({ label, value }: any) {
+function FigmaInput({ icon, value, onChange }: any) {
   return (
-    <div className="bg-[#121212] border border-[#27272a] rounded-lg p-2 flex items-center gap-2">
-      <span className="text-[9px] font-bold text-zinc-600 w-3">{label}</span>
-      <input type="text" readOnly value={value} className="bg-transparent text-[11px] font-mono outline-none w-full text-zinc-300" />
+    <div className="flex items-center gap-1.5 border border-transparent hover:border-[#383838] focus-within:border-[#9cf822] rounded px-1.5 py-1 transition-colors cursor-text group">
+      <span className="text-[10px] text-zinc-500 group-hover:text-zinc-400 w-3 flex-shrink-0 flex items-center justify-center">{icon}</span>
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className="bg-transparent text-[11px] outline-none w-full text-white" />
     </div>
   );
 }
 
 function TemplateCard({ name, size, icon, onClick }: any) {
   return (
-    <button onClick={onClick} className="group flex flex-col items-center justify-center p-6 bg-[#18181b] border border-[#27272a] hover:border-[#9cf822] rounded-2xl transition-all duration-300 text-left hover:shadow-[0_0_20px_rgba(156,248,34,0.05)] w-full">
-      <div className="h-16 flex items-center justify-center text-zinc-500 group-hover:text-[#9cf822] transition-colors mb-4 group-hover:scale-110 duration-300">
+    <button onClick={onClick} className="group flex flex-col items-center justify-center p-6 bg-[#2C2C2C] border border-[#383838] hover:border-[#9cf822] rounded-lg transition-all duration-300 text-left w-full">
+      <div className="h-12 flex items-center justify-center text-zinc-500 group-hover:text-[#9cf822] transition-colors mb-3 group-hover:scale-110 duration-300">
         {icon}
       </div>
-      <span className="text-sm font-semibold text-white w-full text-center">{name}</span>
-      <span className="text-[10px] font-medium text-zinc-500 w-full text-center mt-1">{size}</span>
+      <span className="text-[13px] font-medium text-white w-full text-center">{name}</span>
+      <span className="text-[10px] text-zinc-500 w-full text-center mt-0.5">{size}</span>
     </button>
   );
 }
