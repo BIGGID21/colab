@@ -55,6 +55,7 @@ interface CanvasElement {
   groupId?: string;
   clipMaskId?: string;
   isMask?: boolean;
+  frameId?: string; // NEW: Tracks which Artboard this element belongs to
 }
 
 const getCurrencySymbol = (currency: string) => {
@@ -310,16 +311,6 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     }));
   };
 
-  const handleReleaseMask = () => {
-    pushToHistory(elements.map(el => {
-      if (selectedIds.includes(el.id)) {
-        if (el.isMask) return { ...el, isMask: false };
-        if (el.clipMaskId) return { ...el, clipMaskId: undefined };
-      }
-      return el;
-    }));
-  };
-
   const handleAlign = (type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
     if (selectedIds.length < 2) return;
     const selected = elements.filter(el => selectedIds.includes(el.id));
@@ -428,14 +419,19 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
   // --- TEMPLATE STARTER ---
   const startWithTemplate = (name: string, w: number, h: number) => {
+    let finalW = w; let finalH = h; let finalName = name;
+    if (name === 'Blank Canvas') {
+        finalW = 1440; finalH = 1024; finalName = 'Desktop';
+    }
     const newId = `el_${Date.now()}`;
     const newFrame: CanvasElement = {
-      id: newId, name: name, type: 'frame', x: 100, y: 100, width: w, height: h, 
-      fill: '#ffffff', fillOpacity: 100, stroke: '#e4e4e7', strokeWidth: 1, 
+      id: newId, name: finalName, type: 'frame', x: 100, y: 100, width: finalW, height: finalH, 
+      fill: '#ffffff', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, 
       cornerRadius: 0, isVisible: true, isLocked: false, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left'
     };
     pushToHistory([...elements, newFrame]);
     setColabView('canvas');
+    setActiveTool('select');
   };
 
   // --- CANVAS ENGINE ---
@@ -471,7 +467,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (editingTextId) return; // Ignore drag if editing text
+    if (editingTextId) return; 
     if (isPanning || activeTool === 'hand' || e.button === 1) {
       setDragState({ action: 'panning', startX: e.clientX, startY: e.clientY });
       return;
@@ -481,7 +477,36 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       setSelectedIds([]);
     } else if (activeTool !== 'select' && activeTool !== 'image') {
       const newId = `el_${Date.now()}`;
-      pushToHistory([...elements, { id: newId, name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), type: activeTool as any, x, y, width: 100, height: 100, fill: '#d4d4d8', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, text: activeTool === 'text' ? 'New Text' : undefined, fontSize: activeTool === 'text' ? 24 : undefined, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left' }]);
+      const isFrame = activeTool === 'frame';
+
+      // Smart Nesting: Check if drawn inside an existing Frame
+      const frames = elements.filter(el => el.type === 'frame');
+      const containingFrame = isFrame ? undefined : [...frames].reverse().find(f => 
+         x >= f.x && x <= (f.x + f.width) && 
+         y >= f.y && y <= (f.y + f.height)
+      );
+
+      pushToHistory([...elements, { 
+        id: newId, 
+        name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), 
+        type: activeTool as any, 
+        x, y, 
+        width: isFrame ? 400 : 100, 
+        height: isFrame ? 300 : 100, 
+        fill: isFrame ? '#ffffff' : '#d4d4d8', 
+        fillOpacity: 100, 
+        stroke: 'transparent', 
+        strokeWidth: 0, 
+        cornerRadius: 0, 
+        isVisible: true, 
+        isLocked: false, 
+        text: activeTool === 'text' ? 'New Text' : undefined, 
+        fontSize: activeTool === 'text' ? 24 : undefined, 
+        fontFamily: 'Inter', 
+        fontWeight: 'Normal', 
+        textAlign: 'left',
+        frameId: containingFrame ? containingFrame.id : undefined
+      }]);
       setSelectedIds([newId]);
       setActiveTool('select');
     }
@@ -530,7 +555,18 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     if (dragState.action === 'moving') {
       const dx = x - dragState.startX;
       const dy = y - dragState.startY;
-      setElements(dragState.originalElements.map((el: CanvasElement) => selectedIds.includes(el.id) ? { ...el, x: el.x + dx, y: el.y + dy } : el));
+      
+      // Artboard Group Movement: Dragging a frame automatically drags its nested children
+      const explicitlySelected = dragState.originalElements.filter((el: CanvasElement) => selectedIds.includes(el.id));
+      const explicitlySelectedFrameIds = explicitlySelected.filter((el: CanvasElement) => el.type === 'frame').map((el: CanvasElement) => el.id);
+      
+      const childIds = dragState.originalElements
+         .filter((el: CanvasElement) => el.frameId && explicitlySelectedFrameIds.includes(el.frameId))
+         .map((el: CanvasElement) => el.id);
+
+      const allMovingIds = [...selectedIds, ...childIds];
+
+      setElements(dragState.originalElements.map((el: CanvasElement) => allMovingIds.includes(el.id) ? { ...el, x: el.x + dx, y: el.y + dy } : el));
     } 
     else if (dragState.action === 'resizing' && dragState.handle) {
       const dx = x - dragState.startX;
@@ -555,9 +591,30 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
   const handlePointerUp = () => {
     if (dragState && dragState.action !== 'panning' && dragState.hasDragged) {
-      // Create a clean snapshot of history after dragging
-      setPast(prev => [...prev, dragState.originalElements]);
+      let finalElements = [...elements];
+
+      if (dragState.action === 'moving') {
+         // Smart Nesting: Recalculate frame containment for elements that were moved
+         const frames = finalElements.filter(el => el.type === 'frame');
+
+         finalElements = finalElements.map(el => {
+            if (selectedIds.includes(el.id) && el.type !== 'frame') {
+               const centerX = el.x + el.width / 2;
+               const centerY = el.y + el.height / 2;
+               // Find top-most frame containing the center
+               const containingFrame = [...frames].reverse().find(f => 
+                  centerX >= f.x && centerX <= (f.x + f.width) && 
+                  centerY >= f.y && centerY <= (f.y + f.height)
+               );
+               return { ...el, frameId: containingFrame ? containingFrame.id : undefined };
+            }
+            return el;
+         });
+      }
+
+      setPast(prev => [...prev, finalElements]);
       setFuture([]);
+      setElements(finalElements);
     }
     setDragState(null);
   };
@@ -687,6 +744,42 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     }
   };
 
+  // --- RENDER HELPERS ---
+  const topLevelElements = [...elements].reverse().filter(el => !el.frameId);
+  const renderLayerItem = (el: CanvasElement, depth: number) => {
+    const isSelected = selectedIds.includes(el.id);
+    return (
+      <div 
+        key={el.id} 
+        onClick={(e) => {
+          e.stopPropagation();
+          setActiveTool('select');
+          if (e.shiftKey) setSelectedIds([...selectedIds, el.id].filter((v, i, a) => a.indexOf(v) === i));
+          else setSelectedIds([el.id]);
+        }} 
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          if (el.type === 'text') {
+             setEditingTextId(el.id);
+             setActiveTool('select');
+          }
+        }}
+        className={`flex items-center justify-between py-1.5 pr-2 rounded text-[11px] cursor-pointer group ${isSelected ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-300 hover:bg-[#383838]'}`}
+        style={{ paddingLeft: `${depth * 16 + 8}px` }}
+      >
+        <div className="flex items-center gap-2 truncate">
+          {el.isMask ? <Scissors size={10} className="text-[#9cf822]" /> : el.type === 'text' ? <TypeIcon size={10}/> : el.type === 'image' ? <ImageIcon size={10}/> : el.type === 'frame' ? <Layout size={10}/> : <Square size={10}/>}
+          <span className={`truncate flex-grow ${el.type === 'frame' ? 'font-bold text-white' : ''}`}>{el.name} {el.groupId && <span className="opacity-50 ml-1 text-[9px]">(Grouped)</span>}</span>
+        </div>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={(e) => { e.stopPropagation(); pushToHistory(elements.map(item => item.id === el.id ? {...item, isVisible: !item.isVisible} : item)); }} className="p-1 hover:text-white">
+            {el.isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // ----------------------------------------------------------------------
   // RENDER
   // ----------------------------------------------------------------------
@@ -766,7 +859,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
           <div className="flex items-center gap-0.5">
             <ToolBtn icon={<MousePointer2 size={14}/>} active={activeTool === 'select'} onClick={() => setActiveTool('select')} tip="Move (V)" />
-            <ToolBtn icon={<Layout size={14}/>} active={activeTool === 'frame'} onClick={() => setActiveTool('frame')} tip="Frame (F)" />
+            <ToolBtn icon={<Layout size={14}/>} active={activeTool === 'frame'} onClick={() => setActiveTool('frame')} tip="Artboard/Frame (F)" />
             <ToolBtn icon={<Square size={14}/>} active={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} tip="Rectangle (R)" />
             <ToolBtn icon={<Circle size={14}/>} active={activeTool === 'ellipse'} onClick={() => setActiveTool('ellipse')} tip="Ellipse (O)" />
             <ToolBtn icon={<TypeIcon size={14}/>} active={activeTool === 'text'} onClick={() => setActiveTool('text')} tip="Text (T)" />
@@ -1035,38 +1128,16 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                 <Layers size={12} /> Layers
               </div>
               <div className="flex-grow overflow-y-auto p-2 space-y-0.5">
-                {[...elements].reverse().map(el => (
-                  <div 
-                    key={el.id} 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveTool('select');
-                      if (e.shiftKey) {
-                        setSelectedIds([...selectedIds, el.id].filter((v, i, a) => a.indexOf(v) === i));
-                      } else {
-                        setSelectedIds([el.id]);
-                      }
-                    }} 
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      if (el.type === 'text') {
-                         setEditingTextId(el.id);
-                         setActiveTool('select');
-                      }
-                    }}
-                    className={`flex items-center justify-between px-2 py-1.5 rounded text-[11px] cursor-pointer group ${selectedIds.includes(el.id) ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-300 hover:bg-[#383838]'}`}
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      {el.isMask ? <Scissors size={10} className="text-[#9cf822]" /> : el.type === 'text' ? <TypeIcon size={10}/> : el.type === 'image' ? <ImageIcon size={10}/> : el.type === 'frame' ? <Layout size={10}/> : <Square size={10}/>}
-                      <span className="truncate flex-grow">{el.name} {el.groupId && <span className="opacity-50 ml-1 text-[9px]">(Grouped)</span>}</span>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={(e) => { e.stopPropagation(); pushToHistory(elements.map(item => item.id === el.id ? {...item, isVisible: !item.isVisible} : item)); }} className="p-1 hover:text-white">
-                        {el.isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                 {/* Smart Layers: Indent elements under their parent frames */}
+                 {topLevelElements.map(el => {
+                    const children = el.type === 'frame' ? [...elements].reverse().filter(c => c.frameId === el.id) : [];
+                    return (
+                       <React.Fragment key={el.id}>
+                          {renderLayerItem(el, 0)}
+                          {children.map(child => renderLayerItem(child, 1))}
+                       </React.Fragment>
+                    );
+                 })}
               </div>
             </aside>
 
@@ -1085,6 +1156,20 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
               <svg className="w-full h-full absolute inset-0">
                 <defs>
+                  {/* Figma-Style Artboard Drop Shadow */}
+                  <filter id="artboard-shadow" x="-20%" y="-20%" width="140%" height="140%">
+                     <feDropShadow dx="0" dy="8" stdDeviation="24" floodOpacity="0.08" floodColor="#000000"/>
+                     <feDropShadow dx="0" dy="2" stdDeviation="6" floodOpacity="0.04" floodColor="#000000"/>
+                  </filter>
+
+                  {/* Frame Clipping Paths */}
+                  {elements.filter(e => e.type === 'frame').map(f => (
+                     <clipPath id={`clip_frame_${f.id}`} key={`clip_frame_${f.id}`}>
+                        <rect x={f.x} y={f.y} width={f.width} height={f.height} />
+                     </clipPath>
+                  ))}
+
+                  {/* Mask Clipping Paths */}
                   {elements.filter(e => e.isMask).map(maskEl => (
                     <clipPath id={`clip_${maskEl.id}`} key={`clip_${maskEl.id}`}>
                        {maskEl.type === 'rectangle' && <rect x={maskEl.x} y={maskEl.y} width={maskEl.width} height={maskEl.height} rx={maskEl.cornerRadius} />}
@@ -1099,33 +1184,48 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                     const isSelected = selectedIds.includes(el.id);
                     const isEditing = editingTextId === el.id;
                     
+                    // IF IT IS AN ARTBOARD
+                    if (el.type === 'frame') {
+                       return (
+                         <g key={el.id}>
+                           <text x={el.x} y={el.y - 8} fontSize={12 / canvasTransform.scale} fill="#a1a1aa" fontWeight="600" className="select-none pointer-events-none">{el.name}</text>
+                           <rect 
+                             x={el.x} y={el.y} width={el.width} height={el.height} 
+                             fill={el.fill} 
+                             filter="url(#artboard-shadow)" 
+                             stroke={isSelected ? '#9cf822' : 'transparent'} 
+                             strokeWidth={isSelected ? 2/canvasTransform.scale : 0} 
+                             onPointerDown={(e) => handleElementPointerDown(e, el)} 
+                             className={el.isLocked ? 'pointer-events-none' : ''}
+                           />
+                         </g>
+                       );
+                    }
+
+                    // IF IT IS A NORMAL SHAPE
                     return (
-                      <g key={el.id} opacity={el.fillOpacity / 100} clipPath={el.clipMaskId ? `url(#clip_${el.clipMaskId})` : undefined}>
-                        {el.type === 'frame' && (
-                          <g>
-                            <text x={el.x} y={el.y - 8} fontSize={10 / canvasTransform.scale} fill="#71717a" fontWeight="bold">{el.name}</text>
-                            <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} stroke={isSelected ? '#9cf822' : '#27272a'} strokeWidth={isSelected ? 1.5/canvasTransform.scale : 1} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>
-                          </g>
-                        )}
-                        {el.type === 'rectangle' && <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} rx={el.cornerRadius} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>}
-                        {el.type === 'ellipse' && <ellipse cx={el.x + el.width/2} cy={el.y + el.height/2} rx={el.width/2} ry={el.height/2} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
-                        {el.type === 'text' && (
-                           isEditing ? (
-                              <foreignObject x={el.x} y={el.y} width={Math.max(300, el.width * 2)} height={(el.fontSize || 24) * 2} className="overflow-visible pointer-events-auto">
-                                <input 
-                                  autoFocus
-                                  defaultValue={el.text}
-                                  onPointerDown={(e) => e.stopPropagation()}
-                                  onBlur={(e) => { updateSelected({text: e.target.value}); setEditingTextId(null); }}
-                                  onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur(); }}
-                                  style={{ fontSize: el.fontSize, fontFamily: el.fontFamily, color: el.fill, background: 'transparent', outline: '1px solid #9cf822', border: 'none', margin: 0, padding: 0, width: '100%', lineHeight: 1, fontWeight: el.fontWeight, textAlign: el.textAlign }} 
-                                />
-                              </foreignObject>
-                           ) : (
-                              <text x={el.x} y={el.y + (el.fontSize || 24) * 0.85} fill={el.fill} fontSize={el.fontSize} fontFamily={el.fontFamily} fontWeight={el.fontWeight} textAnchor={el.textAlign === 'center' ? 'middle' : el.textAlign === 'right' ? 'end' : 'start'} dx={el.textAlign === 'center' ? el.width/2 : el.textAlign === 'right' ? el.width : 0} onPointerDown={(e) => handleElementPointerDown(e, el)} onDoubleClick={(e) => { e.stopPropagation(); setEditingTextId(el.id); setActiveTool('select'); }} className="select-none cursor-default">{el.text}</text>
-                           )
-                        )}
-                        {el.type === 'image' && el.imageUrl && <image href={el.imageUrl} x={el.x} y={el.y} width={el.width} height={el.height} preserveAspectRatio="none" onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
+                      <g key={el.id} clipPath={el.frameId ? `url(#clip_frame_${el.frameId})` : undefined}>
+                        <g opacity={el.fillOpacity / 100} clipPath={el.clipMaskId ? `url(#clip_${el.clipMaskId})` : undefined}>
+                          {el.type === 'rectangle' && <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} rx={el.cornerRadius} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>}
+                          {el.type === 'ellipse' && <ellipse cx={el.x + el.width/2} cy={el.y + el.height/2} rx={el.width/2} ry={el.height/2} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
+                          {el.type === 'text' && (
+                             isEditing ? (
+                                <foreignObject x={el.x} y={el.y} width={Math.max(300, el.width * 2)} height={(el.fontSize || 24) * 2} className="overflow-visible pointer-events-auto">
+                                  <input 
+                                    autoFocus
+                                    defaultValue={el.text}
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onBlur={(e) => { updateSelected({text: e.target.value}); setEditingTextId(null); }}
+                                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur(); }}
+                                    style={{ fontSize: el.fontSize, fontFamily: el.fontFamily, color: el.fill, background: 'transparent', outline: '1px solid #9cf822', border: 'none', margin: 0, padding: 0, width: '100%', lineHeight: 1, fontWeight: el.fontWeight, textAlign: el.textAlign }} 
+                                  />
+                                </foreignObject>
+                             ) : (
+                                <text x={el.x} y={el.y + (el.fontSize || 24) * 0.85} fill={el.fill} fontSize={el.fontSize} fontFamily={el.fontFamily} fontWeight={el.fontWeight} textAnchor={el.textAlign === 'center' ? 'middle' : el.textAlign === 'right' ? 'end' : 'start'} dx={el.textAlign === 'center' ? el.width/2 : el.textAlign === 'right' ? el.width : 0} onPointerDown={(e) => handleElementPointerDown(e, el)} onDoubleClick={(e) => { e.stopPropagation(); setEditingTextId(el.id); setActiveTool('select'); }} className="select-none cursor-default">{el.text}</text>
+                             )
+                          )}
+                          {el.type === 'image' && el.imageUrl && <image href={el.imageUrl} x={el.x} y={el.y} width={el.width} height={el.height} preserveAspectRatio="none" onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
+                        </g>
                       </g>
                     );
                   })}
