@@ -7,25 +7,24 @@ import { useTheme } from 'next-themes';
 import { 
   Loader2, ArrowLeft, Users, Target, Zap, 
   MessageSquare, Layout, Shield, FileText, 
-  CheckCircle2, Circle, Clock, Percent, Plus, 
+  CheckCircle2, Circle, Clock, Plus, 
   X, Send, User, Compass, TrendingUp, 
   Briefcase, Code, PencilRuler, Upload, 
   Wallet, Lock, DollarSign, CreditCard,
   Trash2, Maximize, Minimize,
   ShieldCheck, Image as ImageIcon,
-  Paperclip, ArrowUpRight, Pin,
-  MousePointer2, Square, Type, PenTool,
-  ZoomIn, ZoomOut, Palette, Undo, LayoutDashboard,
-  Layers, Eye, EyeOff, Lock as LockIcon, Unlock,
-  AlignLeft, AlignCenter, AlignRight,
+  Paperclip, Pin, MousePointer2, Square, 
+  Type, PenTool, LayoutDashboard, Layers, 
+  Eye, EyeOff, Lock as LockIcon, Unlock,
   Type as TypeIcon, Hand, ImagePlus, Save,
-  BringToFront, SendToBack, MonitorSmartphone
+  BringToFront, SendToBack, MonitorSmartphone,
+  Pipette, MoveUp, MoveDown, Scissors,
+  Unlink, Link2, Monitor, Smartphone, LayoutGrid, Home
 } from 'lucide-react';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
 
 // ----------------------------------------------------------------------
-// TYPES & HELPERS
+// TYPES
 // ----------------------------------------------------------------------
 type ElementType = 'rectangle' | 'ellipse' | 'text' | 'path' | 'frame' | 'image';
 
@@ -41,13 +40,16 @@ interface CanvasElement {
   fillOpacity: number;
   stroke: string;
   strokeWidth: number;
+  strokeDasharray?: string;
   cornerRadius: number;
   text?: string;
   fontSize?: number;
   imageUrl?: string;
-  points?: { x: number; y: number }[];
   isVisible: boolean;
   isLocked: boolean;
+  groupId?: string;
+  clipMaskId?: string;
+  isMask?: boolean;
 }
 
 const getCurrencySymbol = (currency: string) => {
@@ -83,7 +85,8 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const { theme } = useTheme();
 
   // --- View State ---
-  const [activeTab, setActiveTab] = useState<'overview' | 'colab'>('overview'); // Default to overview
+  const [activeTab, setActiveTab] = useState<'overview' | 'colab'>('overview');
+  const [colabView, setColabView] = useState<'home' | 'canvas'>('home');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -121,20 +124,14 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [canvasTransform, setCanvasTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [isPanning, setIsPanning] = useState(false);
-  
-  // Drag & Resize State
-  const [dragState, setDragState] = useState<{ 
-    action: 'moving' | 'resizing' | 'drawing';
-    handle?: string; 
-    startX: number; 
-    startY: number; 
-    originalElements: CanvasElement[] 
-  } | null>(null);
+  const [dragState, setDragState] = useState<any>(null);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  const colorPresets = ['#000000', '#ffffff', '#9cf822', '#ff4d4d', '#4d94ff', '#ffbe0b', '#7209b7', '#4895ef'];
 
   const triggerHaptic = (pattern: number | number[] = 10) => {
     if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(pattern);
@@ -142,11 +139,8 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
   // --- SCREEN SIZE DETECTION ---
   useEffect(() => {
-    const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 1024); // 1024px is standard 'lg' breakpoint (laptops/desktops)
-    };
-    
-    checkScreenSize(); // Initial check
+    const checkScreenSize = () => setIsMobile(window.innerWidth < 1024);
+    checkScreenSize();
     window.addEventListener('resize', checkScreenSize);
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
@@ -178,14 +172,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       const { data: milestoneData } = await supabase.from('milestones').select('*').eq('project_id', projectId).order('id', { ascending: true });
       const { data: msgData } = await supabase.from('messages').select('*, profiles:user_id(full_name, avatar_url)').eq('project_id', projectId).order('created_at', { ascending: true });
 
-      // Load existing canvas data or defaults
       if (projectData.canvas_data && Array.isArray(projectData.canvas_data) && projectData.canvas_data.length > 0) {
         setElements(projectData.canvas_data);
       } else {
-        setElements([
-          { id: 'el_1', name: 'Desktop UI', type: 'frame', x: 100, y: 100, width: 800, height: 600, fill: '#ffffff', fillOpacity: 100, stroke: '#e4e4e7', strokeWidth: 1, cornerRadius: 0, isVisible: true, isLocked: false },
-          { id: 'el_2', name: 'Hero Button', type: 'rectangle', x: 400, y: 350, width: 200, height: 56, fill: '#9cf822', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 12, isVisible: true, isLocked: false },
-        ]);
+        setElements([]);
       }
 
       setProject(projectData);
@@ -197,40 +187,87 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     fetchWorkspaceData();
   }, [projectId, supabase, router]);
 
-  // --- SAVE ENGINE ---
-  const handleSaveDesign = async () => {
-    setIsSaving(true);
-    try {
-      const { error } = await supabase
-        .from('projects')
-        .update({ canvas_data: elements })
-        .eq('id', projectId);
+  // --- KEYBOARD SHORTCUTS ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeTab !== 'colab' || colabView !== 'canvas' || ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+
+      if (e.key === 'v') setActiveTool('select');
+      if (e.key === 'r') setActiveTool('rectangle');
+      if (e.key === 'o') setActiveTool('ellipse');
+      if (e.key === 't') setActiveTool('text');
+      if (e.key === 'h') setActiveTool('hand');
       
-      if (error) throw error;
-      triggerHaptic([10, 50]);
-    } catch (err) {
-      console.error("Save failed", err);
-      alert("Failed to save design.");
-    } finally {
-      setIsSaving(false);
-    }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleSaveDesign(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'g') { e.preventDefault(); handleGroup(); }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'g') { e.preventDefault(); handleUngroup(); }
+      
+      if (e.key === '[') sendToBack();
+      if (e.key === ']') bringToFront();
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        setElements(prev => prev.filter(el => !selectedIds.includes(el.id)));
+        setSelectedIds([]);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, colabView, selectedIds, elements]);
+
+  // --- ADVANCED ACTIONS (Group & Mask) ---
+  const handleGroup = () => {
+    if (selectedIds.length < 2) return;
+    const newGroupId = `group_${Date.now()}`;
+    setElements(elements.map(el => selectedIds.includes(el.id) ? { ...el, groupId: newGroupId } : el));
   };
 
-  // ----------------------------------------------------------------------
-  // CANVAS ENGINE (PAN, ZOOM, RESIZE)
-  // ----------------------------------------------------------------------
-  const getCanvasCoords = (e: React.MouseEvent | React.PointerEvent | WheelEvent) => {
-    if (!containerRef.current) return { x: 0, y: 0 };
-    const rect = containerRef.current.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left - canvasTransform.x) / canvasTransform.scale,
-      y: (e.clientY - rect.top - canvasTransform.y) / canvasTransform.scale
+  const handleUngroup = () => {
+    if (!selectedIds.length) return;
+    setElements(elements.map(el => selectedIds.includes(el.id) ? { ...el, groupId: undefined } : el));
+  };
+
+  const handleMakeMask = () => {
+    if (selectedIds.length < 2) return;
+    const selectedElements = elements.filter(el => selectedIds.includes(el.id));
+    const maskEl = selectedElements[0]; 
+    setElements(elements.map(el => {
+      if (el.id === maskEl.id) return { ...el, isMask: true };
+      if (selectedIds.includes(el.id)) return { ...el, clipMaskId: maskEl.id };
+      return el;
+    }));
+  };
+
+  const handleReleaseMask = () => {
+    setElements(elements.map(el => {
+      if (selectedIds.includes(el.id)) {
+        if (el.isMask) return { ...el, isMask: false };
+        if (el.clipMaskId) return { ...el, clipMaskId: undefined };
+      }
+      return el;
+    }));
+  };
+
+  // --- TEMPLATE STARTER ---
+  const startWithTemplate = (name: string, w: number, h: number) => {
+    const newId = `el_${Date.now()}`;
+    const newFrame: CanvasElement = {
+      id: newId, name: name, type: 'frame', x: 100, y: 100, width: w, height: h, 
+      fill: '#ffffff', fillOpacity: 100, stroke: '#e4e4e7', strokeWidth: 1, 
+      cornerRadius: 0, isVisible: true, isLocked: false
     };
+    setElements([...elements, newFrame]);
+    setColabView('canvas');
+  };
+
+  // --- CANVAS ENGINE ---
+  const getCanvasCoords = (e: any) => {
+    if (!containerRef.current) return {x: 0, y: 0};
+    const rect = containerRef.current.getBoundingClientRect();
+    return { x: (e.clientX - rect.left - canvasTransform.x) / canvasTransform.scale, y: (e.clientY - rect.top - canvasTransform.y) / canvasTransform.scale };
   };
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || colabView !== 'canvas') return;
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -250,70 +287,52 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     };
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
-  }, [canvasTransform]);
+  }, [canvasTransform, colabView]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (activeTab !== 'colab') return;
-      if (e.code === 'Space' && !isPanning) setIsPanning(true);
-      if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (selectedIds.length > 0 && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
-          setElements(prev => prev.filter(el => !selectedIds.includes(el.id)));
-          setSelectedIds([]);
-        }
-      }
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') setIsPanning(false);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp); };
-  }, [selectedIds, isPanning, activeTab]);
 
-  // Handle Tool Clicks on Canvas
   const handlePointerDown = (e: React.PointerEvent) => {
     if (isPanning || activeTool === 'hand' || e.button === 1) {
-      setDragState({ action: 'moving', startX: e.clientX, startY: e.clientY, originalElements: [] });
+      setDragState({ action: 'panning', startX: e.clientX, startY: e.clientY });
       return;
     }
-
     const { x, y } = getCanvasCoords(e);
-    
-    if (activeTool === 'select') {
-      if ((e.target as SVGElement).tagName === 'svg') setSelectedIds([]);
-      return;
-    }
-
-    if (activeTool === 'image') {
-      imageUploadRef.current?.click();
+    if (activeTool === 'select' && (e.target as HTMLElement).tagName === 'svg') {
+      setSelectedIds([]);
+    } else if (activeTool !== 'select' && activeTool !== 'image') {
+      const newId = `el_${Date.now()}`;
+      setElements([...elements, { id: newId, name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), type: activeTool as any, x, y, width: 100, height: 100, fill: '#d4d4d8', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, text: activeTool === 'text' ? 'New Text' : undefined, fontSize: activeTool === 'text' ? 24 : undefined }]);
+      setSelectedIds([newId]);
       setActiveTool('select');
-      return;
     }
-
-    const newId = `el_${Date.now()}`;
-    const baseElement = { id: newId, x, y, fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false };
-
-    if (activeTool === 'rectangle') {
-      setElements([...elements, { ...baseElement, name: 'Rectangle', type: 'rectangle', width: 100, height: 100, fill: '#d4d4d8' }]);
-    } else if (activeTool === 'ellipse') {
-      setElements([...elements, { ...baseElement, name: 'Ellipse', type: 'ellipse', width: 100, height: 100, fill: '#d4d4d8' }]);
-    } else if (activeTool === 'text') {
-      setElements([...elements, { ...baseElement, name: 'Text', type: 'text', width: 150, height: 50, fill: '#000000', text: 'Double click to edit', fontSize: 24 }]);
-    } else if (activeTool === 'frame') {
-      setElements([{ ...baseElement, name: 'Frame', type: 'frame', width: 375, height: 812, fill: '#ffffff', stroke: '#e4e4e7', strokeWidth: 1 }, ...elements]);
-    }
-    
-    setSelectedIds([newId]);
-    setActiveTool('select');
   };
 
-  // Resize and Move Logic
+  const handleElementPointerDown = (e: React.PointerEvent, el: CanvasElement) => {
+    if (activeTool !== 'select' || isPanning || el.isLocked || !el.isVisible) return;
+    e.stopPropagation();
+    
+    const groupIdsToSelect = el.groupId ? elements.filter(e => e.groupId === el.groupId).map(e => e.id) : [el.id];
+    let newSelection = [...selectedIds];
+    
+    if (e.shiftKey) {
+      const isAlreadySelected = groupIdsToSelect.every(id => selectedIds.includes(id));
+      if (isAlreadySelected) {
+        newSelection = selectedIds.filter(id => !groupIdsToSelect.includes(id));
+      } else {
+        newSelection = Array.from(new Set([...selectedIds, ...groupIdsToSelect]));
+      }
+    } else {
+      if (!selectedIds.includes(el.id)) newSelection = groupIdsToSelect;
+    }
+    
+    setSelectedIds(newSelection);
+    const { x, y } = getCanvasCoords(e);
+    setDragState({ action: 'moving', startX: x, startY: y, originalElements: elements });
+  };
+
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragState) return;
 
-    if (isPanning || activeTool === 'hand' || (dragState.action === 'moving' && dragState.originalElements.length === 0)) {
-      // Panning Canvas
+    if (activeTool === 'hand' || dragState.action === 'panning') {
       const dx = e.clientX - dragState.startX;
       const dy = e.clientY - dragState.startY;
       setCanvasTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
@@ -326,35 +345,24 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     if (dragState.action === 'moving') {
       const dx = x - dragState.startX;
       const dy = y - dragState.startY;
-      setElements(dragState.originalElements.map(el => selectedIds.includes(el.id) ? { ...el, x: el.x + dx, y: el.y + dy } : el));
+      setElements(dragState.originalElements.map((el: CanvasElement) => selectedIds.includes(el.id) ? { ...el, x: el.x + dx, y: el.y + dy } : el));
     } 
     else if (dragState.action === 'resizing' && dragState.handle) {
       const dx = x - dragState.startX;
       const dy = y - dragState.startY;
       
-      setElements(dragState.originalElements.map(el => {
+      setElements(dragState.originalElements.map((el: CanvasElement) => {
         if (!selectedIds.includes(el.id)) return el;
-        
         let newX = el.x, newY = el.y, newW = el.width, newH = el.height;
         const handle = dragState.handle!;
 
         if (handle.includes('e')) newW = Math.max(10, el.width + dx);
         if (handle.includes('s')) newH = Math.max(10, el.height + dy);
-        if (handle.includes('w')) {
-          newW = Math.max(10, el.width - dx);
-          if (newW > 10) newX = el.x + dx;
-        }
-        if (handle.includes('n')) {
-          newH = Math.max(10, el.height - dy);
-          if (newH > 10) newY = el.y + dy;
-        }
+        if (handle.includes('w')) { newW = Math.max(10, el.width - dx); if (newW > 10) newX = el.x + dx; }
+        if (handle.includes('n')) { newH = Math.max(10, el.height - dy); if (newH > 10) newY = el.y + dy; }
 
-        // Proportional text scaling
         let newFontSize = el.fontSize;
-        if (el.type === 'text' && el.fontSize && el.height) {
-          newFontSize = Math.max(8, el.fontSize * (newH / el.height));
-        }
-
+        if (el.type === 'text' && el.fontSize && el.height) newFontSize = Math.max(8, el.fontSize * (newH / el.height));
         return { ...el, x: newX, y: newY, width: newW, height: newH, fontSize: newFontSize };
       }));
     }
@@ -362,76 +370,48 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
   const handlePointerUp = () => setDragState(null);
 
-  const handleElementPointerDown = (e: React.PointerEvent, el: CanvasElement) => {
-    if (activeTool !== 'select' || isPanning || el.isLocked || !el.isVisible) return;
-    e.stopPropagation();
-    
-    const newSelection = e.shiftKey ? (selectedIds.includes(el.id) ? selectedIds.filter(id => id !== el.id) : [...selectedIds, el.id]) : [el.id];
-    setSelectedIds(newSelection);
-    
-    const { x, y } = getCanvasCoords(e);
-    setDragState({ action: 'moving', startX: x, startY: y, originalElements: elements });
-  };
-
   const handleResizeHandleDown = (e: React.PointerEvent, handle: string) => {
     e.stopPropagation();
     const { x, y } = getCanvasCoords(e);
     setDragState({ action: 'resizing', handle, startX: x, startY: y, originalElements: elements });
   };
 
-  // Layer Arrangement
+  const handleSaveDesign = async () => {
+    setIsSaving(true);
+    await supabase.from('projects').update({ canvas_data: elements }).eq('id', projectId);
+    setIsSaving(false);
+  };
+
   const bringToFront = () => {
-    if (!selectedIds.length) return;
     const unselected = elements.filter(el => !selectedIds.includes(el.id));
     const selected = elements.filter(el => selectedIds.includes(el.id));
-    setElements([...unselected, ...selected]); 
+    setElements([...unselected, ...selected]);
   };
 
   const sendToBack = () => {
-    if (!selectedIds.length) return;
     const unselected = elements.filter(el => !selectedIds.includes(el.id));
     const selected = elements.filter(el => selectedIds.includes(el.id));
-    setElements([...selected, ...unselected]); 
+    setElements([...selected, ...unselected]);
   };
 
-  const updateSelected = (updates: Partial<CanvasElement>) => {
-    setElements(elements.map(el => selectedIds.includes(el.id) ? { ...el, ...updates } : el));
+  const getSelectionBounds = () => {
+    if (selectedIds.length === 0) return null;
+    const selectedEls = elements.filter(el => selectedIds.includes(el.id));
+    const minX = Math.min(...selectedEls.map(el => el.x));
+    const minY = Math.min(...selectedEls.map(el => el.y));
+    const maxX = Math.max(...selectedEls.map(el => el.x + el.width));
+    const maxY = Math.max(...selectedEls.map(el => el.y + el.height));
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   };
 
-  // Image Upload Handler
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          const newId = `el_${Date.now()}`;
-          const viewCenterX = (-canvasTransform.x + window.innerWidth/2) / canvasTransform.scale;
-          const viewCenterY = (-canvasTransform.y + window.innerHeight/2) / canvasTransform.scale;
-          
-          setElements([...elements, { 
-            id: newId, name: 'Image', type: 'image', x: viewCenterX - 150, y: viewCenterY - 150, width: 300, height: 300, 
-            fill: 'transparent', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, 
-            isVisible: true, isLocked: false, imageUrl: event.target.result as string 
-          }]);
-          setSelectedIds([newId]);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // ----------------------------------------------------------------------
-  // PROJECT HANDLERS (Overview & Chat)
-  // ----------------------------------------------------------------------
+  // --- OVERVIEW / MISC HANDLERS ---
   const handleToggleMilestone = async (m: any) => {
     if (!isFounder) return; 
-    triggerHaptic([10, 30]);
     const newStatus = m.status === 'completed' ? 'pending' : 'completed';
     setMilestones((prev) => prev.map((milestone) => milestone.id === m.id ? { ...milestone, status: newStatus } : milestone));
     await supabase.from('milestones').update({ status: newStatus }).eq('id', m.id);
   };
-
+  
   const handlePayment = (amount: number, milestoneId: string) => {
     if (!user) return;
     setIsProcessing(milestoneId);
@@ -443,7 +423,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       
       // @ts-ignore
       const handler = window.PaystackPop.setup({
-        key: paystackKey, email: user.email || 'founder@colab.com', amount: finalAmountInKobo, currency: 'NGN',
+        key: paystackKey, email: user.email || 'founder@labx.com', amount: finalAmountInKobo, currency: 'NGN',
         callback: async (response: any) => {
           const { error } = await supabase.from('milestones').update({ payment_status: 'escrow_funded', payment_reference: response.reference }).eq('id', milestoneId);
           if (!error) {
@@ -471,7 +451,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
       // @ts-ignore
       const handler = window.PaystackPop.setup({
-        key: paystackKey, email: user.email || 'founder@colab.com', amount: finalAmountInKobo, currency: 'NGN',
+        key: paystackKey, email: user.email || 'founder@labx.com', amount: finalAmountInKobo, currency: 'NGN',
         callback: async (response: any) => {
           const { error } = await supabase.from('projects').update({ payment_status: 'escrow_funded', payment_reference: response.reference }).eq('id', projectId);
           if (!error) {
@@ -485,7 +465,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       handler.openIframe();
     } catch (error: any) { alert(`Gateway Error: ${error.message}`); setIsProcessing(null); }
   };
-  
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() && !pendingAttachment) return;
@@ -502,31 +482,12 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         const { data: { publicUrl } } = supabase.storage.from('project_assets').getPublicUrl(filePath);
         attachmentUrl = publicUrl;
       }
-
-      await supabase.from('messages').insert({
-        project_id: projectId, user_id: user.id, content: newMessage.trim(), attachment_url: attachmentUrl,
-        attachment_type: pendingAttachment?.type.includes('image') ? 'image' : pendingAttachment ? 'document' : null,
-        attachment_name: pendingAttachment?.name
-      });
-
+      await supabase.from('messages').insert({ project_id: projectId, user_id: user.id, content: newMessage.trim(), attachment_url: attachmentUrl, attachment_type: pendingAttachment?.type.includes('image') ? 'image' : pendingAttachment ? 'document' : null, attachment_name: pendingAttachment?.name });
       setNewMessage(''); setPendingAttachment(null);
       if (chatFileInputRef.current) chatFileInputRef.current.value = '';
-      triggerHaptic(10);
-    } catch (error) {
-      alert("Failed to send message.");
     } finally {
       setIsSending(false); setIsChatUploading(false);
     }
-  };
-
-  const handleDeleteMessage = async (messageId: string) => {
-    await supabase.from('messages').delete().eq('id', messageId);
-  };
-  
-  const handleTogglePin = async (messageId: string, currentPinStatus: boolean) => {
-    const newStatus = !currentPinStatus;
-    if (newStatus) await supabase.from('messages').update({ is_pinned: false }).eq('project_id', projectId).neq('id', messageId);
-    await supabase.from('messages').update({ is_pinned: newStatus }).eq('id', messageId);
   };
 
   // ----------------------------------------------------------------------
@@ -537,16 +498,19 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const totalBudget = project?.budget || project?.valuation || 0;
   const currencySymbol = getCurrencySymbol(project?.currency);
   const displayImage = project?.cover_image_url || project?.image_url;
-  const completedMilestones = milestones.filter(m => m.status === 'completed').length;
-  const progressPercentage = milestones.length > 0 ? Math.round((completedMilestones / milestones.length) * 100) : 0;
+  const completedMilestones = milestones?.filter(m => m.status === 'completed').length || 0;
+  const progressPercentage = milestones?.length > 0 ? Math.round((completedMilestones / milestones.length) * 100) : 0;
   const pinnedMessage = messages.find((m: any) => m.is_pinned === true);
-  const selectedElement = elements.find(el => selectedIds.includes(el.id));
+
+  const bounds = getSelectionBounds();
+  const isMultiSelect = selectedIds.length > 1;
+  const singleSelectedElement = selectedIds.length === 1 ? elements.find(el => el.id === selectedIds[0]) : null;
 
   return (
-    <div className={`transition-colors duration-300 flex flex-col font-sans ${isFullscreen ? 'fixed inset-0 z-[9999] bg-[#1E1E1E]' : 'min-h-screen'} ${activeTab === 'colab' ? 'bg-[#1E1E1E] text-zinc-300 selection:bg-[#9cf822]/30 overflow-hidden' : 'bg-zinc-50 dark:bg-black text-left pb-20 relative'}`}>
+    <div className={`transition-colors duration-300 flex flex-col font-sans ${isFullscreen ? 'fixed inset-0 z-[9999] bg-[#1E1E1E]' : 'min-h-screen'} ${activeTab === 'colab' ? 'bg-[#121212] text-zinc-300 selection:bg-[#9cf822]/30 overflow-hidden' : 'bg-zinc-50 dark:bg-black text-left pb-20 relative'}`}>
       
       {/* ------------------------------------------------------------------ */}
-      {/* HEADER */}
+      {/* HEADER (OVERVIEW vs CANVAS) */}
       {/* ------------------------------------------------------------------ */}
       {activeTab === 'overview' && !isFullscreen ? (
         <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-900 shrink-0">
@@ -571,18 +535,18 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                 <LayoutDashboard size={14} /> Overview
               </button>
               
-              {/* CO-LAB BUTTON WITH MOBILE CHECK */}
               <button 
                 onClick={() => {
                   if (isMobile) {
                     setShowMobileWarning(true);
                   } else {
                     setActiveTab('colab');
+                    setColabView('home'); 
                   }
                 }} 
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-500 hover:text-[#9cf822]"
               >
-                <PencilRuler size={14} /> Co-Lab
+                <img src="/lab x.svg" className="w-4 h-4" alt="Lab X" /> Lab X
               </button>
             </div>
             
@@ -591,37 +555,47 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             </button>
           </div>
         </header>
-      ) : activeTab === 'colab' && (
-        <header className="h-12 bg-[#2C2C2C] border-b border-[#404040] flex items-center justify-between px-4 shrink-0 z-50">
+      ) : activeTab === 'colab' && colabView === 'canvas' && (
+        <header className="h-12 bg-[#1E1E1E] border-b border-[#2C2C2C] flex items-center justify-between px-4 shrink-0 z-50">
           <div className="flex items-center gap-4">
-            <button onClick={() => { setIsFullscreen(false); setActiveTab('overview'); }} className="p-1.5 hover:bg-[#404040] rounded-md transition-colors text-zinc-400 hover:text-white">
-              <ArrowLeft size={16} />
+            <button onClick={() => setColabView('home')} className="p-1.5 hover:bg-[#2C2C2C] rounded-md transition-colors text-zinc-400 hover:text-white" title="Back to Home">
+              <Home size={16} />
             </button>
+            <div className="h-4 w-px bg-[#2C2C2C]" />
             <div className="text-sm font-medium text-white flex items-center gap-2">
-              {project?.title} <span className="bg-[#404040] text-[#9cf822] text-[10px] px-2 py-0.5 rounded font-bold tracking-widest uppercase">Co-Lab</span>
+              {project?.title} <span className="bg-[#2C2C2C] text-[#9cf822] text-[10px] px-2 py-0.5 rounded font-bold tracking-widest uppercase">Canvas</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-[#1E1E1E] p-1 rounded-lg border border-[#404040]">
-            <ToolButton icon={<MousePointer2 size={16} />} active={activeTool === 'select'} onClick={() => setActiveTool('select')} tooltip="Move (V)" />
-            <ToolButton icon={<Hand size={16} />} active={activeTool === 'hand' || isPanning} onClick={() => setActiveTool('hand')} tooltip="Hand Tool (H)" />
-            <div className="w-px h-4 bg-[#404040] mx-1"></div>
-            <ToolButton icon={<Layout size={16} />} active={activeTool === 'frame'} onClick={() => setActiveTool('frame')} tooltip="Frame (F)" />
-            <ToolButton icon={<Square size={16} />} active={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} tooltip="Rectangle (R)" />
-            <ToolButton icon={<Circle size={16} />} active={activeTool === 'ellipse'} onClick={() => setActiveTool('ellipse')} tooltip="Ellipse (O)" />
-            <ToolButton icon={<TypeIcon size={16} />} active={activeTool === 'text'} onClick={() => setActiveTool('text')} tooltip="Text (T)" />
-            <ToolButton icon={<ImagePlus size={16} />} active={activeTool === 'image'} onClick={() => setActiveTool('image')} tooltip="Add Image" />
-            <input type="file" ref={imageUploadRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+          <div className="flex items-center gap-1 bg-[#121212] p-1 rounded-lg border border-[#2C2C2C]">
+            <ToolBtn icon={<MousePointer2 size={16}/>} active={activeTool === 'select'} onClick={() => setActiveTool('select')} tip="Select (V)" />
+            <ToolBtn icon={<Hand size={16}/>} active={activeTool === 'hand'} onClick={() => setActiveTool('hand')} tip="Hand (H)" />
+            <div className="w-px h-4 bg-[#2C2C2C] mx-1"></div>
+            <ToolBtn icon={<Square size={16}/>} active={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} tip="Rectangle (R)" />
+            <ToolBtn icon={<Circle size={16}/>} active={activeTool === 'ellipse'} onClick={() => setActiveTool('ellipse')} tip="Ellipse (O)" />
+            <ToolBtn icon={<TypeIcon size={16}/>} active={activeTool === 'text'} onClick={() => setActiveTool('text')} tip="Text (T)" />
+            <ToolBtn icon={<ImagePlus size={16}/>} onClick={() => { setActiveTool('image'); imageUploadRef.current?.click(); }} tip="Image" />
+            <input type="file" ref={imageUploadRef} className="hidden" accept="image/*" onChange={(e) => {
+              if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  if (ev.target?.result) {
+                    const newId = `el_${Date.now()}`;
+                    setElements([...elements, { id: newId, name: 'Image', type: 'image', x: -canvasTransform.x / canvasTransform.scale + 100, y: -canvasTransform.y / canvasTransform.scale + 100, width: 300, height: 300, fill: 'transparent', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, imageUrl: ev.target.result as string }]);
+                    setSelectedIds([newId]);
+                    setActiveTool('select');
+                  }
+                };
+                reader.readAsDataURL(e.target.files[0]);
+              }
+            }} />
           </div>
 
           <div className="flex items-center gap-3">
             <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1.5 text-zinc-400 hover:text-white rounded-md transition-colors" title="Toggle Fullscreen">
               {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
             </button>
-            <div className="w-px h-4 bg-[#404040]"></div>
-            <button onClick={() => setIsChatOpen(true)} className="px-3 py-1.5 bg-[#404040] hover:bg-[#505050] text-white text-xs font-bold rounded-md transition-colors flex items-center gap-2">
-              <MessageSquare size={14} /> Sync
-            </button>
+            <div className="w-px h-4 bg-[#2C2C2C]"></div>
             <button onClick={handleSaveDesign} disabled={isSaving} className="px-3 py-1.5 bg-[#9cf822] text-black text-xs font-bold rounded-md hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50">
               {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
             </button>
@@ -643,7 +617,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                 <div className="flex justify-between items-end mb-4">
                    <div>
                      <h2 className="text-xl font-bold text-black dark:text-white flex items-center gap-2"><Target size={20} className="text-[#9cf822]" /> Project Roadmap</h2>
-                     <p className="text-sm text-zinc-500 mt-1">Track deliverables and unlock milestones.</p>
+                     <p className="text-sm text-zinc-500 mt-1">Overview loaded. Switch to Lab X to design.</p>
                    </div>
                    <div className="text-right"><span className="text-3xl font-black text-black dark:text-white">{progressPercentage}%</span></div>
                 </div>
@@ -754,31 +728,103 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
           </div>
         )}
 
-        {/* ================= CO-LAB WHITEBOARD TAB ================= */}
-        {activeTab === 'colab' && (
+        {/* ================= CO-LAB HOME (ILLUSTRATOR VIBE) ================= */}
+        {activeTab === 'colab' && colabView === 'home' && (
+          <div className="flex-grow flex bg-[#121212] text-zinc-300 relative h-full">
+            
+            {/* Sidebar */}
+            <div className="w-64 bg-[#18181b] border-r border-[#27272a] flex flex-col p-6 hidden md:flex shrink-0">
+              <div className="flex items-center gap-3 mb-10 cursor-pointer" onClick={() => setActiveTab('overview')}>
+                <img src="/lab x.svg" className="w-8 h-8 hover:opacity-80 transition-opacity" alt="Lab X" />
+                <span className="font-bold text-white tracking-widest text-sm uppercase">Lab X</span>
+              </div>
+              <div className="space-y-1">
+                 <button className="w-full flex items-center gap-3 px-3 py-2.5 bg-[#27272a] text-white rounded-lg text-sm font-medium"><Home size={16}/> Home</button>
+                 <button className="w-full flex items-center gap-3 px-3 py-2.5 text-zinc-400 hover:text-white hover:bg-[#27272a]/50 rounded-lg text-sm font-medium transition-colors"><Clock size={16}/> Recent</button>
+                 <button className="w-full flex items-center gap-3 px-3 py-2.5 text-zinc-400 hover:text-white hover:bg-[#27272a]/50 rounded-lg text-sm font-medium transition-colors"><Users size={16}/> Shared with you</button>
+              </div>
+              
+              <div className="mt-auto">
+                <button onClick={() => setActiveTab('overview')} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 border border-[#27272a] text-zinc-400 hover:text-white hover:bg-[#27272a]/50 rounded-lg text-sm font-medium transition-colors">
+                  <ArrowLeft size={16}/> Exit to Overview
+                </button>
+              </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-grow p-8 md:p-12 overflow-y-auto">
+              <div className="max-w-6xl mx-auto space-y-16">
+                
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                   <h1 className="text-3xl font-semibold text-white tracking-tight">Let's create something.</h1>
+                   <button onClick={() => setColabView('canvas')} className="px-5 py-2.5 bg-[#9cf822] text-black font-bold rounded-lg text-sm flex items-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(156,248,34,0.15)]"><Plus size={16}/> New Canvas</button>
+                </div>
+
+                {/* Templates Grid */}
+                <div>
+                   <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Start a new design</h2>
+                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <TemplateCard name="Web Large" size="1440 x 1024 px" icon={<Monitor size={28} strokeWidth={1.5}/>} onClick={() => startWithTemplate('Web Large', 1440, 1024)} />
+                      <TemplateCard name="iPhone 14 Pro" size="390 x 844 px" icon={<Smartphone size={28} strokeWidth={1.5}/>} onClick={() => startWithTemplate('iPhone 14 Pro', 390, 844)} />
+                      <TemplateCard name="Instagram Post" size="1080 x 1080 px" icon={<LayoutGrid size={28} strokeWidth={1.5}/>} onClick={() => startWithTemplate('Instagram Post', 1080, 1080)} />
+                      <TemplateCard name="Blank Canvas" size="Infinite" icon={<Square size={28} strokeWidth={1.5}/>} onClick={() => setColabView('canvas')} />
+                   </div>
+                </div>
+
+                {/* Recent Workspace */}
+                <div>
+                   <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Current Workspace</h2>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                     <div onClick={() => setColabView('canvas')} className="group cursor-pointer">
+                        <div className="h-52 bg-[#18181b] border border-[#27272a] group-hover:border-[#9cf822] transition-colors rounded-xl flex items-center justify-center mb-4 relative overflow-hidden">
+                           <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
+                           <img src="/lab x.svg" className="w-12 h-12 opacity-20 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 relative z-10" alt="Icon" />
+                        </div>
+                        <div className="flex items-start justify-between px-1">
+                           <div>
+                             <h3 className="text-white font-medium text-sm">{project?.title || 'Untitled'} Canvas</h3>
+                             <p className="text-xs text-zinc-500 mt-1">{elements.length} layers • Edited recently</p>
+                           </div>
+                        </div>
+                     </div>
+                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================= CO-LAB CANVAS EDITOR ================= */}
+        {activeTab === 'colab' && colabView === 'canvas' && (
           <div className="flex-grow flex relative overflow-hidden">
             
             {/* LEFT PANEL: LAYERS */}
-            <aside className="w-[240px] bg-[#2C2C2C] border-r border-[#404040] flex flex-col z-20 shrink-0">
-              <div className="px-4 py-3 border-b border-[#404040] flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider">
+            <aside className="w-[240px] bg-[#18181b] border-r border-[#27272a] flex flex-col z-20 shrink-0">
+              <div className="px-4 py-3 border-b border-[#27272a] flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider">
                 <Layers size={14} /> Layers
               </div>
               <div className="flex-grow overflow-y-auto p-2 space-y-0.5">
                 {[...elements].reverse().map(el => (
                   <div 
                     key={el.id} 
-                    onClick={(e) => { e.stopPropagation(); setActiveTool('select'); setSelectedIds([el.id]); }}
-                    className={`flex items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer group ${selectedIds.includes(el.id) ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-400 hover:bg-[#404040] hover:text-zinc-200'}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveTool('select');
+                      if (e.shiftKey) {
+                        setSelectedIds(Array.from(new Set([...selectedIds, el.id])));
+                      } else {
+                        setSelectedIds([el.id]);
+                      }
+                    }} 
+                    className={`flex items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer group ${selectedIds.includes(el.id) ? 'bg-[#9cf822]/10 text-[#9cf822] font-medium' : 'text-zinc-400 hover:bg-[#27272a] hover:text-zinc-200'}`}
                   >
                     <div className="flex items-center gap-2 truncate">
-                      {el.type === 'frame' ? <Layout size={12} /> : el.type === 'image' ? <ImageIcon size={12} /> : el.type === 'text' ? <TypeIcon size={12} /> : <Square size={12} />}
-                      <span className="truncate">{el.name}</span>
+                      {el.isMask ? <Scissors size={12} className="text-[#9cf822]" /> : el.type === 'text' ? <TypeIcon size={12}/> : el.type === 'image' ? <ImageIcon size={12}/> : el.type === 'frame' ? <Layout size={12}/> : <Square size={12}/>}
+                      <span className="truncate flex-grow">{el.name} {el.groupId && <span className="opacity-50 ml-1 text-[9px]">(Grouped)</span>}</span>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={(e) => { e.stopPropagation(); setElements(elements.map(e => e.id === el.id ? {...e, isLocked: !e.isLocked} : e)) }} className="p-1 hover:text-white">
-                        {el.isLocked ? <LockIcon size={12} /> : <Unlock size={12} />}
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); setElements(elements.map(e => e.id === el.id ? {...e, isVisible: !e.isVisible} : e)) }} className="p-1 hover:text-white">
+                      <button onClick={(e) => { e.stopPropagation(); setElements(elements.map(item => item.id === el.id ? {...item, isVisible: !item.isVisible} : item)) }} className="p-1 hover:text-white">
                         {el.isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
                       </button>
                     </div>
@@ -790,144 +836,130 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             {/* CENTER: INFINITE CANVAS */}
             <main 
               ref={containerRef}
-              className="flex-grow relative overflow-hidden bg-[#1E1E1E]"
-              style={{ cursor: isPanning || activeTool === 'hand' ? 'grab' : activeTool !== 'select' ? 'crosshair' : 'default' }}
+              className="flex-grow bg-[#121212] relative cursor-crosshair overflow-hidden"
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerLeave={handlePointerUp}
             >
-              <div 
-                className="absolute inset-0 pointer-events-none opacity-20"
-                style={{
-                  backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)',
-                  backgroundSize: `${20 * canvasTransform.scale}px ${20 * canvasTransform.scale}px`,
-                  backgroundPosition: `${canvasTransform.x}px ${canvasTransform.y}px`
-                }}
-              />
+              <div className="absolute inset-0 pointer-events-none opacity-10" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: `${20 * canvasTransform.scale}px ${20 * canvasTransform.scale}px`, backgroundPosition: `${canvasTransform.x}px ${canvasTransform.y}px` }} />
 
               <svg className="w-full h-full absolute inset-0">
+                <defs>
+                  {elements.filter(e => e.isMask).map(maskEl => (
+                    <clipPath id={`clip_${maskEl.id}`} key={`clip_${maskEl.id}`}>
+                       {maskEl.type === 'rectangle' && <rect x={maskEl.x} y={maskEl.y} width={maskEl.width} height={maskEl.height} rx={maskEl.cornerRadius} />}
+                       {maskEl.type === 'ellipse' && <ellipse cx={maskEl.x + maskEl.width/2} cy={maskEl.y + maskEl.height/2} rx={maskEl.width/2} ry={maskEl.height/2} />}
+                    </clipPath>
+                  ))}
+                </defs>
+
                 <g transform={`matrix(${canvasTransform.scale}, 0, 0, ${canvasTransform.scale}, ${canvasTransform.x}, ${canvasTransform.y})`}>
-                  {elements.map((el) => {
+                  {elements.map(el => {
                     if (!el.isVisible) return null;
                     const isSelected = selectedIds.includes(el.id);
                     
-                    const props = {
-                      x: el.x, y: el.y, width: el.width, height: el.height,
-                      fill: el.fill, fillOpacity: el.fillOpacity / 100,
-                      stroke: isSelected && el.type !== 'image' ? '#9cf822' : el.stroke,
-                      strokeWidth: isSelected && el.type !== 'image' ? Math.max(2 / canvasTransform.scale, 2) : el.strokeWidth,
-                      rx: el.cornerRadius, ry: el.cornerRadius,
-                      onPointerDown: (e: any) => handleElementPointerDown(e, el),
-                      className: `transition-colors duration-100 ${el.isLocked ? 'pointer-events-none' : ''}`
-                    };
-
-                    if (el.type === 'frame') {
-                      return (
-                        <g key={el.id}>
-                          <text x={el.x} y={el.y - 8} fontSize={12 / canvasTransform.scale} fill="#a1a1aa" fontWeight="bold">{el.name}</text>
-                          <rect {...props} fill={el.fill} stroke={isSelected ? '#9cf822' : '#27272a'} />
-                        </g>
-                      );
-                    } else if (el.type === 'rectangle') {
-                      return <rect key={el.id} {...props} />;
-                    } else if (el.type === 'image' && el.imageUrl) {
-                      return <image key={el.id} href={el.imageUrl} x={el.x} y={el.y} width={el.width} height={el.height} preserveAspectRatio="none" onPointerDown={(e: any) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />;
-                    } else if (el.type === 'ellipse') {
-                      return <ellipse key={el.id} {...props} cx={el.x + el.width/2} cy={el.y + el.height/2} rx={el.width/2} ry={el.height/2} />;
-                    } else if (el.type === 'text') {
-                      // Note: y + fontSize to properly align baseline within bounding box visually
-                      return (
-                        <text key={el.id} x={el.x} y={el.y + (el.fontSize || 24)} fill={el.fill} fontSize={el.fontSize} fontFamily="Inter, sans-serif" onPointerDown={(e) => handleElementPointerDown(e, el)} className="select-none cursor-default">
-                          {el.text}
-                        </text>
-                      );
-                    }
-                    return null;
+                    return (
+                      <g key={el.id} opacity={el.fillOpacity / 100} clipPath={el.clipMaskId ? `url(#clip_${el.clipMaskId})` : undefined}>
+                        {el.type === 'frame' && (
+                          <g>
+                            <text x={el.x} y={el.y - 8} fontSize={12 / canvasTransform.scale} fill="#71717a" fontWeight="bold">{el.name}</text>
+                            <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} stroke={isSelected ? '#9cf822' : '#27272a'} strokeWidth={isSelected ? 2/canvasTransform.scale : 1} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>
+                          </g>
+                        )}
+                        {el.type === 'rectangle' && <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} rx={el.cornerRadius} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>}
+                        {el.type === 'ellipse' && <ellipse cx={el.x + el.width/2} cy={el.y + el.height/2} rx={el.width/2} ry={el.height/2} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
+                        {el.type === 'text' && <text x={el.x} y={el.y + (el.fontSize || 24)} fill={el.fill} fontSize={el.fontSize} fontFamily="Inter, sans-serif" onPointerDown={(e) => handleElementPointerDown(e, el)} className="select-none cursor-default">{el.text}</text>}
+                        {el.type === 'image' && el.imageUrl && <image href={el.imageUrl} x={el.x} y={el.y} width={el.width} height={el.height} preserveAspectRatio="none" onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
+                      </g>
+                    );
                   })}
 
-                  {/* INTERACTIVE BOUNDING BOX WITH RESIZE HANDLES */}
-                  {selectedElement && activeTool === 'select' && !selectedElement.isLocked && (
+                  {/* BOUNDING BOX */}
+                  {bounds && activeTool === 'select' && (
                     <g>
-                      <rect x={selectedElement.x} y={selectedElement.y} width={selectedElement.width} height={selectedElement.height} fill="none" stroke="#9cf822" strokeWidth={1.5 / canvasTransform.scale} pointerEvents="none" />
-                      
-                      {/* Corner Handles */}
-                      <rect onPointerDown={(e) => handleResizeHandleDown(e, 'nw')} x={selectedElement.x - 4/canvasTransform.scale} y={selectedElement.y - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nwse-resize" />
-                      <rect onPointerDown={(e) => handleResizeHandleDown(e, 'ne')} x={selectedElement.x + selectedElement.width - 4/canvasTransform.scale} y={selectedElement.y - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nesw-resize" />
-                      <rect onPointerDown={(e) => handleResizeHandleDown(e, 'sw')} x={selectedElement.x - 4/canvasTransform.scale} y={selectedElement.y + selectedElement.height - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nesw-resize" />
-                      <rect onPointerDown={(e) => handleResizeHandleDown(e, 'se')} x={selectedElement.x + selectedElement.width - 4/canvasTransform.scale} y={selectedElement.y + selectedElement.height - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nwse-resize" />
+                      <rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} fill="none" stroke="#9cf822" strokeWidth={1.5 / canvasTransform.scale} pointerEvents="none" />
+                      {!isMultiSelect && (
+                        <>
+                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'nw')} x={bounds.x - 4/canvasTransform.scale} y={bounds.y - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nwse-resize" />
+                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'ne')} x={bounds.x + bounds.width - 4/canvasTransform.scale} y={bounds.y - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nesw-resize" />
+                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'sw')} x={bounds.x - 4/canvasTransform.scale} y={bounds.y + bounds.height - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nesw-resize" />
+                          <rect onPointerDown={(e) => handleResizeHandleDown(e, 'se')} x={bounds.x + bounds.width - 4/canvasTransform.scale} y={bounds.y + bounds.height - 4/canvasTransform.scale} width={8/canvasTransform.scale} height={8/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1.5/canvasTransform.scale} className="cursor-nwse-resize" />
+                        </>
+                      )}
                     </g>
                   )}
                 </g>
               </svg>
             </main>
 
-            {/* RIGHT PANEL: ADVANCED INSPECTOR */}
-            <aside className="w-[260px] bg-[#2C2C2C] border-l border-[#404040] flex flex-col z-20 shrink-0 overflow-y-auto">
-              {selectedElement ? (
-                <div className="divide-y divide-[#404040]">
-                  
-                  {/* Layer Arrangement Tools */}
-                  <div className="p-4 flex items-center justify-between text-zinc-400">
-                    <button onClick={bringToFront} className="p-1.5 hover:bg-[#404040] hover:text-white rounded flex items-center gap-1 text-[10px] font-bold uppercase"><BringToFront size={14}/> Front</button>
-                    <button onClick={sendToBack} className="p-1.5 hover:bg-[#404040] hover:text-white rounded flex items-center gap-1 text-[10px] font-bold uppercase"><SendToBack size={14}/> Back</button>
+            {/* RIGHT PANEL: INSPECTOR */}
+            <aside className="w-[260px] bg-[#18181b] border-l border-[#27272a] overflow-y-auto z-20 shrink-0">
+              {isMultiSelect ? (
+                <div className="p-5 space-y-4">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Multiple Selection</div>
+                  <p className="text-xs text-zinc-400 mb-4">{selectedIds.length} layers selected.</p>
+                  <button onClick={handleGroup} className="w-full py-2 bg-[#27272a] hover:bg-[#3f3f46] text-white rounded text-[10px] font-bold flex items-center justify-center gap-2 transition-colors"><Link2 size={14}/> GROUP SELECTION</button>
+                  <button onClick={handleMakeMask} className="w-full py-2 bg-[#9cf822]/10 hover:bg-[#9cf822]/20 text-[#9cf822] border border-[#9cf822]/20 rounded text-[10px] font-bold flex items-center justify-center gap-2 transition-colors"><Scissors size={14}/> MAKE CLIPPING MASK</button>
+                  <p className="text-[10px] text-zinc-500 text-center mt-1">Bottom layer will act as the mask.</p>
+                  <div className="pt-4 border-t border-[#27272a] space-y-2 mt-4">
+                     {elements.some(el => selectedIds.includes(el.id) && el.groupId) && (
+                        <button onClick={handleUngroup} className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-[10px] font-bold flex items-center justify-center gap-2 transition-colors"><Unlink size={14}/> UNGROUP ALL</button>
+                     )}
+                     {elements.some(el => selectedIds.includes(el.id) && (el.isMask || el.clipMaskId)) && (
+                        <button onClick={handleReleaseMask} className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-[10px] font-bold flex items-center justify-center gap-2 transition-colors"><Scissors size={14}/> RELEASE MASKS</button>
+                     )}
+                  </div>
+                </div>
+              ) : singleSelectedElement ? (
+                <div className="divide-y divide-[#27272a]">
+                  <div className="p-5 space-y-4">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex justify-between items-center">
+                      Transform {singleSelectedElement.groupId && <span className="bg-[#27272a] px-1.5 py-0.5 rounded text-[9px] text-white">Grouped</span>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <InspectorField label="X" value={Math.round(singleSelectedElement.x)} />
+                      <InspectorField label="Y" value={Math.round(singleSelectedElement.y)} />
+                      <InspectorField label="W" value={Math.round(singleSelectedElement.width)} />
+                      <InspectorField label="H" value={Math.round(singleSelectedElement.height)} />
+                    </div>
                   </div>
 
-                  <div className="p-4 grid grid-cols-2 gap-3">
-                    <InspectorInput label="X" value={Math.round(selectedElement.x)} onChange={(v: string) => updateSelected({ x: Number(v) })} />
-                    <InspectorInput label="Y" value={Math.round(selectedElement.y)} onChange={(v: string) => updateSelected({ y: Number(v) })} />
-                    <InspectorInput label="W" value={Math.round(selectedElement.width)} onChange={(v: string) => updateSelected({ width: Math.max(1, Number(v)) })} />
-                    <InspectorInput label="H" value={Math.round(selectedElement.height)} onChange={(v: string) => updateSelected({ height: Math.max(1, Number(v)) })} />
-                    <InspectorInput label="∠" value={0} onChange={(v: string) => {}} />
-                    <InspectorInput label="R" value={selectedElement.cornerRadius} onChange={(v: string) => updateSelected({ cornerRadius: Number(v) })} />
-                  </div>
+                  {singleSelectedElement.type === 'text' && (
+                    <div className="p-5 space-y-3">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Text Properties</div>
+                      <input type="text" value={singleSelectedElement.text} onChange={(e) => setElements(elements.map(el => el.id === singleSelectedElement.id ? {...el, text: e.target.value} : el))} className="w-full bg-[#121212] border border-[#27272a] rounded px-3 py-2 text-xs text-white focus:border-[#9cf822] outline-none" />
+                    </div>
+                  )}
 
-                  {selectedElement.type === 'text' && (
-                    <div className="p-4 space-y-3">
-                      <div className="text-xs font-bold text-white mb-2">Text</div>
-                      <input type="text" value={selectedElement.text} onChange={(e) => updateSelected({ text: e.target.value })} className="w-full bg-[#1E1E1E] border border-[#404040] rounded px-2 py-1.5 text-xs text-white focus:border-[#9cf822] outline-none" />
-                      <div className="grid grid-cols-2 gap-3">
-                        <InspectorInput label="Size" value={Math.round(selectedElement.fontSize || 16)} onChange={(v: string) => updateSelected({ fontSize: Number(v) })} />
+                  {singleSelectedElement.type !== 'image' && (
+                    <div className="p-5 space-y-4">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center justify-between">Fill <Plus size={12}/></div>
+                      <div className="flex flex-wrap gap-2">
+                        {colorPresets.map(c => (
+                          <button key={c} onClick={() => setElements(elements.map(e => e.id === singleSelectedElement.id ? {...e, fill: c} : e))} className="w-6 h-6 rounded-full border border-[#27272a] hover:scale-110 transition-transform" style={{ background: c }} />
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-3 bg-[#121212] p-1.5 rounded-lg border border-[#27272a]">
+                         <Pipette size={14} className="text-zinc-500 ml-1" />
+                         <input type="text" value={singleSelectedElement.fill.toUpperCase()} onChange={(e) => setElements(elements.map(el => el.id === singleSelectedElement.id ? {...el, fill: e.target.value} : el))} className="bg-transparent text-[11px] font-mono outline-none w-full uppercase text-zinc-300" />
+                         <input type="number" value={singleSelectedElement.fillOpacity} onChange={(e) => setElements(elements.map(el => el.id === singleSelectedElement.id ? {...el, fillOpacity: Number(e.target.value)} : el))} className="w-12 bg-transparent text-[11px] font-mono outline-none text-right text-zinc-300 mr-1" />%
                       </div>
                     </div>
                   )}
 
-                  {selectedElement.type !== 'image' && (
-                    <div className="p-4">
-                      <div className="text-xs font-bold text-white mb-3 flex items-center justify-between">
-                        Fill <button className="hover:text-[#9cf822]"><Plus size={14} /></button>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 rounded border border-[#404040] cursor-pointer" style={{ backgroundColor: selectedElement.fill }} />
-                        <input type="text" value={selectedElement.fill.toUpperCase()} onChange={(e) => updateSelected({ fill: e.target.value })} className="flex-1 bg-transparent border-none text-xs text-white uppercase outline-none font-mono" />
-                        <input type="number" value={selectedElement.fillOpacity} onChange={(e) => updateSelected({ fillOpacity: Number(e.target.value) })} className="w-12 bg-transparent border-none text-xs text-white outline-none text-right font-mono" />%
-                      </div>
+                  <div className="p-5 space-y-2">
+                    <button onClick={bringToFront} className="w-full py-2.5 bg-[#27272a] hover:bg-[#3f3f46] rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 text-white transition-colors"><MoveUp size={12}/> BRING TO FRONT</button>
+                    <button onClick={sendToBack} className="w-full py-2.5 bg-[#27272a] hover:bg-[#3f3f46] rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 text-white transition-colors"><MoveDown size={12}/> SEND TO BACK</button>
+                    
+                    <div className="pt-4 mt-2">
+                       <button onClick={() => setElements(elements.filter(el => el.id !== singleSelectedElement.id))} className="w-full py-2 border border-red-500/20 text-xs font-bold text-red-500 rounded-lg hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"><Trash2 size={14} /> Delete Layer</button>
                     </div>
-                  )}
-                  
-                  {selectedElement.type !== 'image' && (
-                    <div className="p-4">
-                      <div className="text-xs font-bold text-white mb-3 flex items-center justify-between">
-                        Stroke <button className="hover:text-[#9cf822]"><Plus size={14} /></button>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 rounded border border-[#404040] cursor-pointer" style={{ backgroundColor: selectedElement.stroke === 'transparent' ? '#000' : selectedElement.stroke }} />
-                        <input type="text" value={selectedElement.stroke === 'transparent' ? 'NONE' : selectedElement.stroke.toUpperCase()} onChange={(e) => updateSelected({ stroke: e.target.value })} className="flex-1 bg-transparent border-none text-xs text-white uppercase outline-none font-mono" />
-                        <input type="number" value={selectedElement.strokeWidth} onChange={(e) => updateSelected({ strokeWidth: Number(e.target.value) })} className="w-12 bg-transparent border-none text-xs text-white outline-none text-right font-mono" />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="p-4 pt-6">
-                    <button onClick={() => setElements(elements.filter(el => el.id !== selectedElement.id))} className="w-full py-2 border border-red-500/30 text-xs font-bold text-red-500 rounded hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2">
-                      <Trash2 size={14} /> Delete
-                    </button>
                   </div>
-
                 </div>
               ) : (
-                <div className="p-6 flex flex-col items-center justify-center h-full text-center text-zinc-500">
-                  <div className="w-full h-32 bg-[#1E1E1E] rounded-lg border border-[#404040] mb-4" />
+                <div className="h-full flex flex-col items-center justify-center text-center text-zinc-600 p-6">
+                  <div className="w-16 h-16 rounded-2xl bg-[#27272a] flex items-center justify-center mb-4"><MousePointer2 size={24} className="text-zinc-500"/></div>
                   <p className="text-xs font-medium">Select a layer to view and edit its properties.</p>
                 </div>
               )}
@@ -937,7 +969,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       </div>
 
       {/* ------------------------------------------------------------------ */}
-      {/* SLIDE-OVER CHAT */}
+      {/* SLIDE-OVER CHAT (Available in Overview Mode) */}
       {/* ------------------------------------------------------------------ */}
       {isChatOpen && (
         <div className="fixed inset-0 z-[10000] flex justify-end bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-all duration-300">
@@ -1015,46 +1047,44 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       {showMobileWarning && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center relative">
-            <div className="w-12 h-12 bg-[#9cf822]/20 text-[#5a9a00] dark:text-[#9cf822] rounded-full flex items-center justify-center mx-auto mb-4">
-              <MonitorSmartphone size={24} />
-            </div>
+            <div className="w-12 h-12 bg-[#9cf822]/20 text-[#5a9a00] dark:text-[#9cf822] rounded-full flex items-center justify-center mx-auto mb-4"><MonitorSmartphone size={24} /></div>
             <h3 className="text-lg font-bold text-black dark:text-white mb-2">Desktop Recommended</h3>
-            <p className="text-sm text-zinc-500 mb-6">
-              The Co-Lab design workspace requires a larger screen for the best experience. Please switch to a desktop or laptop to access this feature.
-            </p>
-            <button 
-              onClick={() => setShowMobileWarning(false)}
-              className="w-full py-3 bg-black text-white dark:bg-white dark:text-black font-bold rounded-xl hover:opacity-90 transition-opacity"
-            >
-              Got it
-            </button>
+            <p className="text-sm text-zinc-500 mb-6">The Lab X workspace requires a larger screen. Please switch to a desktop or laptop to access this feature.</p>
+            <button onClick={() => setShowMobileWarning(false)} className="w-full py-3 bg-black text-white dark:bg-white dark:text-black font-bold rounded-xl hover:opacity-90">Got it</button>
           </div>
         </div>
       )}
-
     </div>
   );
 }
 
 // --- Helper Components ---
-function ToolButton({ icon, active, onClick, tooltip }: any) {
+function ToolBtn({ icon, active, onClick, tip }: any) {
   return (
-    <div className="relative group flex items-center justify-center">
-      <button onClick={onClick} className={`p-1.5 rounded-md transition-all ${active ? 'bg-[#404040] text-white' : 'text-zinc-400 hover:text-white hover:bg-[#2C2C2C]'}`}>
-        {icon}
-      </button>
-      <div className="absolute top-full mt-2 px-2 py-1 bg-black text-white text-[10px] font-bold rounded opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all pointer-events-none whitespace-nowrap z-50">
-        {tooltip}
-      </div>
+    <button onClick={onClick} className={`p-2 rounded-md transition-all group relative ${active ? 'bg-[#9cf822] text-black' : 'text-zinc-400 hover:text-white hover:bg-[#27272a]'}`}>
+      {icon}
+      <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-[9px] text-white font-bold rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[100]">{tip}</span>
+    </button>
+  );
+}
+
+function InspectorField({ label, value }: any) {
+  return (
+    <div className="bg-[#121212] border border-[#27272a] rounded-lg p-2 flex items-center gap-2">
+      <span className="text-[9px] font-bold text-zinc-600 w-3">{label}</span>
+      <input type="text" readOnly value={value} className="bg-transparent text-[11px] font-mono outline-none w-full text-zinc-300" />
     </div>
   );
 }
 
-function InspectorInput({ label, value, onChange }: any) {
+function TemplateCard({ name, size, icon, onClick }: any) {
   return (
-    <div className="flex items-center gap-2 bg-[#1E1E1E] border border-[#404040] rounded px-2 py-1.5 focus-within:border-[#9cf822] transition-colors">
-      <span className="text-[10px] text-zinc-500 font-bold w-3">{label}</span>
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-transparent border-none text-xs text-white outline-none font-mono" />
-    </div>
+    <button onClick={onClick} className="group flex flex-col items-center justify-center p-6 bg-[#18181b] border border-[#27272a] hover:border-[#9cf822] rounded-2xl transition-all duration-300 text-left hover:shadow-[0_0_20px_rgba(156,248,34,0.05)] w-full">
+      <div className="h-16 flex items-center justify-center text-zinc-500 group-hover:text-[#9cf822] transition-colors mb-4 group-hover:scale-110 duration-300">
+        {icon}
+      </div>
+      <span className="text-sm font-semibold text-white w-full text-center">{name}</span>
+      <span className="text-[10px] font-medium text-zinc-500 w-full text-center mt-1">{size}</span>
+    </button>
   );
 }
