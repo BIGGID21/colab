@@ -1,40 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 693.16 383.37">
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 324.7 322.28">
   <defs>
     <style>
       .cls-1 {
-        font-family: Bahnschrift-Light, Bahnschrift;
-        font-variation-settings: 'wght' 300, 'wdth' 100;
-        font-weight: 300;
-        letter-spacing: -.06em;
+        fill: #fff;
       }
 
       .cls-2 {
-        font-family: Bahnschrift-Bold, Bahnschrift;
-        font-variation-settings: 'wght' 700, 'wdth' 100;
+        font-family: Gilroy-ExtraBold, Gilroy-ExtraBold;
+        font-size: 242.33px;
         font-weight: 700;
-      }
-
-      .cls-2, .cls-3 {
-        letter-spacing: -.07em;
-      }
-
-      .cls-4 {
-        font-size: 303.09px;
+        letter-spacing: -.11em;
       }
 
       .cls-3 {
-        font-family: Bahnschrift, Bahnschrift;
-        font-variation-settings: 'wght' 400, 'wdth' 100;
-      }
-
-      .cls-5 {
         fill: #9cf822;
       }
     </style>
   </defs>
   <g id="Layer_1-2" data-name="Layer 1">
-    <rect class="cls-5" width="501.14" height="383.37"/>
-    <text class="cls-4" transform="translate(18.68 280.26)"><tspan class="cls-1" x="0" y="0">Lab</tspan><tspan class="cls-3" x="440.82" y="0"> </tspan><tspan class="cls-2" x="502.52" y="0">X</tspan></text>
+    <rect width="324.7" height="322.28" rx="47.37" ry="47.37"/>
+    <text class="cls-2" transform="translate(22.98 246.61)"><tspan class="cls-1" x="0" y="0">L </tspan><tspan class="cls-3" x="124.56" y="0">X</tspan></text>
   </g>
 </svg>
