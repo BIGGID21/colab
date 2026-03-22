@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, use } from 'react';
+import React, { useEffect, useState, useRef, use, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { useTheme } from 'next-themes';
@@ -56,8 +56,8 @@ interface CanvasElement {
   clipMaskId?: string;
   isMask?: boolean;
   frameId?: string; 
-  startId?: string; // For Prototyping Arrow
-  endId?: string;   // For Prototyping Arrow
+  startId?: string;
+  endId?: string;   
 }
 
 const getCurrencySymbol = (currency: string) => {
@@ -157,11 +157,11 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   };
 
   // --- HISTORY ENGINE ---
-  const pushToHistory = (newElements: CanvasElement[]) => {
+  const pushToHistory = useCallback((newElements: CanvasElement[]) => {
     setPast(prev => [...prev, elements]);
     setFuture([]);
     setElements(newElements);
-  };
+  }, [elements]);
 
   const handleUndo = () => {
     if (past.length === 0) return;
@@ -254,7 +254,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     fetchWorkspaceData();
   }, [projectId, supabase, router]);
 
-  // --- KEYBOARD SHORTCUTS ---
+  // --- KEYBOARD & PASTE SHORTCUTS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (activeTab !== 'colab' || colabView !== 'canvas') return;
@@ -270,7 +270,11 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       if ((e.ctrlKey || e.metaKey)) {
         if (e.key === 'c') { e.preventDefault(); handleCopy(); }
         if (e.key === 'x') { e.preventDefault(); handleCut(); }
-        if (e.key === 'v') { e.preventDefault(); handlePaste(); }
+        if (e.key === 'v') { 
+          // Note: Browser paste event will handle images. This handles elements.
+          // Native paste event is caught below.
+          if(clipboard.length > 0) { e.preventDefault(); handlePaste(); }
+        }
         if (e.key === 'z') {
            e.preventDefault();
            if (e.shiftKey) handleRedo();
@@ -287,9 +291,101 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         if (e.key === ']') bringToFront();
       }
     };
+
+    const handlePasteEvent = (e: ClipboardEvent) => {
+      if (activeTab !== 'colab' || colabView !== 'canvas') return;
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          e.preventDefault();
+          const file = items[i].getAsFile();
+          if (file) processImageFile(file, window.innerWidth / 2, window.innerHeight / 2);
+          break; // only process the first image pasted
+        }
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, colabView, selectedIds, elements, clipboard, past, future]);
+    window.addEventListener('paste', handlePasteEvent);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('paste', handlePasteEvent);
+    };
+  }, [activeTab, colabView, selectedIds, elements, clipboard, past, future, canvasTransform]);
+
+
+  // --- IMAGE UPLOAD ENGINE ---
+  const processImageFile = async (file: File, clientX: number, clientY: number) => {
+    // 1. Instantly create a local object URL for immediate rendering (Zero Latency UX)
+    const localUrl = URL.createObjectURL(file);
+    const tempId = `img_${Date.now()}`;
+    
+    const img = new Image();
+    img.onload = async () => {
+       // Auto-scale massive images down
+       let w = img.width; let h = img.height;
+       const maxDim = 800;
+       if (w > maxDim || h > maxDim) {
+          const ratio = Math.min(maxDim / w, maxDim / h);
+          w *= ratio; h *= ratio;
+       }
+
+       // Get accurate placement on canvas
+       const rect = containerRef.current?.getBoundingClientRect();
+       const x = rect ? (clientX - rect.left - canvasTransform.x) / canvasTransform.scale : 0;
+       const y = rect ? (clientY - rect.top - canvasTransform.y) / canvasTransform.scale : 0;
+
+       const newImg: CanvasElement = {
+          id: tempId, name: `Image ${file.name.substring(0, 10)}`, type: 'image',
+          x, y, width: w, height: h, fill: 'transparent', fillOpacity: 100, stroke: 'transparent',
+          strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, imageUrl: localUrl
+       };
+
+       // Push to canvas immediately
+       setElements(prev => {
+          setPast(p => [...p, prev]);
+          setFuture([]);
+          return [...prev, newImg];
+       });
+       setSelectedIds([tempId]);
+
+       // 2. Upload to Supabase Storage in the background
+       const fileExt = file.name.split('.').pop() || 'png';
+       const filePath = `${projectId}/canvas/${tempId}.${fileExt}`;
+       
+       const { error: uploadError } = await supabase.storage.from('project_assets').upload(filePath, file);
+       
+       if (!uploadError) {
+          // Replace the local URL with the permanent Cloud URL
+          const { data: publicUrlData } = supabase.storage.from('project_assets').getPublicUrl(filePath);
+          setElements(prev => prev.map(el => el.id === tempId ? { ...el, imageUrl: publicUrlData.publicUrl } : el));
+       } else {
+          console.error("Image upload failed:", uploadError);
+       }
+    };
+    img.src = localUrl;
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (activeTab !== 'colab' || colabView !== 'canvas') return;
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+       const file = e.dataTransfer.files[0];
+       if (file.type.startsWith('image/')) {
+          processImageFile(file, e.clientX, e.clientY);
+       }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Necessary to allow dropping
+  };
 
   // --- ADVANCED ACTIONS ---
   const handleGroup = () => {
@@ -665,7 +761,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
             <div className="flex items-center gap-4 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl self-start sm:self-auto">
               <button onClick={() => setActiveTab('overview')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-white dark:bg-black text-black dark:text-white shadow-sm"><LayoutDashboard size={14} /> Overview</button>
-              <button onClick={() => isMobile ? setShowMobileWarning(true) : setActiveTab('colab')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-500 hover:text-[#9cf822]"><img src="/lab x.svg" className="w-6 h-6 object-contain" alt="Lab X" /></button>
+              
+              {/* BRANDING: Uses plain text "(Lab X)" for the Overview tab */}
+              <button onClick={() => isMobile ? setShowMobileWarning(true) : setActiveTab('colab')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-500 hover:text-[#9cf822]">(Lab X)</button>
             </div>
             
             <button onClick={() => setIsChatOpen(true)} className="hidden sm:flex px-5 py-2.5 bg-black text-white dark:bg-white dark:text-black rounded-xl text-sm font-bold hover:scale-[1.02] transition-transform shadow-lg shadow-black/10 dark:shadow-white/10 items-center gap-2"><MessageSquare size={16} /> Team Sync</button>
@@ -840,7 +938,12 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         {activeTab === 'colab' && colabView === 'home' && (
           <div className="flex-grow flex bg-[#1E1E1E] text-zinc-300 relative h-full">
             <div className="w-60 bg-[#2C2C2C] border-r border-[#383838] flex flex-col p-4 hidden md:flex shrink-0">
-              <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => setActiveTab('overview')}><img src="/lab x.svg" className="w-12 h-12 hover:opacity-80 transition-opacity object-contain" alt="Lab X" /></div>
+              
+              {/* BRANDING: Uses the lab x.png icon for the sidebar in the canvas */}
+              <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => setActiveTab('overview')}>
+                <img src="/lab x.png" className="w-12 h-12 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
+              </div>
+
               <div className="space-y-0.5">
                  <button onClick={() => setHomeSidebarView('home')} className={`w-full flex items-center gap-3 px-2 py-2 rounded text-sm font-medium transition-colors ${homeSidebarView === 'home' ? 'bg-[#383838] text-white' : 'text-zinc-400 hover:text-white hover:bg-[#383838]/50'}`}><Home size={16}/> Home</button>
                  <button onClick={() => setHomeSidebarView('recent')} className={`w-full flex items-center gap-3 px-2 py-2 rounded text-sm font-medium transition-colors ${homeSidebarView === 'recent' ? 'bg-[#383838] text-white' : 'text-zinc-400 hover:text-white hover:bg-[#383838]/50'}`}><Clock size={16}/> Recent</button>
@@ -874,7 +977,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                             <div className="col-span-6">NAME</div><div className="col-span-3">TYPE</div><div className="col-span-3">RECENT</div>
                           </div>
                           <div onClick={() => setColabView('canvas')} className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-[#383838]/50 cursor-pointer transition-colors items-center">
-                            <div className="col-span-6 flex items-center gap-3"><div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center shrink-0 border border-zinc-700"><img src="/lab x.svg" className="w-4 h-4 object-contain opacity-50" alt="Lab X" /></div><span className="text-sm font-medium text-white">{project?.title || 'Lab X Draft'}</span></div>
+                            
+                            {/* BRANDING: Uses the lab x.png icon for the recent list in the canvas */}
+                            <div className="col-span-6 flex items-center gap-3"><div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center shrink-0 border border-zinc-700"><img src="/lab x.png" className="w-4 h-4 object-contain opacity-50" alt="Lab X" /></div><span className="text-sm font-medium text-white">{project?.title || 'Lab X Draft'}</span></div>
+                            
                             <div className="col-span-3 text-xs text-zinc-400">Design</div><div className="col-span-3 text-xs text-zinc-400">Just now</div>
                           </div>
                        </div>
@@ -905,7 +1011,17 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
               </div>
             </aside>
 
-            <main ref={containerRef} className="flex-grow bg-[#1E1E1E] relative cursor-crosshair overflow-hidden" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}>
+            {/* Added onDrop and onDragOver to make the entire canvas accept Image drops */}
+            <main 
+              ref={containerRef} 
+              className="flex-grow bg-[#1E1E1E] relative cursor-crosshair overflow-hidden" 
+              onPointerDown={handlePointerDown} 
+              onPointerMove={handlePointerMove} 
+              onPointerUp={handlePointerUp} 
+              onPointerLeave={handlePointerUp}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+            >
               {showGrid && <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: `${20 * canvasTransform.scale}px ${20 * canvasTransform.scale}px`, backgroundPosition: `${canvasTransform.x}px ${canvasTransform.y}px` }} />}
 
               <svg className="w-full h-full absolute inset-0">
