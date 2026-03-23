@@ -726,7 +726,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
             <div className="flex items-center gap-4 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl self-start sm:self-auto">
               <button onClick={() => setActiveTab('overview')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-white dark:bg-black text-black dark:text-white shadow-sm"><LayoutDashboard size={14} /> Overview</button>
-              <button onClick={() => isMobile ? setShowMobileWarning(true) : setActiveTab('colab')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-500 hover:text-[#9cf822]">(Lab X)</button>
+              <button onClick={() => isMobile ? setShowMobileWarning(true) : setActiveTab('colab')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-600 hover:text-[#9cf822]">Lab X</button>
             </div>
             
             <button onClick={() => setIsChatOpen(true)} className="hidden sm:flex px-5 py-2.5 bg-black text-white dark:bg-white dark:text-black rounded-xl text-sm font-bold hover:scale-[1.02] transition-transform shadow-lg shadow-black/10 dark:shadow-white/10 items-center gap-2"><MessageSquare size={16} /> Team Sync</button>
@@ -903,7 +903,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
           <div className="flex-grow flex bg-[#1E1E1E] text-zinc-300 relative h-full">
             <div className="w-60 bg-[#2C2C2C] border-r border-[#383838] flex flex-col p-4 hidden md:flex shrink-0">
               <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => setActiveTab('overview')}>
-                <img src="/lab x.png" className="w-12 h-12 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
+                <img src="/lab x.png" className="w-8 h-8 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
               </div>
 
               <div className="space-y-0.5">
