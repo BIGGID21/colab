@@ -13,7 +13,7 @@ import {
   Hand, Save, MoveUp, MoveDown, Scissors,
   Link2, Monitor, Smartphone, LayoutGrid, Home,
   AlignLeft, AlignCenter, AlignRight, ChevronDown, 
-  MoreHorizontal, Grid, ZoomIn, ZoomOut, Sparkles
+  MoreHorizontal, Grid, ZoomIn, ZoomOut
 } from 'lucide-react';
 
 type ElementType = 'rectangle' | 'ellipse' | 'text' | 'path' | 'frame' | 'image' | 'arrow' | 'line' | 'draw';
@@ -116,9 +116,6 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
   const [dragState, setDragState] = useState<any>(null);
   const [prototypeDrag, setPrototypeDrag] = useState<{ startId: string, x: number, y: number } | null>(null); 
   const [snapLines, setSnapLines] = useState<Array<{type: 'v'|'h', val: number, start: number, end: number}>>([]);
-
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -236,18 +233,6 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
     return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('paste', handlePasteEvent); };
   }, [colabView, selectedIds, elements, clipboard, past, future, canvasTransform, pushToHistory, broadcastElements]);
 
-  const handleGenerateImage = async () => {
-    if (selectedIds.length !== 1 || !aiPrompt.trim()) return;
-    setIsGenerating(true);
-    try {
-      const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: aiPrompt }) });
-      const data = await res.json();
-      if (data.url) {
-        updateSelected({ type: 'image', imageUrl: data.url, fill: 'transparent', strokeWidth: 0, name: `Generated: ${aiPrompt.substring(0, 15)}...` });
-        setAiPrompt('');
-      } else { alert(data.error || "Generation failed."); }
-    } catch (err) { alert("Error generating image."); } finally { setIsGenerating(false); }
-  };
 
   const processImageFile = async (file: File, clientX: number, clientY: number) => {
     const localUrl = URL.createObjectURL(file);
@@ -701,7 +686,7 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
         <div className="flex-grow flex bg-[#1E1E1E] text-zinc-300 relative h-full">
           <div className="w-60 bg-[#2C2C2C] border-r border-[#383838] flex flex-col p-4 hidden md:flex shrink-0">
             <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => router.push(`/workspace/${projectId}`)}>
-              <img src="/lab x.png" className="w-12 h-12 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
+              <img src="/lab x.png" className="w-7 h-7 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
             </div>
 
             <div className="space-y-0.5">
@@ -920,30 +905,6 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
                   </div>
                 ) : singleSelectedElement ? (
                   <>
-                    {(singleSelectedElement.type === 'rectangle' || singleSelectedElement.type === 'image' || singleSelectedElement.type === 'frame') && (
-                      <div className="p-3 border-b border-[#383838] space-y-3 bg-[#9cf822]/5">
-                        <div className="flex items-center gap-2 text-[11px] font-bold text-[#9cf822]">
-                          <Sparkles size={14} className="fill-[#9cf822]" /> Lab X Magic Image
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <textarea 
-                            value={aiPrompt}
-                            onChange={(e) => setAiPrompt(e.target.value)}
-                            placeholder="Describe an image to generate here..."
-                            className="w-full bg-[#1E1E1E] border border-[#383838] focus:border-[#9cf822] rounded p-2 text-[11px] outline-none text-white resize-none h-16"
-                          />
-                          <button 
-                            onClick={handleGenerateImage} 
-                            disabled={isGenerating || !aiPrompt.trim()}
-                            className="w-full py-1.5 bg-[#9cf822] text-black font-bold rounded text-[11px] transition-opacity hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
-                          >
-                            {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                            {isGenerating ? 'Generating...' : 'Generate Image'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
                     <div className="p-3 border-b border-[#383838] space-y-2">
                        <div className="text-[11px] font-medium mb-2 flex justify-between items-center">
                           Arrange
