@@ -13,7 +13,7 @@ import {
   Hand, Save, MoveUp, MoveDown, Scissors,
   Link2, Monitor, Smartphone, LayoutGrid, Home,
   AlignLeft, AlignCenter, AlignRight, ChevronDown, 
-  MoreHorizontal, Grid, ZoomIn, ZoomOut
+  MoreHorizontal, Grid, ZoomIn, ZoomOut, Copy
 } from 'lucide-react';
 
 type ElementType = 'rectangle' | 'ellipse' | 'text' | 'path' | 'frame' | 'image' | 'arrow' | 'line' | 'draw';
@@ -26,8 +26,11 @@ interface CanvasElement {
   y: number;
   width: number;
   height: number;
+  opacity?: number; 
   fill: string;
   fillOpacity: number;
+  fillType?: 'solid' | 'gradient';
+  gradientColors?: [string, string];
   stroke: string;
   strokeWidth: number;
   strokeDasharray?: string;
@@ -130,6 +133,15 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
     return '#' + '00000'.substring(0, 6 - c.length) + c;
   }, [user]);
 
+  // AUTO-SAVE ENGINE
+  useEffect(() => {
+    if (!projectId || elements.length === 0 || loading) return;
+    const timer = setTimeout(() => {
+      supabase.from('projects').update({ canvas_data: elements }).eq('id', projectId);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [elements, projectId, supabase, loading]);
+
   // REALTIME ENGINE
   useEffect(() => {
     if (!projectId || !user) return;
@@ -162,10 +174,29 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
     setPast(prev => [...prev, elements]); setFuture([]); setElements(newElements); broadcastElements(newElements);
   }, [elements, broadcastElements]);
 
+  const handleUndo = useCallback(() => {
+    if (past.length) { 
+      const p = past[past.length - 1]; 
+      setPast(prev => prev.slice(0, prev.length - 1)); 
+      setFuture(f => [elements, ...f]); 
+      setElements(p); broadcastElements(p); 
+    }
+  }, [past, elements, broadcastElements]);
+
+  const handleRedo = useCallback(() => {
+    if (future.length) { 
+      const n = future[0]; 
+      setFuture(f => f.slice(1)); 
+      setPast(p => [...p, elements]); 
+      setElements(n); broadcastElements(n); 
+    }
+  }, [future, elements, broadcastElements]);
+
   // CLIPBOARD ENGINE
-  const handleCopy = () => { const selected = elements.filter(el => selectedIds.includes(el.id)); if (selected.length > 0) setClipboard(selected); };
-  const handleCut = () => { handleCopy(); pushToHistory(elements.filter(el => !selectedIds.includes(el.id))); setSelectedIds([]); };
-  const handlePaste = () => {
+  const handleCopy = useCallback(() => { const selected = elements.filter(el => selectedIds.includes(el.id)); if (selected.length > 0) setClipboard(selected); }, [elements, selectedIds]);
+  const handleCut = useCallback(() => { handleCopy(); pushToHistory(elements.filter(el => !selectedIds.includes(el.id))); setSelectedIds([]); }, [elements, selectedIds, handleCopy, pushToHistory]);
+  
+  const handlePaste = useCallback(() => {
     if (clipboard.length === 0) return;
     const newIds: string[] = [];
     const pasted = clipboard.map(el => {
@@ -173,7 +204,19 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
       return { ...el, id: newId, x: el.x + 20, y: el.y + 20 };
     });
     pushToHistory([...elements, ...pasted]); setSelectedIds(newIds);
-  };
+  }, [clipboard, elements, pushToHistory]);
+
+  const handleDuplicate = useCallback(() => {
+    if (selectedIds.length === 0) return;
+    const selected = elements.filter(el => selectedIds.includes(el.id));
+    const newIds: string[] = [];
+    const duplicated = selected.map(el => {
+      const newId = `el_${Math.random().toString(36).substr(2, 9)}`; newIds.push(newId);
+      return { ...el, id: newId, x: el.x + 20, y: el.y + 20 };
+    });
+    pushToHistory([...elements, ...duplicated]); setSelectedIds(newIds);
+  }, [selectedIds, elements, pushToHistory]);
+
 
   useEffect(() => {
     async function fetchLabData() {
@@ -198,17 +241,15 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
 
       const tool = DESIGN_TOOLS.find(t => t.key === e.key);
-      if (tool) setActiveTool(tool.id);
+      if (tool && !e.ctrlKey && !e.metaKey) setActiveTool(tool.id);
       
       if ((e.ctrlKey || e.metaKey)) {
         if (e.key === 'c') { e.preventDefault(); handleCopy(); }
         if (e.key === 'x') { e.preventDefault(); handleCut(); }
         if (e.key === 'v') { if(clipboard.length > 0) { e.preventDefault(); handlePaste(); } }
-        if (e.key === 'z') {
-           e.preventDefault();
-           if (e.shiftKey) { if (future.length) { const n = future[0]; setFuture(f => f.slice(1)); setPast(p => [...p, elements]); setElements(n); broadcastElements(n); } }
-           else { if (past.length) { const p = past[past.length - 1]; setPast(prev => prev.slice(0, prev.length - 1)); setFuture(f => [elements, ...f]); setElements(p); broadcastElements(p); } }
-        }
+        if (e.key === 'z') { e.preventDefault(); if (e.shiftKey) handleRedo(); else handleUndo(); }
+        if (e.key === 'y') { e.preventDefault(); handleRedo(); }
+        if (e.key === 'd') { e.preventDefault(); handleDuplicate(); }
         if (e.key === 's') { e.preventDefault(); handleSaveDesign(); }
       } else {
         if (e.key === 'Backspace' || e.key === 'Delete') { pushToHistory(elements.filter(el => !selectedIds.includes(el.id))); setSelectedIds([]); }
@@ -231,7 +272,7 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
     };
     window.addEventListener('keydown', handleKeyDown); window.addEventListener('paste', handlePasteEvent);
     return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('paste', handlePasteEvent); };
-  }, [colabView, selectedIds, elements, clipboard, past, future, canvasTransform, pushToHistory, broadcastElements]);
+  }, [colabView, selectedIds, elements, clipboard, handleCopy, handleCut, handlePaste, handleDuplicate, handleUndo, handleRedo, pushToHistory]);
 
 
   const processImageFile = async (file: File, clientX: number, clientY: number) => {
@@ -246,7 +287,7 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
        const y = rect ? (clientY - rect.top - canvasTransform.y) / canvasTransform.scale : 0;
 
        const newImg: CanvasElement = { 
-          id: tempId, name: `Image ${file.name.substring(0, 10)}`, type: 'image', x, y, width: w, height: h, 
+          id: tempId, name: `Image ${file.name.substring(0, 10)}`, type: 'image', x, y, width: w, height: h, opacity: 100,
           fill: 'transparent', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, 
           isVisible: true, isLocked: false, imageUrl: localUrl,
           shadowEnabled: false, shadowType: 'none', shadowColor: '#000000', shadowBlur: 10, shadowOffsetX: 5, shadowOffsetY: 5, shadowOpacity: 50
@@ -358,10 +399,30 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
       clone.setAttribute('width', `${bounds.width * exportScale}`);
       clone.setAttribute('height', `${bounds.height * exportScale}`);
 
+      // Bypass CORS by converting external images to base64 before export
+      const imageTags = clone.querySelectorAll('image');
+      for (let i = 0; i < imageTags.length; i++) {
+         const href = imageTags[i].getAttribute('href');
+         if (href && href.startsWith('http')) {
+            try {
+               const res = await fetch(href);
+               const blob = await res.blob();
+               const base64 = await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => resolve(reader.result as string);
+                  reader.readAsDataURL(blob);
+               });
+               imageTags[i].setAttribute('href', base64);
+            } catch (e) {
+               console.warn("Skipping external image export due to CORS", e);
+            }
+         }
+      }
+
       const svgData = new XMLSerializer().serializeToString(clone);
       const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(blob);
-      const fileName = `${singleSelectedElement?.name || 'export'}-${Date.now()}`;
+      const fileName = `export-${Date.now()}`;
 
       if (exportFormat === 'SVG') {
         const a = document.createElement('a'); a.href = url; a.download = `${fileName}.svg`; a.click(); URL.revokeObjectURL(url); setIsExporting(false); return;
@@ -386,7 +447,7 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
   const startWithTemplate = (name: string, w: number, h: number) => {
     let finalW = w; let finalH = h; let finalName = name;
     if (name === 'Blank Canvas') { finalW = 1440; finalH = 1024; finalName = 'Desktop'; }
-    const newFrame: CanvasElement = { id: `el_${Date.now()}`, name: finalName, type: 'frame', x: 100, y: 100, width: finalW, height: finalH, fill: '#ffffff', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left' };
+    const newFrame: CanvasElement = { id: `el_${Date.now()}`, name: finalName, type: 'frame', x: 100, y: 100, width: finalW, height: finalH, fill: '#ffffff', fillOpacity: 100, opacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left' };
     pushToHistory([...elements, newFrame]); setColabView('canvas'); setActiveTool('select');
   };
 
@@ -426,7 +487,7 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
     } else if (activeTool === 'draw') {
       const newId = `el_${Date.now()}`;
       pushToHistory([...elements, { 
-         id: newId, name: 'Path', type: 'draw', x, y, width: 0, height: 0, 
+         id: newId, name: 'Path', type: 'draw', x, y, width: 0, height: 0, opacity: 100, 
          fill: 'transparent', fillOpacity: 100, stroke: '#ffffff', strokeWidth: 2, cornerRadius: 0, 
          isVisible: true, isLocked: false, points: [{x, y}]
       }]);
@@ -437,8 +498,9 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
       const containingFrame = isFrame ? undefined : [...elements].reverse().find(f => f.type === 'frame' && x >= f.x && x <= (f.x + f.width) && y >= f.y && y <= (f.y + f.height));
       pushToHistory([...elements, { 
          id: `el_${Date.now()}`, name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), type: activeTool as any, 
-         x, y, width: isFrame ? 400 : (activeTool === 'line' ? 100 : 100), height: isFrame ? 300 : (activeTool === 'line' ? 2 : 100), 
-         fill: (isFrame || activeTool === 'line') ? '#ffffff' : '#d4d4d8', fillOpacity: 100, stroke: activeTool === 'line' ? '#ffffff' : 'transparent', strokeWidth: activeTool === 'line' ? 2 : 0, cornerRadius: 0, 
+         x, y, width: isFrame ? 400 : (activeTool === 'line' ? 100 : 100), height: isFrame ? 300 : (activeTool === 'line' ? 2 : 100), opacity: 100,
+         fill: (isFrame || activeTool === 'line') ? '#ffffff' : '#d4d4d8', fillOpacity: 100, fillType: 'solid', gradientColors: ['#9cf822', '#1E1E1E'],
+         stroke: activeTool === 'line' ? '#ffffff' : 'transparent', strokeWidth: activeTool === 'line' ? 2 : 0, cornerRadius: 0, 
          isVisible: true, isLocked: false, text: activeTool === 'text' ? 'New Text' : undefined, fontSize: activeTool === 'text' ? 24 : undefined, 
          fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left', frameId: containingFrame ? containingFrame.id : undefined,
          shadowEnabled: false, shadowType: 'none', shadowColor: '#000000', shadowBlur: 10, shadowOffsetX: 5, shadowOffsetY: 5, shadowOpacity: 50
@@ -490,7 +552,7 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
       const activeLines: Array<{type: 'v'|'h', val: number, start: number, end: number}> = [];
       const SNAP_TOLERANCE = 5 / canvasTransform.scale;
       
-      if (selectedIds.length === 1) {
+      if (selectedIds.length === 1 && !e.shiftKey) {
         const primaryEl = dragState.originalElements.find((el: CanvasElement) => el.id === selectedIds[0]);
         if (primaryEl && primaryEl.type !== 'arrow' && primaryEl.type !== 'draw') {
           let tempCX = primaryEl.x + dx + primaryEl.width / 2;
@@ -535,12 +597,29 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
       const updated = dragState.originalElements.map((el: CanvasElement) => {
         if (!selectedIds.includes(el.id)) return el;
         if (el.type === 'draw') return el; 
+        
         let newX = el.x, newY = el.y, newW = el.width, newH = el.height;
         const handle = dragState.handle!;
+        const ratio = el.width / el.height;
+
         if (handle.includes('e')) newW = Math.max(10, el.width + dx);
         if (handle.includes('s')) newH = Math.max(10, el.height + dy);
         if (handle.includes('w')) { newW = Math.max(10, el.width - dx); if (newW > 10) newX = el.x + dx; }
         if (handle.includes('n')) { newH = Math.max(10, el.height - dy); if (newH > 10) newY = el.y + dy; }
+
+        // Proportional Shift-Resizing
+        if (e.shiftKey) {
+            if (Math.abs(dx) > Math.abs(dy)) {
+               const tempH = newW / ratio;
+               if (handle.includes('n')) newY = el.y + (el.height - tempH);
+               newH = tempH;
+            } else {
+               const tempW = newH * ratio;
+               if (handle.includes('w')) newX = el.x + (el.width - tempW);
+               newW = tempW;
+            }
+        }
+
         return { ...el, x: newX, y: newY, width: newW, height: newH, fontSize: el.type === 'text' && el.fontSize && el.height ? Math.max(8, el.fontSize * (newH / el.height)) : el.fontSize };
       });
       setElements(updated); broadcastElements(updated);
@@ -626,7 +705,9 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
 
   const bounds = getSelectionBounds();
   const isMultiSelect = selectedIds.length > 1;
-  const singleSelectedElement = selectedIds.length === 1 ? elements.find(el => el.id === selectedIds[0]) : null;
+  const selectedElementsList = elements.filter(el => selectedIds.includes(el.id));
+  const activeSelectedElement = selectedElementsList.length > 0 ? selectedElementsList[0] : null;
+  const allSelectedAreText = selectedElementsList.length > 0 && selectedElementsList.every(el => el.type === 'text');
 
   return (
     <div className={`transition-colors duration-300 flex flex-col font-sans ${isFullscreen ? 'fixed inset-0 z-[9999] bg-[#1E1E1E]' : 'h-screen'} bg-[#1E1E1E] text-zinc-300 selection:bg-[#9cf822]/30 overflow-hidden`}>
@@ -787,6 +868,12 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
                 </filter>
                 {elements.filter(e => e.type === 'frame').map(f => (<clipPath id={`clip_frame_${f.id}`} key={`clip_frame_${f.id}`}><rect x={f.x} y={f.y} width={f.width} height={f.height} /></clipPath>))}
                 {elements.filter(e => e.isMask).map(maskEl => (<clipPath id={`clip_${maskEl.id}`} key={`clip_${maskEl.id}`}>{maskEl.type === 'rectangle' && <rect x={maskEl.x} y={maskEl.y} width={maskEl.width} height={maskEl.height} rx={maskEl.cornerRadius} />}{maskEl.type === 'ellipse' && <ellipse cx={maskEl.x + maskEl.width/2} cy={maskEl.y + maskEl.height/2} rx={maskEl.width/2} ry={maskEl.height/2} />}</clipPath>))}
+                {elements.filter(e => e.fillType === 'gradient' && e.gradientColors).map(gradEl => (
+                   <linearGradient id={`grad_${gradEl.id}`} key={`grad_${gradEl.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor={gradEl.gradientColors![0]} />
+                      <stop offset="100%" stopColor={gradEl.gradientColors![1]} />
+                   </linearGradient>
+                ))}
               </defs>
 
               <g data-transform-wrapper="true" transform={`matrix(${canvasTransform.scale}, 0, 0, ${canvasTransform.scale}, ${canvasTransform.x}, ${canvasTransform.y})`}>
@@ -797,18 +884,20 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
                   
                   if (el.type === 'frame') {
                      return (
-                       <g key={el.id}>
+                       <g key={el.id} opacity={(el.opacity ?? 100) / 100}>
                          <text x={el.x} y={el.y - 8} fontSize={12 / canvasTransform.scale} fill="#a1a1aa" fontWeight="600" className="select-none pointer-events-none">{el.name}</text>
                          <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} filter="url(#artboard-shadow)" stroke={isSelected ? '#9cf822' : 'transparent'} strokeWidth={isSelected ? 2/canvasTransform.scale : 0} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>
                        </g>
                      );
                   }
 
+                  const dynamicFill = el.fillType === 'gradient' ? `url(#grad_${el.id})` : el.fill;
+
                   return (
-                    <g key={el.id} clipPath={el.frameId ? `url(#clip_frame_${el.frameId})` : undefined} style={getShadowStyle(el)}>
+                    <g key={el.id} clipPath={el.frameId ? `url(#clip_frame_${el.frameId})` : undefined} style={getShadowStyle(el)} opacity={(el.opacity ?? 100) / 100}>
                       <g opacity={el.fillOpacity / 100} clipPath={el.clipMaskId ? `url(#clip_${el.clipMaskId})` : undefined}>
-                        {el.type === 'rectangle' && <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} rx={el.cornerRadius} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>}
-                        {el.type === 'ellipse' && <ellipse cx={el.x + el.width/2} cy={el.y + el.height/2} rx={el.width/2} ry={el.height/2} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
+                        {el.type === 'rectangle' && <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={dynamicFill} rx={el.cornerRadius} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>}
+                        {el.type === 'ellipse' && <ellipse cx={el.x + el.width/2} cy={el.y + el.height/2} rx={el.width/2} ry={el.height/2} fill={dynamicFill} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
                         {el.type === 'line' && <line x1={el.x} y1={el.y} x2={el.x + el.width} y2={el.y + el.height} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
                         {el.type === 'draw' && el.points && el.points.length > 0 && (
                            <polyline points={el.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={el.stroke} strokeWidth={el.strokeWidth} strokeLinecap="round" strokeLinejoin="round" onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />
@@ -817,7 +906,7 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
                            isEditing ? (
                               <foreignObject x={el.x} y={el.y} width={Math.max(300, el.width * 2)} height={(el.fontSize || 24) * 2} className="overflow-visible pointer-events-auto"><input autoFocus defaultValue={el.text} onPointerDown={(e) => e.stopPropagation()} onBlur={(e) => { updateSelected({text: e.target.value}); setEditingTextId(null); }} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur(); }} style={{ fontSize: el.fontSize, fontFamily: el.fontFamily, color: el.fill, background: 'transparent', outline: '1px solid #9cf822', border: 'none', margin: 0, padding: 0, width: '100%', lineHeight: 1, fontWeight: el.fontWeight, textAlign: el.textAlign }} /></foreignObject>
                            ) : (
-                              <text x={el.x} y={el.y + (el.fontSize || 24) * 0.85} fill={el.fill} fontSize={el.fontSize} fontFamily={el.fontFamily} fontWeight={el.fontWeight} textAnchor={el.textAlign === 'center' ? 'middle' : el.textAlign === 'right' ? 'end' : 'start'} dx={el.textAlign === 'center' ? el.width/2 : el.textAlign === 'right' ? el.width : 0} onPointerDown={(e) => handleElementPointerDown(e, el)} onDoubleClick={(e) => { e.stopPropagation(); setEditingTextId(el.id); setActiveTool('select'); }} className="select-none cursor-default">{el.text}</text>
+                              <text x={el.x} y={el.y + (el.fontSize || 24) * 0.85} fill={dynamicFill} fontSize={el.fontSize} fontFamily={el.fontFamily} fontWeight={el.fontWeight} textAnchor={el.textAlign === 'center' ? 'middle' : el.textAlign === 'right' ? 'end' : 'start'} dx={el.textAlign === 'center' ? el.width/2 : el.textAlign === 'right' ? el.width : 0} onPointerDown={(e) => handleElementPointerDown(e, el)} onDoubleClick={(e) => { e.stopPropagation(); setEditingTextId(el.id); setActiveTool('select'); }} className="select-none cursor-default">{el.text}</text>
                            )
                         )}
                         {el.type === 'image' && el.imageUrl && <image href={el.imageUrl} x={el.x} y={el.y} width={el.width} height={el.height} preserveAspectRatio="none" onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} clipPath={`inset(0 0 0 0 round ${el.cornerRadius || 0}px)`} />}
@@ -857,8 +946,8 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
                     );
                 })()}
 
-                {appMode === 'prototype' && singleSelectedElement && singleSelectedElement.type !== 'arrow' && (
-                   <g transform={`translate(${singleSelectedElement.x + singleSelectedElement.width + 10}, ${singleSelectedElement.y + singleSelectedElement.height / 2})`} className="cursor-pointer prototype-ui" onPointerDown={(e) => { e.stopPropagation(); setPrototypeDrag({ startId: singleSelectedElement.id, x: getCanvasCoords(e).x, y: getCanvasCoords(e).y }) }}>
+                {appMode === 'prototype' && activeSelectedElement && activeSelectedElement.type !== 'arrow' && (
+                   <g transform={`translate(${activeSelectedElement.x + activeSelectedElement.width + 10}, ${activeSelectedElement.y + activeSelectedElement.height / 2})`} className="cursor-pointer prototype-ui" onPointerDown={(e) => { e.stopPropagation(); setPrototypeDrag({ startId: activeSelectedElement.id, x: getCanvasCoords(e).x, y: getCanvasCoords(e).y }) }}>
                       <circle cx="0" cy="0" r="7" fill="#3b82f6" stroke="#ffffff" strokeWidth="1.5" />
                       <path d="M -3 0 L 3 0 M 0 -3 L 0 3" stroke="#ffffff" strokeWidth="1.5" />
                    </g>
@@ -873,7 +962,7 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
                 {appMode === 'design' && bounds && activeTool === 'select' && (
                   <g className="selection-ui">
                     <rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} fill="none" stroke="#9cf822" strokeWidth={1.5 / canvasTransform.scale} pointerEvents="none" />
-                    {!isMultiSelect && singleSelectedElement?.type !== 'draw' && (
+                    {!isMultiSelect && activeSelectedElement?.type !== 'draw' && (
                       <>
                         <rect onPointerDown={(e) => handleResizeHandleDown(e, 'nw')} x={bounds.x - 3/canvasTransform.scale} y={bounds.y - 3/canvasTransform.scale} width={6/canvasTransform.scale} height={6/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1/canvasTransform.scale} className="cursor-nwse-resize" />
                         <rect onPointerDown={(e) => handleResizeHandleDown(e, 'ne')} x={bounds.x + bounds.width - 3/canvasTransform.scale} y={bounds.y - 3/canvasTransform.scale} width={6/canvasTransform.scale} height={6/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1/canvasTransform.scale} className="cursor-nesw-resize" />
@@ -912,132 +1001,150 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
                   <div className="flex gap-2"><button onClick={() => handleAlign('top')} className="hover:text-white transition-colors rotate-90"><AlignLeft size={14}/></button><button onClick={() => handleAlign('middle')} className="hover:text-white transition-colors rotate-90"><AlignCenter size={14}/></button><button onClick={() => handleAlign('bottom')} className="hover:text-white transition-colors rotate-90"><AlignRight size={14}/></button></div>
                 </div>
 
-                {isMultiSelect ? (
+                {isMultiSelect && (
                   <div className="p-3 border-b border-[#383838] space-y-3">
-                    <div className="text-[11px] font-medium text-white">Selection</div>
-                    <div className="text-[10px] text-zinc-400 flex items-center gap-2 bg-[#383838]/50 p-2 rounded"><Layers size={12}/> {selectedIds.length} layers selected</div>
-                    <div className="grid grid-cols-2 gap-2 mt-4"><button onClick={handleGroup} className="py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><Link2 size={12}/> Group</button><button onClick={handleMakeMask} className="py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><Scissors size={12}/> Mask</button></div>
+                    <div className="text-[11px] font-medium text-white flex justify-between items-center">Multi-Selection <span className="bg-[#383838] px-2 py-0.5 rounded text-[10px]">{selectedIds.length}</span></div>
+                    <div className="grid grid-cols-2 gap-2"><button onClick={handleGroup} className="py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><Link2 size={12}/> Group</button><button onClick={handleMakeMask} className="py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><Scissors size={12}/> Mask</button></div>
                   </div>
-                ) : singleSelectedElement ? (
+                )}
+
+                {activeSelectedElement ? (
                   <>
-                    <div className="p-3 border-b border-[#383838] space-y-2">
-                       <div className="text-[11px] font-medium mb-2 flex justify-between items-center">
-                          Arrange
-                          <button onClick={() => updateSelected({isLocked: !singleSelectedElement.isLocked})} className={`p-1 rounded ${singleSelectedElement.isLocked ? 'text-[#9cf822] bg-[#9cf822]/10' : 'text-zinc-400 hover:text-white hover:bg-[#383838]'}`}>
-                             {singleSelectedElement.isLocked ? <LockIcon size={12}/> : <Unlock size={12}/>}
-                          </button>
-                       </div>
-                       <div className="flex gap-2">
+                    <div className="p-3 border-b border-[#383838] space-y-3">
+                       <div className="flex items-center justify-between text-[11px] font-medium">Layer Opacity <span className="text-zinc-500">{activeSelectedElement.opacity ?? 100}%</span></div>
+                       <input type="range" min="0" max="100" value={activeSelectedElement.opacity ?? 100} onChange={(e) => updateSelected({opacity: Number(e.target.value)})} className="w-full h-1 bg-[#383838] rounded-lg appearance-none cursor-pointer accent-[#9cf822]" />
+                       
+                       <div className="flex gap-2 mt-2">
                           <button onClick={handleBringToFront} className="flex-1 py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><MoveUp size={12}/> Bring Forward</button>
                           <button onClick={handleSendToBack} className="flex-1 py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><MoveDown size={12}/> Send Back</button>
                        </div>
                     </div>
 
-                    {singleSelectedElement.type !== 'draw' && (
+                    {!isMultiSelect && activeSelectedElement.type !== 'draw' && (
                       <div className="p-3 border-b border-[#383838]">
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                           <FigmaInput icon="X" value={Math.round(singleSelectedElement.x)} onChange={(v: string) => updateSelected({x: Number(v)})} />
-                           <FigmaInput icon="Y" value={Math.round(singleSelectedElement.y)} onChange={(v: string) => updateSelected({y: Number(v)})} />
-                           <FigmaInput icon="W" value={Math.round(singleSelectedElement.width)} onChange={(v: string) => updateSelected({width: Math.max(1, Number(v) || 1)})} />
-                           <FigmaInput icon="H" value={Math.round(singleSelectedElement.height)} onChange={(v: string) => updateSelected({height: Math.max(1, Number(v) || 1)})} />
+                           <FigmaInput icon="X" value={Math.round(activeSelectedElement.x)} onChange={(v: string) => updateSelected({x: Number(v)})} />
+                           <FigmaInput icon="Y" value={Math.round(activeSelectedElement.y)} onChange={(v: string) => updateSelected({y: Number(v)})} />
+                           <FigmaInput icon="W" value={Math.round(activeSelectedElement.width)} onChange={(v: string) => updateSelected({width: Math.max(1, Number(v) || 1)})} />
+                           <FigmaInput icon="H" value={Math.round(activeSelectedElement.height)} onChange={(v: string) => updateSelected({height: Math.max(1, Number(v) || 1)})} />
                         </div>
                       </div>
                     )}
 
-                    {(singleSelectedElement.type === 'rectangle' || singleSelectedElement.type === 'image' || singleSelectedElement.type === 'frame') && (
+                    {(activeSelectedElement.type === 'rectangle' || activeSelectedElement.type === 'image' || activeSelectedElement.type === 'frame') && (
                        <div className="p-3 border-b border-[#383838] space-y-3">
                           <div className="flex items-center justify-between text-[11px] font-medium text-zinc-300">
                              Corner Radius
-                             <span className="bg-[#1E1E1E] px-1.5 py-0.5 rounded border border-[#383838]">{singleSelectedElement.cornerRadius || 0}</span>
+                             <span className="bg-[#1E1E1E] px-1.5 py-0.5 rounded border border-[#383838]">{activeSelectedElement.cornerRadius || 0}</span>
                           </div>
                           <input 
-                             type="range" min="0" max={Math.min(singleSelectedElement.width, singleSelectedElement.height) / 2} 
-                             value={singleSelectedElement.cornerRadius || 0} 
+                             type="range" min="0" max={Math.min(activeSelectedElement.width, activeSelectedElement.height) / 2} 
+                             value={activeSelectedElement.cornerRadius || 0} 
                              onChange={(e) => updateSelected({cornerRadius: Number(e.target.value)})} 
                              className="w-full h-1 bg-[#383838] rounded-lg appearance-none cursor-pointer accent-[#9cf822]" 
                           />
                        </div>
                     )}
 
-                    {singleSelectedElement.type === 'text' && (
+                    {allSelectedAreText && (
                       <div className="p-3 border-b border-[#383838] space-y-2">
-                         <div className="text-[11px] font-medium mb-2">Text</div>
+                         <div className="text-[11px] font-medium mb-2">Text Properties</div>
                          <div className="flex items-center gap-2">
-                            <div className="flex-1 flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group relative"><span className="text-[11px]">{singleSelectedElement.fontFamily}</span><ChevronDown size={12} className="text-zinc-500 group-hover:text-white" /><select className="absolute inset-0 opacity-0 cursor-pointer" value={singleSelectedElement.fontFamily} onChange={(e) => updateSelected({fontFamily: e.target.value})}><option value="Inter">Inter</option><option value="Arial">Arial</option><option value="Helvetica">Helvetica</option><option value="Times New Roman">Times New Roman</option></select></div>
+                            <div className="flex-1 flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group relative"><span className="text-[11px]">{activeSelectedElement.fontFamily}</span><ChevronDown size={12} className="text-zinc-500 group-hover:text-white" /><select className="absolute inset-0 opacity-0 cursor-pointer" value={activeSelectedElement.fontFamily} onChange={(e) => updateSelected({fontFamily: e.target.value})}><option value="Inter">Inter</option><option value="Arial">Arial</option><option value="Helvetica">Helvetica</option><option value="Times New Roman">Times New Roman</option></select></div>
                          </div>
                          <div className="grid grid-cols-2 gap-2">
-                            <div className="flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group relative"><span className="text-[11px]">{singleSelectedElement.fontWeight}</span><ChevronDown size={12} className="text-zinc-500 group-hover:text-white" /><select className="absolute inset-0 opacity-0 cursor-pointer" value={singleSelectedElement.fontWeight} onChange={(e) => updateSelected({fontWeight: e.target.value})}><option value="Normal">Normal</option><option value="Bold">Bold</option><option value="Bolder">Bolder</option><option value="Lighter">Lighter</option></select></div>
-                            <FigmaInput icon={<TypeIcon size={12}/>} value={singleSelectedElement.fontSize || 16} onChange={(v: string) => updateSelected({fontSize: Number(v) || 16})} />
+                            <div className="flex items-center justify-between border border-transparent hover:border-[#383838] px-2 py-1 rounded cursor-pointer group relative"><span className="text-[11px]">{activeSelectedElement.fontWeight}</span><ChevronDown size={12} className="text-zinc-500 group-hover:text-white" /><select className="absolute inset-0 opacity-0 cursor-pointer" value={activeSelectedElement.fontWeight} onChange={(e) => updateSelected({fontWeight: e.target.value})}><option value="Normal">Normal</option><option value="Bold">Bold</option><option value="Bolder">Bolder</option><option value="Lighter">Lighter</option></select></div>
+                            <FigmaInput icon={<TypeIcon size={12}/>} value={activeSelectedElement.fontSize || 16} onChange={(v: string) => updateSelected({fontSize: Number(v) || 16})} />
                          </div>
-                         <div className="flex items-center gap-1 mt-2 text-zinc-400"><button onClick={() => updateSelected({textAlign: 'left'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'left' ? 'bg-[#383838] text-white' : ''}`}><AlignLeft size={12}/></button><button onClick={() => updateSelected({textAlign: 'center'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'center' ? 'bg-[#383838] text-white' : ''}`}><AlignCenter size={12}/></button><button onClick={() => updateSelected({textAlign: 'right'})} className={`p-1.5 rounded hover:text-white ${singleSelectedElement.textAlign === 'right' ? 'bg-[#383838] text-white' : ''}`}><AlignRight size={12}/></button></div>
+                         <div className="flex items-center gap-1 mt-2 text-zinc-400"><button onClick={() => updateSelected({textAlign: 'left'})} className={`p-1.5 rounded hover:text-white ${activeSelectedElement.textAlign === 'left' ? 'bg-[#383838] text-white' : ''}`}><AlignLeft size={12}/></button><button onClick={() => updateSelected({textAlign: 'center'})} className={`p-1.5 rounded hover:text-white ${activeSelectedElement.textAlign === 'center' ? 'bg-[#383838] text-white' : ''}`}><AlignCenter size={12}/></button><button onClick={() => updateSelected({textAlign: 'right'})} className={`p-1.5 rounded hover:text-white ${activeSelectedElement.textAlign === 'right' ? 'bg-[#383838] text-white' : ''}`}><AlignRight size={12}/></button></div>
                       </div>
                     )}
 
-                    {singleSelectedElement.type !== 'image' && singleSelectedElement.type !== 'draw' && singleSelectedElement.type !== 'line' && (
+                    {activeSelectedElement.type !== 'image' && activeSelectedElement.type !== 'draw' && activeSelectedElement.type !== 'line' && (
                       <div className="p-3 border-b border-[#383838]">
-                        <div className="flex items-center justify-between group cursor-pointer mb-2"><span className="text-[11px] font-medium">Fill</span><div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white"><Plus size={12}/></button></div></div>
-                        <div className="flex items-center gap-2 group">
-                           <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: singleSelectedElement.fill }}>
-                              {singleSelectedElement.fillOpacity < 100 && <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)', backgroundSize: '8px 8px', backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0px', zIndex: -1}}/>}
-                              <input type="color" value={singleSelectedElement.fill} onChange={(e) => updateSelected({fill: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" />
-                           </div>
-                           <input type="text" value={singleSelectedElement.fill.toUpperCase()} onChange={(e) => updateSelected({fill: e.target.value})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none w-16" />
-                           <input type="number" value={singleSelectedElement.fillOpacity} onChange={(e) => updateSelected({fillOpacity: Number(e.target.value) || 0})} className="w-10 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] text-right outline-none" /><span className="text-[10px] text-zinc-500">%</span>
+                        <div className="flex items-center justify-between mb-3"><span className="text-[11px] font-medium">Fill</span></div>
+                        <div className="flex gap-1 bg-[#1E1E1E] p-1 rounded border border-[#383838] mb-3">
+                           <button onClick={() => updateSelected({fillType: 'solid'})} className={`flex-1 text-[10px] py-1 rounded transition-colors ${activeSelectedElement.fillType !== 'gradient' ? 'bg-[#383838] text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>Solid</button>
+                           <button onClick={() => updateSelected({fillType: 'gradient'})} className={`flex-1 text-[10px] py-1 rounded transition-colors ${activeSelectedElement.fillType === 'gradient' ? 'bg-[#383838] text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>Gradient</button>
                         </div>
+                        
+                        {activeSelectedElement.fillType === 'gradient' ? (
+                           <div className="flex flex-col gap-2">
+                             <div className="flex items-center gap-2">
+                               <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: activeSelectedElement.gradientColors?.[0] || '#9cf822' }}>
+                                 <input type="color" value={activeSelectedElement.gradientColors?.[0] || '#9cf822'} onChange={(e) => updateSelected({gradientColors: [e.target.value, activeSelectedElement.gradientColors?.[1] || '#1E1E1E']})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" />
+                               </div>
+                               <input type="text" value={(activeSelectedElement.gradientColors?.[0] || '#9cf822').toUpperCase()} onChange={(e) => updateSelected({gradientColors: [e.target.value, activeSelectedElement.gradientColors?.[1] || '#1E1E1E']})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none" />
+                             </div>
+                             <div className="flex items-center gap-2">
+                               <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: activeSelectedElement.gradientColors?.[1] || '#1E1E1E' }}>
+                                 <input type="color" value={activeSelectedElement.gradientColors?.[1] || '#1E1E1E'} onChange={(e) => updateSelected({gradientColors: [activeSelectedElement.gradientColors?.[0] || '#9cf822', e.target.value]})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" />
+                               </div>
+                               <input type="text" value={(activeSelectedElement.gradientColors?.[1] || '#1E1E1E').toUpperCase()} onChange={(e) => updateSelected({gradientColors: [activeSelectedElement.gradientColors?.[0] || '#9cf822', e.target.value]})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none" />
+                             </div>
+                           </div>
+                        ) : (
+                          <div className="flex items-center gap-2 group">
+                             <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: activeSelectedElement.fill }}>
+                                <input type="color" value={activeSelectedElement.fill} onChange={(e) => updateSelected({fill: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" />
+                             </div>
+                             <input type="text" value={activeSelectedElement.fill.toUpperCase()} onChange={(e) => updateSelected({fill: e.target.value})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none w-16" />
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {singleSelectedElement.type !== 'image' && (
+                    {activeSelectedElement.type !== 'image' && (
                       <div className="p-3 border-b border-[#383838]">
                         <div className="flex items-center justify-between group cursor-pointer mb-2"><span className="text-[11px] font-medium">Stroke</span><div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white" onClick={() => updateSelected({stroke: '#000000', strokeWidth: 1})}><Plus size={12}/></button></div></div>
-                        {singleSelectedElement.stroke && singleSelectedElement.stroke !== 'transparent' && singleSelectedElement.strokeWidth > 0 ? (
+                        {activeSelectedElement.stroke && activeSelectedElement.stroke !== 'transparent' && activeSelectedElement.strokeWidth > 0 ? (
                           <>
                             <div className="flex items-center gap-2 group mb-2">
-                               <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: singleSelectedElement.stroke }}><input type="color" value={singleSelectedElement.stroke} onChange={(e) => updateSelected({stroke: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" /></div>
-                               <input type="text" value={singleSelectedElement.stroke.toUpperCase()} onChange={(e) => updateSelected({stroke: e.target.value})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none w-16" />
+                               <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: activeSelectedElement.stroke }}><input type="color" value={activeSelectedElement.stroke} onChange={(e) => updateSelected({stroke: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" /></div>
+                               <input type="text" value={activeSelectedElement.stroke.toUpperCase()} onChange={(e) => updateSelected({stroke: e.target.value})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] uppercase font-mono outline-none w-16" />
                                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity"><button className="p-1 text-zinc-400 hover:text-white" onClick={() => updateSelected({strokeWidth: 0})}><Minus size={12}/></button></div>
                             </div>
                             <div className="flex items-center gap-2 pl-6">
-                              <div className="flex items-center gap-2 bg-transparent border border-transparent hover:border-[#383838] px-1.5 py-1 rounded w-16 cursor-text"><Minus size={10} className="text-zinc-500"/><input type="number" value={singleSelectedElement.strokeWidth} onChange={(e) => updateSelected({strokeWidth: Number(e.target.value) || 0})} className="bg-transparent text-[11px] w-full outline-none" /></div>
+                              <div className="flex items-center gap-2 bg-transparent border border-transparent hover:border-[#383838] px-1.5 py-1 rounded w-16 cursor-text"><Minus size={10} className="text-zinc-500"/><input type="number" value={activeSelectedElement.strokeWidth} onChange={(e) => updateSelected({strokeWidth: Number(e.target.value) || 0})} className="bg-transparent text-[11px] w-full outline-none" /></div>
                             </div>
                           </>
                         ) : ( <div className="text-[10px] text-zinc-500 pl-1">No strokes applied.</div> )}
                       </div>
                     )}
 
-                    {(singleSelectedElement.type === 'rectangle' || singleSelectedElement.type === 'ellipse' || singleSelectedElement.type === 'image' || singleSelectedElement.type === 'text') && (
+                    {(activeSelectedElement.type === 'rectangle' || activeSelectedElement.type === 'ellipse' || activeSelectedElement.type === 'image' || activeSelectedElement.type === 'text') && (
                       <div className="p-3 border-b border-[#383838] space-y-3">
                          <div className="flex items-center justify-between group cursor-pointer mb-2">
                             <span className="text-[11px] font-medium">Drop Shadow</span>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                               <button onClick={() => updateSelected({shadowEnabled: !singleSelectedElement.shadowEnabled, shadowType: 'drop', shadowColor: '#000000', shadowBlur: 10, shadowOffsetX: 5, shadowOffsetY: 5, shadowOpacity: 50})} className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white">
-                                  {singleSelectedElement.shadowEnabled ? <Minus size={12}/> : <Plus size={12}/>}
+                               <button onClick={() => updateSelected({shadowEnabled: !activeSelectedElement.shadowEnabled, shadowType: 'drop', shadowColor: '#000000', shadowBlur: 10, shadowOffsetX: 5, shadowOffsetY: 5, shadowOpacity: 50})} className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white">
+                                  {activeSelectedElement.shadowEnabled ? <Minus size={12}/> : <Plus size={12}/>}
                                </button>
                             </div>
                          </div>
 
-                         {singleSelectedElement.shadowEnabled && (
+                         {activeSelectedElement.shadowEnabled && (
                             <>
                               <div className="grid grid-cols-3 gap-2 mb-3">
-                                 <button onClick={() => updateSelected({shadowType: 'none', shadowEnabled: false})} className={`py-1 text-[10px] rounded border ${!singleSelectedElement.shadowEnabled ? 'border-[#9cf822] text-[#9cf822] bg-[#9cf822]/10' : 'border-[#383838] text-zinc-400 hover:bg-[#383838] hover:text-white transition-colors'}`}>None</button>
-                                 <button onClick={() => updateSelected({shadowType: 'drop', shadowOffsetX: 8, shadowOffsetY: 8, shadowBlur: 8})} className={`py-1 text-[10px] rounded border ${singleSelectedElement.shadowType === 'drop' ? 'border-[#9cf822] text-[#9cf822] bg-[#9cf822]/10' : 'border-[#383838] text-zinc-400 hover:bg-[#383838] hover:text-white transition-colors'}`}>Drop</button>
-                                 <button onClick={() => updateSelected({shadowType: 'glow', shadowOffsetX: 0, shadowOffsetY: 0, shadowBlur: 20})} className={`py-1 text-[10px] rounded border ${singleSelectedElement.shadowType === 'glow' ? 'border-[#9cf822] text-[#9cf822] bg-[#9cf822]/10' : 'border-[#383838] text-zinc-400 hover:bg-[#383838] hover:text-white transition-colors'}`}>Glow</button>
+                                 <button onClick={() => updateSelected({shadowType: 'none', shadowEnabled: false})} className={`py-1 text-[10px] rounded border ${!activeSelectedElement.shadowEnabled ? 'border-[#9cf822] text-[#9cf822] bg-[#9cf822]/10' : 'border-[#383838] text-zinc-400 hover:bg-[#383838] hover:text-white transition-colors'}`}>None</button>
+                                 <button onClick={() => updateSelected({shadowType: 'drop', shadowOffsetX: 8, shadowOffsetY: 8, shadowBlur: 8})} className={`py-1 text-[10px] rounded border ${activeSelectedElement.shadowType === 'drop' ? 'border-[#9cf822] text-[#9cf822] bg-[#9cf822]/10' : 'border-[#383838] text-zinc-400 hover:bg-[#383838] hover:text-white transition-colors'}`}>Drop</button>
+                                 <button onClick={() => updateSelected({shadowType: 'glow', shadowOffsetX: 0, shadowOffsetY: 0, shadowBlur: 20})} className={`py-1 text-[10px] rounded border ${activeSelectedElement.shadowType === 'glow' ? 'border-[#9cf822] text-[#9cf822] bg-[#9cf822]/10' : 'border-[#383838] text-zinc-400 hover:bg-[#383838] hover:text-white transition-colors'}`}>Glow</button>
                               </div>
 
                               <div className="space-y-2">
                                  <div className="flex items-center gap-2 group">
-                                    <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: singleSelectedElement.shadowColor || '#000000' }}>
-                                       <input type="color" value={singleSelectedElement.shadowColor || '#000000'} onChange={(e) => updateSelected({shadowColor: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" />
+                                    <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: activeSelectedElement.shadowColor || '#000000' }}>
+                                       <input type="color" value={activeSelectedElement.shadowColor || '#000000'} onChange={(e) => updateSelected({shadowColor: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" />
                                     </div>
-                                    <input type="number" value={singleSelectedElement.shadowOpacity ?? 50} onChange={(e) => updateSelected({shadowOpacity: Number(e.target.value) || 0})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] outline-none" /><span className="text-[10px] text-zinc-500">% Opacity</span>
+                                    <input type="number" value={activeSelectedElement.shadowOpacity ?? 50} onChange={(e) => updateSelected({shadowOpacity: Number(e.target.value) || 0})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] outline-none" /><span className="text-[10px] text-zinc-500">% Op</span>
                                  </div>
 
                                  <div className="grid grid-cols-2 gap-2">
-                                    <FigmaInput icon="B" value={singleSelectedElement.shadowBlur || 0} onChange={(v: string) => updateSelected({shadowBlur: Number(v) || 0})} />
-                                    {singleSelectedElement.shadowType === 'drop' && (
+                                    <FigmaInput icon="B" value={activeSelectedElement.shadowBlur || 0} onChange={(v: string) => updateSelected({shadowBlur: Number(v) || 0})} />
+                                    {activeSelectedElement.shadowType === 'drop' && (
                                        <>
-                                          <FigmaInput icon="X" value={singleSelectedElement.shadowOffsetX || 0} onChange={(v: string) => updateSelected({shadowOffsetX: Number(v) || 0})} />
-                                          <FigmaInput icon="Y" value={singleSelectedElement.shadowOffsetY || 0} onChange={(v: string) => updateSelected({shadowOffsetY: Number(v) || 0})} />
+                                          <FigmaInput icon="X" value={activeSelectedElement.shadowOffsetX || 0} onChange={(v: string) => updateSelected({shadowOffsetX: Number(v) || 0})} />
+                                          <FigmaInput icon="Y" value={activeSelectedElement.shadowOffsetY || 0} onChange={(v: string) => updateSelected({shadowOffsetY: Number(v) || 0})} />
                                        </>
                                     )}
                                  </div>
@@ -1053,11 +1160,11 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
                          <div className="flex items-center justify-between border border-[#383838] hover:border-[#555] px-2 py-1.5 rounded cursor-pointer group w-16 bg-[#1E1E1E] relative"><span className="text-[11px]">{exportScale}x</span><ChevronDown size={10} className="text-zinc-500 group-hover:text-white" /><select className="absolute opacity-0 inset-0 cursor-pointer" value={exportScale} onChange={(e) => setExportScale(Number(e.target.value))}><option value={1}>1x</option><option value={2}>2x</option><option value={3}>3x</option><option value={4}>4x</option></select></div>
                          <div className="flex-1 flex items-center justify-between border border-[#383838] hover:border-[#555] px-2 py-1.5 rounded cursor-pointer group bg-[#1E1E1E] relative"><span className="text-[11px]">{exportFormat}</span><ChevronDown size={10} className="text-zinc-500 group-hover:text-white" /><select className="absolute opacity-0 inset-0 cursor-pointer" value={exportFormat} onChange={(e) => setExportFormat(e.target.value as any)}><option value="PNG">PNG</option><option value="JPG">JPG</option><option value="SVG">SVG</option></select></div>
                       </div>
-                      <button onClick={handleExport} disabled={isExporting} className="w-full py-1.5 bg-[#1E1E1E] hover:bg-[#383838] text-white rounded text-[11px] font-medium transition-colors border border-[#383838] flex justify-center items-center gap-2">{isExporting ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12}/>} Export {singleSelectedElement.name}</button>
+                      <button onClick={handleExport} disabled={isExporting} className="w-full py-1.5 bg-[#1E1E1E] hover:bg-[#383838] text-white rounded text-[11px] font-medium transition-colors border border-[#383838] flex justify-center items-center gap-2">{isExporting ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12}/>} Export</button>
                     </div>
                   </>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 p-6"><MousePointer2 size={24} className="mb-4 opacity-20"/><p className="text-[11px]">Select a layer to view properties.</p></div>
+                  <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 p-6"><MousePointer2 size={24} className="mb-4 opacity-20"/><p className="text-[11px]">Select layers to view properties.</p></div>
                 )}
               </>
             )}
