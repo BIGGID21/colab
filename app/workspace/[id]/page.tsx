@@ -903,7 +903,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
           <div className="flex-grow flex bg-[#1E1E1E] text-zinc-300 relative h-full">
             <div className="w-60 bg-[#2C2C2C] border-r border-[#383838] flex flex-col p-4 hidden md:flex shrink-0">
               <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => setActiveTab('overview')}>
-                <img src="/lab x.png" className="w-8 h-8 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
+                <img src="/lab x.png" className="w-6 h-6 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
               </div>
 
               <div className="space-y-0.5">
