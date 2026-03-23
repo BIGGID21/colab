@@ -634,7 +634,22 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
       {colabView === 'canvas' && (
         <header className="h-11 bg-[#2C2C2C] border-b border-[#383838] flex items-center justify-between px-4 shrink-0 z-50">
           <div className="flex items-center gap-3 w-[240px]">
-            <button onClick={() => router.push(`/workspace/${projectId}`)} className="p-1 hover:bg-[#383838] rounded transition-colors text-zinc-400 hover:text-white" title="Back to Workspace"><ArrowLeft size={14} /></button>
+            <div className="flex items-center gap-1.5">
+              <img 
+                src="/lab x.png" 
+                className="w-6 h-6 hover:opacity-80 transition-opacity object-contain cursor-pointer" 
+                alt="Lab X" 
+                onClick={() => router.push(`/workspace/${projectId}`)}
+                title="Back to Workspace"
+              />
+              <button 
+                onClick={() => setColabView('home')} 
+                className="p-1.5 text-zinc-400 hover:text-white hover:bg-[#383838] rounded transition-colors" 
+                title="Go to Home"
+              >
+                <Home size={16} />
+              </button>
+            </div>
             <div className="h-3 w-px bg-[#383838]" />
             <div className="text-xs font-medium text-white flex items-center gap-2 cursor-pointer hover:bg-[#383838] px-2 py-1 rounded truncate">
               {project?.title} 
@@ -686,7 +701,7 @@ export default function LabXPage({ params }: { params: Promise<{ id: string }> }
         <div className="flex-grow flex bg-[#1E1E1E] text-zinc-300 relative h-full">
           <div className="w-60 bg-[#2C2C2C] border-r border-[#383838] flex flex-col p-4 hidden md:flex shrink-0">
             <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => router.push(`/workspace/${projectId}`)}>
-              <img src="/lab x.png" className="w-7 h-7 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
+              <img src="/lab x.png" className="w-6 h-6 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
             </div>
 
             <div className="space-y-0.5">
