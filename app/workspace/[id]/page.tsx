@@ -21,14 +21,14 @@ import {
   Pipette, MoveUp, MoveDown, Scissors,
   Unlink, Link2, Monitor, Smartphone, LayoutGrid, Home,
   AlignLeft, AlignCenter, AlignRight, ChevronDown, MoreHorizontal,
-  Grid
+  Grid, ZoomIn, ZoomOut
 } from 'lucide-react';
 import Link from 'next/link';
 
 // ----------------------------------------------------------------------
 // TYPES & CONFIGURATIONS
 // ----------------------------------------------------------------------
-type ElementType = 'rectangle' | 'ellipse' | 'text' | 'path' | 'frame' | 'image' | 'arrow';
+type ElementType = 'rectangle' | 'ellipse' | 'text' | 'path' | 'frame' | 'image' | 'arrow' | 'line' | 'draw';
 
 interface CanvasElement {
   id: string;
@@ -57,7 +57,17 @@ interface CanvasElement {
   isMask?: boolean;
   frameId?: string; 
   startId?: string;
-  endId?: string;   
+  endId?: string;
+  points?: { x: number, y: number }[]; // For freehand drawing
+  // --- SHADOW ENGINE PROPERTIES ---
+  // --- SHADOW ENGINE PROPERTIES ---
+  shadowEnabled?: boolean;
+  shadowType?: 'drop' | 'glow' | 'none'; // <-- Added 'none' here
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  shadowOpacity?: number;
 }
 
 interface CursorData {
@@ -71,11 +81,12 @@ interface CursorData {
 // DYNAMIC TOOL REGISTRY
 const DESIGN_TOOLS = [
   { id: 'select', icon: MousePointer2, tip: 'Move (V)', key: 'v' },
-  { id: 'frame', icon: Layout, tip: 'Artboard/Frame (F)', key: 'f' },
+  { id: 'frame', icon: Layout, tip: 'Artboard (F)', key: 'f' },
   { id: 'rectangle', icon: Square, tip: 'Rectangle (R)', key: 'r' },
   { id: 'ellipse', icon: Circle, tip: 'Ellipse (O)', key: 'o' },
+  { id: 'line', icon: Minus, tip: 'Line (L)', key: 'l' },
   { id: 'text', icon: TypeIcon, tip: 'Text (T)', key: 't' },
-  { id: 'pen', icon: PenTool, tip: 'Pen/Draw (P)', key: 'p' }, 
+  { id: 'draw', icon: PenTool, tip: 'Draw (P)', key: 'p' }, 
   { id: 'hand', icon: Hand, tip: 'Hand (H)', key: 'h' }
 ] as const;
 
@@ -285,8 +296,8 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         if (e.key === 's') { e.preventDefault(); handleSaveDesign(); }
       } else {
         if (e.key === 'Backspace' || e.key === 'Delete') { pushToHistory(elements.filter(el => !selectedIds.includes(el.id))); setSelectedIds([]); }
-        if (e.key === '[') pushToHistory([...elements.filter(el => selectedIds.includes(el.id)), ...elements.filter(el => !selectedIds.includes(el.id))]);
-        if (e.key === ']') pushToHistory([...elements.filter(el => !selectedIds.includes(el.id)), ...elements.filter(el => selectedIds.includes(el.id))]);
+        if (e.key === '[') { e.preventDefault(); handleSendToBack(); }
+        if (e.key === ']') { e.preventDefault(); handleBringToFront(); }
       }
     };
 
@@ -318,7 +329,12 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
        const x = rect ? (clientX - rect.left - canvasTransform.x) / canvasTransform.scale : 0;
        const y = rect ? (clientY - rect.top - canvasTransform.y) / canvasTransform.scale : 0;
 
-       const newImg: CanvasElement = { id: tempId, name: `Image ${file.name.substring(0, 10)}`, type: 'image', x, y, width: w, height: h, fill: 'transparent', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, imageUrl: localUrl };
+       const newImg: CanvasElement = { 
+          id: tempId, name: `Image ${file.name.substring(0, 10)}`, type: 'image', x, y, width: w, height: h, 
+          fill: 'transparent', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, 
+          isVisible: true, isLocked: false, imageUrl: localUrl,
+          shadowEnabled: false, shadowType: 'drop', shadowColor: '#000000', shadowBlur: 10, shadowOffsetX: 5, shadowOffsetY: 5, shadowOpacity: 50
+       };
        setElements(prev => { const newElements = [...prev, newImg]; setPast(p => [...p, prev]); setFuture([]); broadcastElements(newElements); return newElements; });
        setSelectedIds([tempId]);
 
@@ -356,6 +372,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     if (!selectedIds.length) return;
     pushToHistory(elements.map(el => selectedIds.includes(el.id) ? { ...el, groupId: undefined } : el));
   };
+
+  const handleBringToFront = () => pushToHistory([...elements.filter(el => !selectedIds.includes(el.id)), ...elements.filter(el => selectedIds.includes(el.id))]);
+  const handleSendToBack = () => pushToHistory([...elements.filter(el => selectedIds.includes(el.id)), ...elements.filter(el => !selectedIds.includes(el.id))]);
 
   const handleMakeMask = () => {
     if (selectedIds.length < 2) return;
@@ -399,8 +418,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     if (selectedIds.length === 0) return null;
     const s = elements.filter(el => selectedIds.includes(el.id) && el.type !== 'arrow');
     if(s.length === 0) return null;
-    const minX = Math.min(...s.map(el => el.x)); const minY = Math.min(...s.map(el => el.y));
-    const maxX = Math.max(...s.map(el => el.x + el.width)); const maxY = Math.max(...s.map(el => el.y + el.height));
+    const minX = Math.min(...s.map(el => (el.type === 'draw' && el.points ? Math.min(...el.points.map(p=>p.x)) : el.x))); 
+    const minY = Math.min(...s.map(el => (el.type === 'draw' && el.points ? Math.min(...el.points.map(p=>p.y)) : el.y)));
+    const maxX = Math.max(...s.map(el => (el.type === 'draw' && el.points ? Math.max(...el.points.map(p=>p.x)) : el.x + el.width))); 
+    const maxY = Math.max(...s.map(el => (el.type === 'draw' && el.points ? Math.max(...el.points.map(p=>p.y)) : el.y + el.height)));
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   };
 
@@ -483,13 +504,31 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     if (editingTextId) return; 
     if (appMode === 'prototype') { if (activeTool === 'select' && (e.target as HTMLElement).tagName === 'svg') setSelectedIds([]); return; }
     if (isPanning || activeTool === 'hand' || e.button === 1) { setDragState({ action: 'panning', startX: e.clientX, startY: e.clientY }); return; }
+    
     const { x, y } = getCanvasCoords(e);
+    
     if (activeTool === 'select' && (e.target as HTMLElement).tagName === 'svg') {
       setSelectedIds([]);
-    } else if (activeTool !== 'select' && activeTool !== 'image' && activeTool !== 'pen') {
+    } else if (activeTool === 'draw') {
+      const newId = `el_${Date.now()}`;
+      pushToHistory([...elements, { 
+         id: newId, name: 'Path', type: 'draw', x, y, width: 0, height: 0, 
+         fill: 'transparent', fillOpacity: 100, stroke: '#ffffff', strokeWidth: 2, cornerRadius: 0, 
+         isVisible: true, isLocked: false, points: [{x, y}]
+      }]);
+      setSelectedIds([newId]);
+      setDragState({ action: 'drawing', id: newId });
+    } else if (activeTool !== 'select' && activeTool !== 'image') {
       const isFrame = activeTool === 'frame';
       const containingFrame = isFrame ? undefined : [...elements].reverse().find(f => f.type === 'frame' && x >= f.x && x <= (f.x + f.width) && y >= f.y && y <= (f.y + f.height));
-      pushToHistory([...elements, { id: `el_${Date.now()}`, name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), type: activeTool as any, x, y, width: isFrame ? 400 : 100, height: isFrame ? 300 : 100, fill: isFrame ? '#ffffff' : '#d4d4d8', fillOpacity: 100, stroke: 'transparent', strokeWidth: 0, cornerRadius: 0, isVisible: true, isLocked: false, text: activeTool === 'text' ? 'New Text' : undefined, fontSize: activeTool === 'text' ? 24 : undefined, fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left', frameId: containingFrame ? containingFrame.id : undefined }]);
+      pushToHistory([...elements, { 
+         id: `el_${Date.now()}`, name: activeTool.charAt(0).toUpperCase() + activeTool.slice(1), type: activeTool as any, 
+         x, y, width: isFrame ? 400 : (activeTool === 'line' ? 100 : 100), height: isFrame ? 300 : (activeTool === 'line' ? 2 : 100), 
+         fill: (isFrame || activeTool === 'line') ? '#ffffff' : '#d4d4d8', fillOpacity: 100, stroke: activeTool === 'line' ? '#ffffff' : 'transparent', strokeWidth: activeTool === 'line' ? 2 : 0, cornerRadius: 0, 
+         isVisible: true, isLocked: false, text: activeTool === 'text' ? 'New Text' : undefined, fontSize: activeTool === 'text' ? 24 : undefined, 
+         fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left', frameId: containingFrame ? containingFrame.id : undefined,
+         shadowEnabled: false, shadowType: 'drop', shadowColor: '#000000', shadowBlur: 10, shadowOffsetX: 5, shadowOffsetY: 5, shadowOpacity: 50
+      }]);
       setSelectedIds([`el_${Date.now()}`]); setActiveTool('select');
     }
   };
@@ -523,6 +562,11 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       setDragState({ ...dragState, startX: e.clientX, startY: e.clientY }); return;
     }
 
+    if (dragState.action === 'drawing') {
+      setElements(prev => prev.map(el => el.id === dragState.id ? { ...el, points: [...(el.points || []), {x, y}] } : el));
+      return;
+    }
+
     if (!dragState.hasDragged) setDragState({ ...dragState, hasDragged: true });
 
     if (dragState.action === 'moving') {
@@ -537,12 +581,12 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       
       if (selectedIds.length === 1) {
         const primaryEl = dragState.originalElements.find((el: CanvasElement) => el.id === selectedIds[0]);
-        if (primaryEl && primaryEl.type !== 'arrow') {
+        if (primaryEl && primaryEl.type !== 'arrow' && primaryEl.type !== 'draw') {
           let tempCX = primaryEl.x + dx + primaryEl.width / 2;
           let tempCY = primaryEl.y + dy + primaryEl.height / 2;
 
           dragState.originalElements.forEach((target: CanvasElement) => {
-            if (target.id === primaryEl.id || !target.isVisible || target.type === 'arrow') return;
+            if (target.id === primaryEl.id || !target.isVisible || target.type === 'arrow' || target.type === 'draw') return;
             const tCX = target.x + target.width / 2;
             const tCY = target.y + target.height / 2;
 
@@ -564,13 +608,22 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
       const childIds = dragState.originalElements.filter((el: CanvasElement) => el.frameId && explicitlySelectedFrameIds.includes(el.frameId)).map((el: CanvasElement) => el.id);
       const allMovingIds = [...selectedIds, ...childIds];
 
-      const updated = dragState.originalElements.map((el: CanvasElement) => allMovingIds.includes(el.id) ? { ...el, x: el.x + dx, y: el.y + dy } : el);
+      const updated = dragState.originalElements.map((el: CanvasElement) => {
+        if (allMovingIds.includes(el.id)) {
+           if (el.type === 'draw' && el.points) {
+              return { ...el, points: el.points.map(p => ({ x: p.x + dx, y: p.y + dy })) };
+           }
+           return { ...el, x: el.x + dx, y: el.y + dy };
+        }
+        return el;
+      });
       setElements(updated); broadcastElements(updated);
     } 
     else if (dragState.action === 'resizing' && dragState.handle && appMode === 'design') {
       const dx = x - dragState.startX; const dy = y - dragState.startY;
       const updated = dragState.originalElements.map((el: CanvasElement) => {
         if (!selectedIds.includes(el.id)) return el;
+        if (el.type === 'draw') return el; // Disable standard resize for freehand paths to avoid distortion
         let newX = el.x, newY = el.y, newW = el.width, newH = el.height;
         const handle = dragState.handle!;
         if (handle.includes('e')) newW = Math.max(10, el.width + dx);
@@ -585,6 +638,14 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
   const handlePointerUp = () => {
     setSnapLines([]); 
+    
+    if (dragState?.action === 'drawing') {
+      setActiveTool('select');
+      setPast(prev => [...prev, elements]); setFuture([]); broadcastElements(elements);
+      setDragState(null);
+      return;
+    }
+
     if (prototypeDrag) {
       const { x, y } = prototypeDrag;
       const target = [...elements].reverse().find(el => el.id !== prototypeDrag.startId && el.type !== 'arrow' && x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height);
@@ -598,7 +659,8 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
          const frames = finalElements.filter(el => el.type === 'frame');
          finalElements = finalElements.map(el => {
             if (selectedIds.includes(el.id) && el.type !== 'frame' && el.type !== 'arrow') {
-               const centerX = el.x + el.width / 2; const centerY = el.y + el.height / 2;
+               const centerX = el.type === 'draw' && el.points ? el.points[0].x : el.x + el.width / 2; 
+               const centerY = el.type === 'draw' && el.points ? el.points[0].y : el.y + el.height / 2;
                const containingFrame = [...frames].reverse().find(f => centerX >= f.x && centerX <= (f.x + f.width) && centerY >= f.y && centerY <= (f.y + f.height));
                return { ...el, frameId: containingFrame ? containingFrame.id : undefined };
             }
@@ -680,16 +742,29 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
         <div className="flex items-center gap-2 truncate">
-          {el.isMask ? <Scissors size={10} className="text-[#9cf822]" /> : el.type === 'text' ? <TypeIcon size={10}/> : el.type === 'image' ? <ImageIcon size={10}/> : el.type === 'frame' ? <Layout size={10}/> : <Square size={10}/>}
-          <span className={`truncate flex-grow ${el.type === 'frame' ? 'font-bold text-white' : ''}`}>{el.name} {el.groupId && <span className="opacity-50 ml-1 text-[9px]">(Grouped)</span>}</span>
+          {el.isMask ? <Scissors size={10} className="text-[#9cf822]" /> : el.type === 'text' ? <TypeIcon size={10}/> : el.type === 'image' ? <ImageIcon size={10}/> : el.type === 'frame' ? <Layout size={10}/> : el.type === 'line' ? <Minus size={10}/> : el.type === 'draw' ? <PenTool size={10}/> : <Square size={10}/>}
+          <span className={`truncate flex-grow ${el.type === 'frame' ? 'font-bold text-white' : ''} ${el.isLocked ? 'text-zinc-500 line-through decoration-zinc-600' : ''}`}>{el.name} {el.groupId && <span className="opacity-50 ml-1 text-[9px]">(Grouped)</span>}</span>
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={(e) => { e.stopPropagation(); updateSelected({isLocked: !el.isLocked}); }} className="p-1 hover:text-white">
+             {el.isLocked ? <LockIcon size={12} className="text-[#9cf822]" /> : <Unlock size={12} />}
+          </button>
           <button onClick={(e) => { e.stopPropagation(); pushToHistory(elements.map(item => item.id === el.id ? {...item, isVisible: !item.isVisible} : item)); }} className="p-1 hover:text-white">
             {el.isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
           </button>
         </div>
       </div>
     );
+  };
+
+  const getShadowStyle = (el: CanvasElement) => {
+    if (!el.shadowEnabled) return {};
+    const hex = el.shadowColor || '#000000';
+    const r = parseInt(hex.slice(1, 3) || '00', 16);
+    const g = parseInt(hex.slice(3, 5) || '00', 16);
+    const b = parseInt(hex.slice(5, 7) || '00', 16);
+    const a = (el.shadowOpacity ?? 50) / 100;
+    return { filter: `drop-shadow(${el.shadowOffsetX || 0}px ${el.shadowOffsetY || 0}px ${el.shadowBlur || 0}px rgba(${r},${g},${b},${a}))` };
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
@@ -726,7 +801,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
 
             <div className="flex items-center gap-4 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl self-start sm:self-auto">
               <button onClick={() => setActiveTab('overview')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-white dark:bg-black text-black dark:text-white shadow-sm"><LayoutDashboard size={14} /> Overview</button>
-              <button onClick={() => isMobile ? setShowMobileWarning(true) : setActiveTab('colab')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-600 hover:text-[#9cf822]">Lab X</button>
+              <button onClick={() => isMobile ? setShowMobileWarning(true) : setActiveTab('colab')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-zinc-500 hover:text-[#9cf822]">(Lab X)</button>
             </div>
             
             <button onClick={() => setIsChatOpen(true)} className="hidden sm:flex px-5 py-2.5 bg-black text-white dark:bg-white dark:text-black rounded-xl text-sm font-bold hover:scale-[1.02] transition-transform shadow-lg shadow-black/10 dark:shadow-white/10 items-center gap-2"><MessageSquare size={16} /> Team Sync</button>
@@ -762,14 +837,20 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
              )}
           </div>
 
-          <div className="flex items-center justify-end gap-3 w-[240px]">
+          <div className="flex items-center justify-end gap-3 w-[300px]">
+            {/* CANVAS ZOOM CONTROLS */}
+            <div className="flex items-center bg-[#1E1E1E] rounded border border-[#383838] p-0.5 text-zinc-400 mr-2">
+               <button onClick={() => setCanvasTransform(p => ({...p, scale: Math.max(0.1, p.scale - 0.2)}))} className="p-1 hover:text-white transition-colors"><ZoomOut size={12}/></button>
+               <span className="text-[10px] font-bold px-2 w-10 text-center">{Math.round(canvasTransform.scale * 100)}%</span>
+               <button onClick={() => setCanvasTransform(p => ({...p, scale: Math.min(5, p.scale + 0.2)}))} className="p-1 hover:text-white transition-colors"><ZoomIn size={12}/></button>
+            </div>
+            
             <div className="flex items-center gap-2 mr-2">
                {team.slice(0, 3).map((m, i) => (
                  <div key={i} className="w-6 h-6 rounded-full bg-[#18181b] border border-[#383838] overflow-hidden">
                     {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover"/> : <User size={12} className="m-auto mt-1.5 text-zinc-500" />}
                  </div>
                ))}
-               <button onClick={() => alert('Sharing link copied to clipboard!')} className="px-3 py-1 bg-[#9cf822] text-black text-[11px] font-bold rounded hover:opacity-90 transition-opacity">Share</button>
             </div>
             <div className="w-px h-4 bg-[#383838]"></div>
             <button onClick={() => setShowGrid(!showGrid)} className={`p-1 rounded transition-colors ${showGrid ? 'text-[#9cf822]' : 'text-zinc-400 hover:text-white'}`}><Grid size={14} /></button>
@@ -903,7 +984,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
           <div className="flex-grow flex bg-[#1E1E1E] text-zinc-300 relative h-full">
             <div className="w-60 bg-[#2C2C2C] border-r border-[#383838] flex flex-col p-4 hidden md:flex shrink-0">
               <div className="flex items-center gap-3 mb-8 cursor-pointer px-2" onClick={() => setActiveTab('overview')}>
-                <img src="/lab x.png" className="w-6 h-6 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
+                <img src="/lab x.png" className="w-12 h-12 hover:opacity-80 transition-opacity object-contain" alt="Lab X" />
               </div>
 
               <div className="space-y-0.5">
@@ -1008,10 +1089,14 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                     }
 
                     return (
-                      <g key={el.id} clipPath={el.frameId ? `url(#clip_frame_${el.frameId})` : undefined}>
+                      <g key={el.id} clipPath={el.frameId ? `url(#clip_frame_${el.frameId})` : undefined} style={getShadowStyle(el)}>
                         <g opacity={el.fillOpacity / 100} clipPath={el.clipMaskId ? `url(#clip_${el.clipMaskId})` : undefined}>
                           {el.type === 'rectangle' && <rect x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill} rx={el.cornerRadius} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''}/>}
                           {el.type === 'ellipse' && <ellipse cx={el.x + el.width/2} cy={el.y + el.height/2} rx={el.width/2} ry={el.height/2} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
+                          {el.type === 'line' && <line x1={el.x} y1={el.y} x2={el.x + el.width} y2={el.y + el.height} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeDasharray={el.strokeDasharray} onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />}
+                          {el.type === 'draw' && el.points && el.points.length > 0 && (
+                             <polyline points={el.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={el.stroke} strokeWidth={el.strokeWidth} strokeLinecap="round" strokeLinejoin="round" onPointerDown={(e) => handleElementPointerDown(e, el)} className={el.isLocked ? 'pointer-events-none' : ''} />
+                          )}
                           {el.type === 'text' && (
                              isEditing ? (
                                 <foreignObject x={el.x} y={el.y} width={Math.max(300, el.width * 2)} height={(el.fontSize || 24) * 2} className="overflow-visible pointer-events-auto"><input autoFocus defaultValue={el.text} onPointerDown={(e) => e.stopPropagation()} onBlur={(e) => { updateSelected({text: e.target.value}); setEditingTextId(null); }} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur(); }} style={{ fontSize: el.fontSize, fontFamily: el.fontFamily, color: el.fill, background: 'transparent', outline: '1px solid #9cf822', border: 'none', margin: 0, padding: 0, width: '100%', lineHeight: 1, fontWeight: el.fontWeight, textAlign: el.textAlign }} /></foreignObject>
@@ -1074,7 +1159,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                   {appMode === 'design' && bounds && activeTool === 'select' && (
                     <g className="selection-ui">
                       <rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} fill="none" stroke="#9cf822" strokeWidth={1.5 / canvasTransform.scale} pointerEvents="none" />
-                      {!isMultiSelect && (
+                      {!isMultiSelect && singleSelectedElement?.type !== 'draw' && (
                         <>
                           <rect onPointerDown={(e) => handleResizeHandleDown(e, 'nw')} x={bounds.x - 3/canvasTransform.scale} y={bounds.y - 3/canvasTransform.scale} width={6/canvasTransform.scale} height={6/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1/canvasTransform.scale} className="cursor-nwse-resize" />
                           <rect onPointerDown={(e) => handleResizeHandleDown(e, 'ne')} x={bounds.x + bounds.width - 3/canvasTransform.scale} y={bounds.y - 3/canvasTransform.scale} width={6/canvasTransform.scale} height={6/canvasTransform.scale} fill="white" stroke="#9cf822" strokeWidth={1/canvasTransform.scale} className="cursor-nesw-resize" />
@@ -1101,7 +1186,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
             </main>
 
             {/* RIGHT PANEL: INSPECTOR */}
-            <aside className="w-[240px] bg-[#2C2C2C] border-l border-[#383838] overflow-y-auto z-20 shrink-0 text-white select-none">
+            <aside className="w-[240px] bg-[#2C2C2C] border-l border-[#383838] overflow-y-auto z-20 shrink-0 text-white select-none pb-20">
               
               {appMode === 'prototype' ? (
                  <div className="p-6 text-center text-zinc-500 h-full flex flex-col items-center justify-center">
@@ -1124,9 +1209,30 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                     </div>
                   ) : singleSelectedElement ? (
                     <>
-                      <div className="p-3 border-b border-[#383838]">
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-2"><FigmaInput icon="X" value={Math.round(singleSelectedElement.x)} onChange={(v: string) => updateSelected({x: Number(v)})} /><FigmaInput icon="Y" value={Math.round(singleSelectedElement.y)} onChange={(v: string) => updateSelected({y: Number(v)})} /><FigmaInput icon="W" value={Math.round(singleSelectedElement.width)} onChange={(v: string) => updateSelected({width: Math.max(1, Number(v) || 1)})} /><FigmaInput icon="H" value={Math.round(singleSelectedElement.height)} onChange={(v: string) => updateSelected({height: Math.max(1, Number(v) || 1)})} /><FigmaInput icon="∠" value={"0°"} onChange={() => {}} /><FigmaInput icon="R" value={singleSelectedElement.cornerRadius || 0} onChange={(v: string) => updateSelected({cornerRadius: Number(v) || 0})} /></div>
+                      {/* --- NEW ARRANGE OPTIONS (Z-INDEX & LOCKING) --- */}
+                      <div className="p-3 border-b border-[#383838] space-y-2">
+                         <div className="text-[11px] font-medium mb-2 flex justify-between items-center">
+                            Arrange
+                            <button onClick={() => updateSelected({isLocked: !singleSelectedElement.isLocked})} className={`p-1 rounded ${singleSelectedElement.isLocked ? 'text-[#9cf822] bg-[#9cf822]/10' : 'text-zinc-400 hover:text-white hover:bg-[#383838]'}`} title={singleSelectedElement.isLocked ? "Unlock Layer" : "Lock Layer"}>
+                               {singleSelectedElement.isLocked ? <LockIcon size={12}/> : <Unlock size={12}/>}
+                            </button>
+                         </div>
+                         <div className="flex gap-2">
+                            <button onClick={handleBringToFront} className="flex-1 py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><MoveUp size={12}/> Bring Forward</button>
+                            <button onClick={handleSendToBack} className="flex-1 py-1.5 bg-[#383838] hover:bg-[#444] rounded flex items-center justify-center gap-1.5 text-[10px] font-medium transition-colors"><MoveDown size={12}/> Send Back</button>
+                         </div>
                       </div>
+
+                      {singleSelectedElement.type !== 'draw' && (
+                        <div className="p-3 border-b border-[#383838]">
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                             <FigmaInput icon="X" value={Math.round(singleSelectedElement.x)} onChange={(v: string) => updateSelected({x: Number(v)})} />
+                             <FigmaInput icon="Y" value={Math.round(singleSelectedElement.y)} onChange={(v: string) => updateSelected({y: Number(v)})} />
+                             <FigmaInput icon="W" value={Math.round(singleSelectedElement.width)} onChange={(v: string) => updateSelected({width: Math.max(1, Number(v) || 1)})} />
+                             <FigmaInput icon="H" value={Math.round(singleSelectedElement.height)} onChange={(v: string) => updateSelected({height: Math.max(1, Number(v) || 1)})} />
+                          </div>
+                        </div>
+                      )}
 
                       {/* CORNER RADIUS TOOL */}
                       {(singleSelectedElement.type === 'rectangle' || singleSelectedElement.type === 'image' || singleSelectedElement.type === 'frame') && (
@@ -1158,7 +1264,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                         </div>
                       )}
 
-                      {singleSelectedElement.type !== 'image' && (
+                      {singleSelectedElement.type !== 'image' && singleSelectedElement.type !== 'draw' && singleSelectedElement.type !== 'line' && (
                         <div className="p-3 border-b border-[#383838]">
                           <div className="flex items-center justify-between group cursor-pointer mb-2"><span className="text-[11px] font-medium">Fill</span><div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white"><Plus size={12}/></button></div></div>
                           <div className="flex items-center gap-2 group">
@@ -1190,6 +1296,52 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                               </div>
                             </>
                           ) : ( <div className="text-[10px] text-zinc-500 pl-1">No strokes applied.</div> )}
+                        </div>
+                      )}
+
+                      {/* --- DROP SHADOW OPTIONS --- */}
+                      {(singleSelectedElement.type === 'rectangle' || singleSelectedElement.type === 'ellipse' || singleSelectedElement.type === 'image' || singleSelectedElement.type === 'text') && (
+                        <div className="p-3 border-b border-[#383838] space-y-3">
+                           <div className="flex items-center justify-between group cursor-pointer mb-2">
+                              <span className="text-[11px] font-medium">Drop Shadow</span>
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <button onClick={() => updateSelected({shadowEnabled: !singleSelectedElement.shadowEnabled, shadowType: 'drop', shadowColor: '#000000', shadowBlur: 10, shadowOffsetX: 5, shadowOffsetY: 5, shadowOpacity: 50})} className="p-1 hover:bg-[#383838] rounded text-zinc-400 hover:text-white">
+                                    {singleSelectedElement.shadowEnabled ? <Minus size={12}/> : <Plus size={12}/>}
+                                 </button>
+                              </div>
+                           </div>
+
+                           {singleSelectedElement.shadowEnabled && (
+                              <>
+                                {/* CANVA-STYLE PRESETS */}
+                                <div className="grid grid-cols-3 gap-2 mb-3">
+                                   <button onClick={() => updateSelected({shadowType: 'none', shadowEnabled: false})} className={`py-1 text-[10px] rounded border ${!singleSelectedElement.shadowEnabled ? 'border-[#9cf822] text-[#9cf822] bg-[#9cf822]/10' : 'border-[#383838] text-zinc-400 hover:bg-[#383838] hover:text-white transition-colors'}`}>None</button>
+                                   <button onClick={() => updateSelected({shadowType: 'drop', shadowOffsetX: 8, shadowOffsetY: 8, shadowBlur: 8})} className={`py-1 text-[10px] rounded border ${singleSelectedElement.shadowType === 'drop' ? 'border-[#9cf822] text-[#9cf822] bg-[#9cf822]/10' : 'border-[#383838] text-zinc-400 hover:bg-[#383838] hover:text-white transition-colors'}`}>Drop</button>
+                                   <button onClick={() => updateSelected({shadowType: 'glow', shadowOffsetX: 0, shadowOffsetY: 0, shadowBlur: 20})} className={`py-1 text-[10px] rounded border ${singleSelectedElement.shadowType === 'glow' ? 'border-[#9cf822] text-[#9cf822] bg-[#9cf822]/10' : 'border-[#383838] text-zinc-400 hover:bg-[#383838] hover:text-white transition-colors'}`}>Glow</button>
+                                </div>
+
+                                <div className="space-y-2">
+                                   {/* COLOR & OPACITY */}
+                                   <div className="flex items-center gap-2 group">
+                                      <div className="w-4 h-4 rounded-sm border border-[#444] cursor-pointer shadow-sm relative overflow-hidden flex-shrink-0" style={{ background: singleSelectedElement.shadowColor || '#000000' }}>
+                                         <input type="color" value={singleSelectedElement.shadowColor || '#000000'} onChange={(e) => updateSelected({shadowColor: e.target.value})} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150" />
+                                      </div>
+                                      <input type="number" value={singleSelectedElement.shadowOpacity ?? 50} onChange={(e) => updateSelected({shadowOpacity: Number(e.target.value) || 0})} className="flex-1 bg-transparent border border-transparent hover:border-[#383838] focus:border-[#9cf822] rounded px-1.5 py-1 text-[11px] outline-none" /><span className="text-[10px] text-zinc-500">% Opacity</span>
+                                   </div>
+
+                                   {/* BLUR & DISTANCE */}
+                                   <div className="grid grid-cols-2 gap-2">
+                                      <FigmaInput icon="B" value={singleSelectedElement.shadowBlur || 0} onChange={(v: string) => updateSelected({shadowBlur: Number(v) || 0})} />
+                                      {singleSelectedElement.shadowType === 'drop' && (
+                                         <>
+                                            <FigmaInput icon="X" value={singleSelectedElement.shadowOffsetX || 0} onChange={(v: string) => updateSelected({shadowOffsetX: Number(v) || 0})} />
+                                            <FigmaInput icon="Y" value={singleSelectedElement.shadowOffsetY || 0} onChange={(v: string) => updateSelected({shadowOffsetY: Number(v) || 0})} />
+                                         </>
+                                      )}
+                                   </div>
+                                </div>
+                              </>
+                           )}
                         </div>
                       )}
 
