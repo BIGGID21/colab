@@ -21,7 +21,7 @@ import {
   Pipette, MoveUp, MoveDown, Scissors,
   Unlink, Link2, Monitor, Smartphone, LayoutGrid, Home,
   AlignLeft, AlignCenter, AlignRight, ChevronDown, MoreHorizontal,
-  Grid, ZoomIn, ZoomOut
+  Grid, ZoomIn, ZoomOut, Sparkles
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -58,11 +58,10 @@ interface CanvasElement {
   frameId?: string; 
   startId?: string;
   endId?: string;
-  points?: { x: number, y: number }[]; // For freehand drawing
-  // --- SHADOW ENGINE PROPERTIES ---
+  points?: { x: number, y: number }[]; 
   // --- SHADOW ENGINE PROPERTIES ---
   shadowEnabled?: boolean;
-  shadowType?: 'drop' | 'glow' | 'none'; // <-- Added 'none' here
+  shadowType?: 'drop' | 'glow' | 'none'; // Fixed TypeScript error
   shadowColor?: string;
   shadowBlur?: number;
   shadowOffsetX?: number;
@@ -182,6 +181,10 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
   const [dragState, setDragState] = useState<any>(null);
   const [prototypeDrag, setPrototypeDrag] = useState<{ startId: string, x: number, y: number } | null>(null); 
   const [snapLines, setSnapLines] = useState<Array<{type: 'v'|'h', val: number, start: number, end: number}>>([]);
+
+  // --- AI Magic State ---
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -316,6 +319,38 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
     window.addEventListener('keydown', handleKeyDown); window.addEventListener('paste', handlePasteEvent);
     return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('paste', handlePasteEvent); };
   }, [activeTab, colabView, selectedIds, elements, clipboard, past, future, canvasTransform, pushToHistory, broadcastElements]);
+
+  // --- AI MAGIC HANDLER ---
+  const handleGenerateImage = async () => {
+    if (selectedIds.length !== 1 || !aiPrompt.trim()) return;
+    setIsGenerating(true);
+    
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: aiPrompt })
+      });
+      const data = await res.json();
+      
+      if (data.url) {
+        updateSelected({
+          type: 'image',
+          imageUrl: data.url,
+          fill: 'transparent',
+          strokeWidth: 0,
+          name: `Generated: ${aiPrompt.substring(0, 15)}...`
+        });
+        setAiPrompt('');
+      } else {
+        alert(data.error || "Generation failed.");
+      }
+    } catch (err) {
+      alert("Error generating image. Ensure your API route is set up.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   // --- IMAGE ENGINE ---
   const processImageFile = async (file: File, clientX: number, clientY: number) => {
@@ -527,7 +562,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
          fill: (isFrame || activeTool === 'line') ? '#ffffff' : '#d4d4d8', fillOpacity: 100, stroke: activeTool === 'line' ? '#ffffff' : 'transparent', strokeWidth: activeTool === 'line' ? 2 : 0, cornerRadius: 0, 
          isVisible: true, isLocked: false, text: activeTool === 'text' ? 'New Text' : undefined, fontSize: activeTool === 'text' ? 24 : undefined, 
          fontFamily: 'Inter', fontWeight: 'Normal', textAlign: 'left', frameId: containingFrame ? containingFrame.id : undefined,
-         shadowEnabled: false, shadowType: 'drop', shadowColor: '#000000', shadowBlur: 10, shadowOffsetX: 5, shadowOffsetY: 5, shadowOpacity: 50
+         shadowEnabled: false, shadowType: 'none', shadowColor: '#000000', shadowBlur: 10, shadowOffsetX: 5, shadowOffsetY: 5, shadowOpacity: 50
       }]);
       setSelectedIds([`el_${Date.now()}`]); setActiveTool('select');
     }
@@ -1209,7 +1244,32 @@ export default function WorkspacePage({ params }: { params: Promise<{ id: string
                     </div>
                   ) : singleSelectedElement ? (
                     <>
-                      {/* --- NEW ARRANGE OPTIONS (Z-INDEX & LOCKING) --- */}
+                      {/* --- LAB X AI MAGIC PANEL --- */}
+                      {(singleSelectedElement.type === 'rectangle' || singleSelectedElement.type === 'image' || singleSelectedElement.type === 'frame') && (
+                        <div className="p-3 border-b border-[#383838] space-y-3 bg-[#9cf822]/5">
+                          <div className="flex items-center gap-2 text-[11px] font-bold text-[#9cf822]">
+                            <Sparkles size={14} className="fill-[#9cf822]" /> Lab X Magic Image
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <textarea 
+                              value={aiPrompt}
+                              onChange={(e) => setAiPrompt(e.target.value)}
+                              placeholder="Describe an image to generate here..."
+                              className="w-full bg-[#1E1E1E] border border-[#383838] focus:border-[#9cf822] rounded p-2 text-[11px] outline-none text-white resize-none h-16"
+                            />
+                            <button 
+                              onClick={handleGenerateImage} 
+                              disabled={isGenerating || !aiPrompt.trim()}
+                              className="w-full py-1.5 bg-[#9cf822] text-black font-bold rounded text-[11px] transition-opacity hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                              {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                              {isGenerating ? 'Generating...' : 'Generate Image'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* --- ARRANGE OPTIONS (Z-INDEX & LOCKING) --- */}
                       <div className="p-3 border-b border-[#383838] space-y-2">
                          <div className="text-[11px] font-medium mb-2 flex justify-between items-center">
                             Arrange
