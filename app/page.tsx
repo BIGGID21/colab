@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowRight, Sparkles, Zap, 
   ArrowUpRight, Users, Code, Share2, 
-  PenTool, Rocket 
+  PenTool, Rocket, Layout, 
+  CheckCircle2, CreditCard, PieChart
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -87,30 +88,35 @@ export default function LandingPage() {
     return () => clearInterval(interval);
   }, [heroImages.length]);
 
+  // Integrated the new screenshots and messaging with the existing ecosystem structure
   const ecosystemItems = [
     { 
-      title: "The designer’s canvas", 
-      desc: "Showcase your visual identity and find trusted devs who bring your UI to life—no pixel lost in translation.",
-      icon: Users,
-      link: "/community" // Links to feed to find devs
+      title: "Lab X Design Suite", 
+      desc: "Our custom-built vector engine. Infinite canvas, multiplayer editing, and direct asset handoff for developers.",
+      icon: Layout,
+      img: "/image_e22788.png", // Lab X Workspace Screenshot
+      link: "/lab/new"
+    },
+    { 
+      title: "The Financial Terminal", 
+      desc: "Real-time payout tracking, escrow management, and collective equity dashboards for every project.",
+      icon: PieChart,
+      img: "/image_e22acc.png", // Financial Terminal Screenshot
+      link: "/wallet"
+    },
+    { 
+      title: "Pro Creator Network", 
+      desc: "Verified badges, custom URLs, and unlimited high-res uploads to level up your professional creative career.",
+      icon: CreditCard,
+      img: "/image_e22f02.png", // Pricing/Pro Screenshot
+      link: "/pricing"
     },
     { 
       title: "The developer’s engine", 
       desc: "Skip the idea guys. Connect with serious creators with high-fidelity visions ready for robust code.",
       icon: Code,
-      link: "/community" // Links to feed to find projects
-    },
-    { 
-      title: "The creator’s hub", 
-      desc: "From AI movies to clothing brands—this is where your concepts become companies. Ship faster.",
-      icon: Zap,
-      link: "/create" // Specifically links to the project creation page
-    },
-    { 
-      title: "Percentage sharing", 
-      desc: "Unified payout formulas built in. Stop tracking hourly rates, start sharing in the collective success.",
-      icon: Share2,
-      link: "/blog" // Specifically links to your newly created deep-dive article
+      img: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=2000&auto=format&fit=crop", // Retained dev Unsplash image
+      link: "/community" 
     }
   ];
 
@@ -226,7 +232,42 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 4. INTERACTIVE ECOSYSTEM SECTION */}
+      {/* NEW ADDITION: LAB X SHOWCASE */}
+      <section className="py-32 px-6 max-w-7xl mx-auto border-b border-zinc-900">
+         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div>
+               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#9cf822]/10 border border-[#9cf822]/20 text-xs font-bold uppercase tracking-widest text-[#9cf822] mb-6">
+                  <Sparkles size={14} /> The New Standard
+               </div>
+               <h2 className="text-4xl lg:text-6xl font-medium tracking-tight mb-8">
+                 Designed for <span className="text-[#9cf822]">Speed.</span> <br/>
+                 Built for Creators.
+               </h2>
+               <div className="space-y-6 mb-10">
+                  {[
+                    "Custom vector engine with Lab X integration",
+                    "Multiplayer canvas with real-time feedback",
+                    "One-click handoff for developer implementation",
+                    "Infinite version history & asset management"
+                  ].map((text, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                       <CheckCircle2 size={20} className="text-[#9cf822]" />
+                       <span className="text-zinc-400 font-medium">{text}</span>
+                    </div>
+                  ))}
+               </div>
+               <Link href="/lab/new" className="inline-flex items-center gap-2 text-[#9cf822] font-medium hover:opacity-80 transition-opacity">
+                  Try Lab X now <ArrowRight size={16} />
+               </Link>
+            </div>
+            <div className="relative group">
+               <div className="absolute -inset-4 bg-[#9cf822]/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+               <img src="/image_e22788.png" className="relative rounded-2xl border border-zinc-800 shadow-2xl group-hover:border-[#9cf822]/50 transition-colors" alt="Lab X Interface" />
+            </div>
+         </div>
+      </section>
+
+      {/* 4. INTERACTIVE ECOSYSTEM SECTION (Updated with your screenshots) */}
       <section id="ecosystem" className="py-32 bg-[#0a0a0a] border-b border-zinc-900">
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex items-center gap-4 mb-16">
@@ -256,6 +297,7 @@ export default function LandingPage() {
                   >
                     <div className="flex items-center gap-4 pointer-events-none">
                       <span className="text-xs font-medium opacity-50">0{idx + 1}</span>
+                      <item.icon size={20} className={isActive ? 'text-[#9cf822]' : 'text-zinc-500'} />
                       <span className="font-medium text-lg">{item.title}</span>
                     </div>
                     <ArrowRight size={20} className={`pointer-events-none ${isActive ? 'text-black' : 'text-zinc-600'}`} />
@@ -268,18 +310,13 @@ export default function LandingPage() {
             <div className="lg:col-span-7 relative">
                <div className="w-full h-[500px] rounded-[2.5rem] bg-zinc-900 overflow-hidden relative border border-zinc-800 group">
                   <img 
-                    src={
-                      activeService === 0 ? "https://images.unsplash.com/photo-1561070791-2526d30994b5?q=80&w=2000&auto=format&fit=crop" :
-                      activeService === 1 ? "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=2000&auto=format&fit=crop" :
-                      activeService === 2 ? "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2000&auto=format&fit=crop" :
-                      "https://images.unsplash.com/photo-1600880292089-90a7e086ee0c?q=80&w=2000&auto=format&fit=crop"
-                    }
-                    className="absolute inset-0 w-full h-full object-cover opacity-80 transition-opacity duration-500 ease-in-out" 
+                    src={ecosystemItems[activeService].img}
+                    className="absolute inset-0 w-full h-full object-cover opacity-80 transition-opacity duration-500 ease-in-out group-hover:scale-105" 
                     alt="Ecosystem Feature" 
                   />
                   
                   {/* Floating Green Card */}
-                  <div className="absolute bottom-8 right-8 bg-[#9cf822] text-black p-6 rounded-3xl max-w-[240px] shadow-2xl z-30">
+                  <div className="absolute bottom-8 right-8 bg-[#9cf822] text-black p-6 rounded-3xl max-w-[240px] shadow-2xl z-30 transition-all">
                     <p className="font-medium text-sm mb-4 leading-tight">{ecosystemItems[activeService].desc}</p>
                     <Link href={ecosystemItems[activeService].link} className="flex items-center gap-2 text-xs font-medium hover:opacity-70 transition-opacity">
                       See how we work <ArrowUpRight size={16} />
