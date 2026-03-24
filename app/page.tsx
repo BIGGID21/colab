@@ -94,21 +94,21 @@ export default function LandingPage() {
       title: "Lab X Design Suite", 
       desc: "Our custom-built vector engine. Infinite canvas, multiplayer editing, and direct asset handoff for developers.",
       icon: Layout,
-      img: "/image_e22788.png", // Lab X Workspace Screenshot
+      img: "/lab x screen.png", // UPDATED FILE NAME
       link: "/lab/new"
     },
     { 
       title: "The Financial Terminal", 
       desc: "Real-time payout tracking, escrow management, and collective equity dashboards for every project.",
       icon: PieChart,
-      img: "/image_e22acc.png", // Financial Terminal Screenshot
+      img: "/wallet.png", // UPDATED FILE NAME
       link: "/wallet"
     },
     { 
       title: "Pro Creator Network", 
       desc: "Verified badges, custom URLs, and unlimited high-res uploads to level up your professional creative career.",
       icon: CreditCard,
-      img: "/image_e22f02.png", // Pricing/Pro Screenshot
+      img: "/billing.png", // UPDATED FILE NAME
       link: "/pricing"
     },
     { 
@@ -262,7 +262,7 @@ export default function LandingPage() {
             </div>
             <div className="relative group">
                <div className="absolute -inset-4 bg-[#9cf822]/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-               <img src="/image_e22788.png" className="relative rounded-2xl border border-zinc-800 shadow-2xl group-hover:border-[#9cf822]/50 transition-colors" alt="Lab X Interface" />
+               <img src="/lab x screen.png" className="relative rounded-2xl border border-zinc-800 shadow-2xl group-hover:border-[#9cf822]/50 transition-colors" alt="Lab X Interface" /> {/* UPDATED FILE NAME */}
             </div>
          </div>
       </section>
