@@ -1,5 +1,5 @@
 'use client';
-
+import Skeleton from '@/components/Skeleton';
 import React, { useEffect, useState, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
@@ -415,7 +415,20 @@ export default function CommunityFeedPage() {
     e.currentTarget.className = "w-16 h-16 opacity-30 object-contain";
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
+  // --- UPDATED LOADING STATE ---
+  if (loading) return (
+    <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black pb-28 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 pt-0 sm:pt-8 px-0 sm:px-6">
+      <div className="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
+        <div className="w-full lg:col-span-8 flex flex-col gap-6">
+          <Skeleton type="feed" count={3} />
+        </div>
+        <div className="lg:col-span-4 hidden lg:block space-y-8">
+          <div className="h-64 bg-zinc-100 dark:bg-zinc-900 rounded-[2.5rem] animate-pulse border border-zinc-200 dark:border-zinc-800"></div>
+          <div className="h-80 bg-zinc-100 dark:bg-zinc-900 rounded-[2.5rem] animate-pulse border border-zinc-200 dark:border-zinc-800"></div>
+        </div>
+      </div>
+    </div>
+  );
 
   const userAvatar = profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile?.full_name || user?.user_metadata?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`;
 
