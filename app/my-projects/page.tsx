@@ -204,6 +204,18 @@ export default function DashboardPage() {
 
         {/* CONTENT GRID */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+          
+          {/* TAB: OWNED PROJECTS */}
+          {activeTab === 'owned' && myProjects.length === 0 && (
+            <div className="col-span-full py-16 flex flex-col items-center justify-center text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800/50 rounded-3xl bg-zinc-50/50 dark:bg-zinc-900/10">
+              <Folder size={32} className="text-zinc-300 dark:text-zinc-700 mb-4" />
+              <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">No projects yet</h3>
+              <p className="text-sm text-zinc-500 mb-4">Start building your next big idea today.</p>
+              <button onClick={() => router.push('/create')} className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg text-xs font-bold hover:scale-105 transition-transform">
+                Create Project
+              </button>
+            </div>
+          )}
           {activeTab === 'owned' && myProjects.map(p => (
             <div key={p.id} className="group bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800/60 rounded-2xl overflow-hidden hover:border-zinc-300 dark:hover:border-zinc-700 transition-all flex flex-col">
               <div className="aspect-[16/10] bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
@@ -212,16 +224,98 @@ export default function DashboardPage() {
                 ) : <ImageIcon size={24} className="text-zinc-300 dark:text-zinc-800" />}
               </div>
               <div className="p-6">
-                <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">{p.title}</h3>
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1 line-clamp-1">{p.title}</h3>
                 <p className="text-xs text-zinc-500 line-clamp-1 mb-6 font-normal">{p.description}</p>
                 <div className="flex items-center gap-2 pt-4 border-t border-zinc-200 dark:border-zinc-800/50">
                   <button onClick={() => router.push(`/studio/${p.id}`)} className="flex-1 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black text-xs font-semibold rounded-md hover:opacity-90 transition-opacity">Manage</button>
-                  <button className="p-2 text-zinc-400 hover:text-black dark:hover:text-white transition-colors"><Settings size={16}/></button>
+                  <button onClick={() => router.push(`/project/${p.id}`)} className="p-2 text-zinc-400 hover:text-black dark:hover:text-white transition-colors"><Eye size={16}/></button>
                 </div>
               </div>
             </div>
           ))}
-          {/* ... other tabs ... */}
+
+          {/* TAB: COLLABORATIONS */}
+          {activeTab === 'collaborations' && myCollaborations.length === 0 && (
+            <div className="col-span-full py-16 flex flex-col items-center justify-center text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800/50 rounded-3xl bg-zinc-50/50 dark:bg-zinc-900/10">
+              <Users size={32} className="text-zinc-300 dark:text-zinc-700 mb-4" />
+              <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">No active collaborations</h3>
+              <p className="text-sm text-zinc-500 mb-4">Apply for projects on the Discover page to join a team.</p>
+              <button onClick={() => router.push('/discover')} className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg text-xs font-bold hover:scale-105 transition-transform">
+                Browse Projects
+              </button>
+            </div>
+          )}
+          {activeTab === 'collaborations' && myCollaborations.map(c => {
+            const p = c.projects;
+            if (!p) return null;
+            return (
+              <div key={c.id} className="group bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800/60 rounded-2xl overflow-hidden hover:border-zinc-300 dark:hover:border-zinc-700 transition-all flex flex-col">
+                <div className="aspect-[16/10] bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center overflow-hidden relative">
+                  {p.cover_image_url || p.image_url ? (
+                    <img src={p.cover_image_url || p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  ) : <ImageIcon size={24} className="text-zinc-300 dark:text-zinc-800" />}
+                  <div className="absolute top-3 right-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md">
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${c.status === 'accepted' ? 'text-[#9cf822]' : c.status === 'rejected' ? 'text-red-400' : 'text-yellow-400'}`}>
+                      {c.status}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-6 flex flex-col flex-grow">
+                  <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1 line-clamp-1">{p.title}</h3>
+                  <p className="text-xs text-zinc-500 mb-4 font-normal">Role: <span className="text-zinc-800 dark:text-zinc-300 capitalize font-medium">{c.role}</span></p>
+                  <div className="mt-auto pt-4 border-t border-zinc-200 dark:border-zinc-800/50 flex items-center justify-between">
+                     <button onClick={() => router.push(`/project/${p.id}`)} className="text-xs font-semibold text-black dark:text-white hover:text-[#9cf822] transition-colors flex items-center gap-1">
+                       View Team <ArrowRight size={12}/>
+                     </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* TAB: SAVED PROJECTS */}
+          {activeTab === 'saved' && savedProjects.length === 0 && (
+            <div className="col-span-full py-16 flex flex-col items-center justify-center text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800/50 rounded-3xl bg-zinc-50/50 dark:bg-zinc-900/10">
+              <Bookmark size={32} className="text-zinc-300 dark:text-zinc-700 mb-4" />
+              <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">No saved projects</h3>
+              <p className="text-sm text-zinc-500 mb-4">Hit the bookmark icon on the Discover page to save projects for later.</p>
+              <button onClick={() => router.push('/discover')} className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg text-xs font-bold hover:scale-105 transition-transform">
+                Explore Discover
+              </button>
+            </div>
+          )}
+          {activeTab === 'saved' && savedProjects.map(p => (
+            <div key={p.id} className="group bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800/60 rounded-2xl overflow-hidden hover:border-zinc-300 dark:hover:border-zinc-700 transition-all flex flex-col">
+              <div className="aspect-[16/10] bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center overflow-hidden relative">
+                {p.cover_image_url || p.image_url ? (
+                  <img src={p.cover_image_url || p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                ) : <ImageIcon size={24} className="text-zinc-300 dark:text-zinc-800" />}
+                
+                {/* Active Bookmark Badge */}
+                <div className="absolute top-3 right-3 p-1.5 bg-black/60 backdrop-blur-md rounded-full text-white shadow-lg">
+                   <Bookmark size={14} fill="currentColor" className="text-[#9cf822]" />
+                </div>
+              </div>
+              
+              <div className="p-6 flex flex-col flex-grow">
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-100 mb-1 line-clamp-1">{p.title}</h3>
+                <p className="text-xs text-zinc-500 line-clamp-2 mb-4 font-normal leading-relaxed">{p.description}</p>
+                
+                <div className="mt-auto pt-4 border-t border-zinc-200 dark:border-zinc-800/50 flex items-center justify-between">
+                  {/* Creator Info Mini-badge */}
+                  <div className="flex items-center gap-2">
+                     <img src={p.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${p.profiles?.full_name || 'User'}&background=random`} className="w-5 h-5 rounded-full object-cover border border-zinc-200 dark:border-zinc-700" />
+                     <span className="text-[10px] font-medium text-zinc-500 truncate max-w-[100px]">{p.profiles?.full_name || 'Creator'}</span>
+                  </div>
+                  
+                  <button onClick={() => router.push(`/project/${p.id}`)} className="text-[11px] font-bold uppercase tracking-wider text-black dark:text-white hover:text-[#9cf822] transition-colors">
+                    View Details
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
         </section>
       </div>
 
