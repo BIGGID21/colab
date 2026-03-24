@@ -367,8 +367,9 @@ export default function CommunityFeedPage() {
     return comments.filter(c => c.parent_id === parentId).map(c => (
       <div key={c.id} className={`flex gap-3 px-4 sm:px-0 ${depth > 0 ? 'ml-10 mt-3' : 'mt-4 text-left'}`}>
         <Link href={`/profile/${c.user_id}`} className="shrink-0">
-          <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 dark:border-zinc-800 hover:opacity-80 transition-opacity bg-zinc-100 dark:bg-zinc-800">
-            {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <img src={`https://api.dicebear.com/7.x/initials/svg?seed=${c.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} className="w-full h-full object-cover" />}
+          <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-100 dark:border-zinc-800 hover:opacity-80 transition-opacity bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center relative">
+            <User size={16} className="text-zinc-400 absolute" />
+            {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover relative z-10" alt=""/> : <img src={`https://api.dicebear.com/7.x/initials/svg?seed=${c.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover relative z-10" alt="" />}
           </div>
         </Link>
         <div className="flex-grow min-w-0">
@@ -408,7 +409,6 @@ export default function CommunityFeedPage() {
     return `${Math.floor(diff / 86400)}d`;
   };
 
-  // Helper function to handle broken image loads smoothly
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     e.currentTarget.onerror = null; 
     e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="%23a1a1aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>';
@@ -417,7 +417,6 @@ export default function CommunityFeedPage() {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
-  // Reusable avatar helper
   const userAvatar = profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile?.full_name || user?.user_metadata?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`;
 
   return (
@@ -468,8 +467,9 @@ export default function CommunityFeedPage() {
         <div className="flex gap-4 overflow-x-auto px-4 no-scrollbar pb-1 snap-x snap-mandatory">
           {recentActivity.map((activity, i) => (
             <div key={i} className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-900 p-2 rounded-2xl border border-zinc-100 dark:border-zinc-800 min-w-[180px] snap-start">
-              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-[#9cf822]/20">
-                <img src={activity.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${activity.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} className="w-full h-full object-cover" />
+              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-[#9cf822]/20 flex items-center justify-center relative bg-zinc-100 dark:bg-zinc-800">
+                <User size={16} className="text-zinc-400 absolute" />
+                <img src={activity.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${activity.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover relative z-10" alt=""/>
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-bold text-black dark:text-white truncate">{activity.profiles?.full_name}</p>
@@ -487,8 +487,9 @@ export default function CommunityFeedPage() {
           <div className="composer-section w-full bg-white dark:bg-black sm:rounded-[2.5rem] p-4 sm:p-8 sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm text-left">
             <form onSubmit={handlePost}>
               <div className="flex gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-zinc-700 mt-1">
-                  <img src={userAvatar} className="w-full h-full object-cover" alt="Profile" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-zinc-700 mt-1 flex items-center justify-center relative">
+                  <User size={20} className="text-zinc-400 absolute" />
+                  <img src={userAvatar} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover relative z-10" alt="Profile" />
                 </div>
                 <div className="flex-grow flex flex-col min-w-0">
                   <textarea 
@@ -558,14 +559,15 @@ export default function CommunityFeedPage() {
                 <div className="flex items-start gap-3 px-4 sm:px-0 mb-3 mt-1">
                   {isOfficial ? (
                     <div className="shrink-0">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border-2 border-[#9cf822]">
-                        <img src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=Official&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} className="w-full h-full object-cover" />
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border-2 border-[#9cf822] flex items-center justify-center relative">
+                        <img src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=Official&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover relative z-10" />
                       </div>
                     </div>
                   ) : (
                     <Link href={`/profile/${post.user_id}`} className="shrink-0">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 border border-transparent hover:border-[#9cf822] transition-colors">
-                        <img src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${post.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} className="w-full h-full object-cover" />
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 border border-transparent hover:border-[#9cf822] transition-colors flex items-center justify-center relative">
+                        <User size={20} className="text-zinc-400 absolute" />
+                        <img src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${post.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover relative z-10" />
                       </div>
                     </Link>
                   )}
@@ -586,7 +588,7 @@ export default function CommunityFeedPage() {
                         )}
                         <span className="text-[11px] text-zinc-500 font-normal mt-0.5 flex items-center gap-1">
                           {formatDistanceToNowShort(new Date(post.created_at))} <Globe size={10} />
-                          {isOfficial && <span className="ml-1 text-[#9cf822] font-bold uppercase tracking-widest text-[9px]"></span>}
+                          {isOfficial && <span className="ml-1 text-[#9cf822] font-bold uppercase tracking-widest text-[9px]">Pinned</span>}
                         </span>
                       </div>
                       
@@ -622,8 +624,9 @@ export default function CommunityFeedPage() {
                 {isRepost && post.repost ? (
                   <div className="mt-4 mx-4 sm:mx-0 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-black/40">
                     <div className="flex items-center gap-2 mb-2">
-                       <div className="w-5 h-5 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-                         <img src={post.repost.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${post.repost.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} className="w-full h-full object-cover" />
+                       <div className="w-5 h-5 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center relative">
+                         <User size={10} className="text-zinc-400 absolute" />
+                         <img src={post.repost.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${post.repost.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover relative z-10" />
                        </div>
                        <span className="font-bold text-xs text-black dark:text-white">{post.repost.profiles?.full_name}</span>
                     </div>
@@ -676,8 +679,9 @@ export default function CommunityFeedPage() {
                     <div className="mb-4">{renderComments(post.id, post.comments)}</div>
                     
                     <div className="flex gap-3 items-start mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900">
-                      <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 bg-zinc-100">
-                         <img src={userAvatar} className="w-full h-full object-cover" />
+                      <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 bg-zinc-100 flex items-center justify-center relative">
+                         <User size={16} className="text-zinc-400 absolute" />
+                         <img src={userAvatar} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover relative z-10" />
                       </div>
                       <div className="flex-grow flex flex-col gap-2">
                         {replyTo && (
@@ -735,8 +739,9 @@ export default function CommunityFeedPage() {
                 <div className="space-y-6">
                    {recentActivity.slice(0, 4).map((activity, i) => (
                     <div key={i} className="flex items-start gap-4 group cursor-pointer" onClick={() => activity.profiles?.role !== 'official' && router.push(`/profile/${activity.user_id}`)}>
-                      <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 group-hover:border-[#9cf822] transition-colors">
-                         <img src={activity.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${activity.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} className="w-full h-full object-cover" />
+                      <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800 group-hover:border-[#9cf822] transition-colors flex items-center justify-center relative bg-zinc-100 dark:bg-zinc-800">
+                         <User size={20} className="text-zinc-400 absolute" />
+                         <img src={activity.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${activity.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover relative z-10" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1"><p className="text-sm font-black text-black dark:text-white truncate group-hover:text-[#9cf822]">{activity.profiles?.full_name}</p>{activity.profiles?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white shrink-0" />}</div>
