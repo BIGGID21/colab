@@ -184,22 +184,27 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* TABS NAVIGATION */}
-        <nav className="flex items-center gap-8 border-b border-zinc-200 dark:border-zinc-900 mb-10">
+        {/* TABS NAVIGATION WITH ICONS */}
+        <nav className="flex items-center gap-6 sm:gap-8 border-b border-zinc-200 dark:border-zinc-900 mb-10">
           {[
-            { id: 'owned', label: 'My projects' },
-            { id: 'collaborations', label: 'Collaborations' },
-            { id: 'saved', label: 'Saved projects' }
-          ].map((tab) => (
-            <button 
-              key={tab.id} 
-              onClick={() => setActiveTab(tab.id as any)} 
-              className={`pb-4 text-sm font-medium transition-all relative ${activeTab === tab.id ? 'text-black dark:text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-              {tab.label}
-              {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#9cf822] rounded-full" />}
-            </button>
-          ))}
+            { id: 'owned', label: 'My projects', icon: Folder },
+            { id: 'collaborations', label: 'Collaborations', icon: Users },
+            { id: 'saved', label: 'Saved projects', icon: Bookmark }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button 
+                key={tab.id} 
+                onClick={() => setActiveTab(tab.id as any)} 
+                title={tab.label}
+                className={`pb-4 text-sm font-medium transition-all relative flex items-center gap-2 ${activeTab === tab.id ? 'text-black dark:text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                <Icon size={18} />
+                <span className="hidden sm:inline">{tab.label}</span>
+                {activeTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#9cf822] rounded-full" />}
+              </button>
+            );
+          })}
         </nav>
 
         {/* CONTENT GRID */}
