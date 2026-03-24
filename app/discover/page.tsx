@@ -3,9 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { 
-  Search, X, CheckCircle2, 
+  Search, Bookmark, CheckCircle2, 
   Code, Palette, Megaphone, Bot, Boxes, Smartphone, Star, 
-  Clock, MapPin, Briefcase
+  Briefcase
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -34,14 +34,22 @@ export default function DiscoverPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('For you');
-  const [hiddenProjects, setHiddenProjects] = useState<string[]>([]);
+  const [savedProjects, setSavedProjects] = useState<string[]>([]);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  const triggerHaptic = (pattern: number | number[] = 10) => {
+    if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(pattern);
+  };
+
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSavedProjects(JSON.parse(localStorage.getItem('savedProjects') || '[]'));
+    }
+
     async function fetchProjects() {
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
@@ -72,13 +80,22 @@ export default function DiscoverPage() {
     fetchProjects();
   }, [supabase]);
 
-  const hideProject = (e: React.MouseEvent, id: string) => {
+  const toggleSave = async (e: React.MouseEvent, project: any) => {
     e.preventDefault();
-    setHiddenProjects(prev => [...prev, id]);
+    e.stopPropagation();
+    triggerHaptic(10);
+    const isSaved = savedProjects.includes(project.id);
+    const newSavedProjects = isSaved ? savedProjects.filter(id => id !== project.id) : [...savedProjects, project.id];
+    setSavedProjects(newSavedProjects);
+    localStorage.setItem('savedProjects', JSON.stringify(newSavedProjects));
+    
+    // Update backend save count
+    const newCount = isSaved ? Math.max(0, (project.save_count || 0) - 1) : (project.save_count || 0) + 1;
+    setProjects(current => current.map(p => p.id === project.id ? { ...p, save_count: newCount } : p));
+    await supabase.from('projects').update({ save_count: newCount }).eq('id', project.id);
   };
 
   const filteredProjects = projects
-    .filter(p => !hiddenProjects.includes(p.id))
     .filter(p => {
       const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = activeCategory === 'For you' || 
@@ -150,10 +167,10 @@ export default function DiscoverPage() {
         <div className="px-4 sm:px-6 pt-6 pb-2">
           <h1 className="text-xl font-bold tracking-tight mb-1">Top project picks for you</h1>
           <p className="text-[13px] text-zinc-500 leading-snug">
-            Based on your profile, preferences, and activity like applies, searches, and saves
+            Matched to your skills and previous collaboration history.
           </p>
           <div className="mt-4 text-[13px] text-zinc-500 font-medium">
-            {filteredProjects.length} results
+            {filteredProjects.length} active projects
           </div>
         </div>
 
@@ -164,14 +181,15 @@ export default function DiscoverPage() {
             const displayBudget = project.budget || project.valuation || 0;
             const displayEquity = project.equity || project.available_share || 0;
             const openRolesCount = project.project_roles?.filter((r: any) => r.status === 'open' || !r.status).length || 0;
+            const isSaved = savedProjects.includes(project.id);
             
-            // Format relative time (e.g. "1 month ago", "2 weeks ago")
+            // Format relative time
             const projectDate = new Date(project.created_at);
             const daysAgo = Math.floor((new Date().getTime() - projectDate.getTime()) / (1000 * 3600 * 24));
-            let timeString = `${daysAgo} days ago`;
+            let timeString = `${daysAgo}d ago`;
             if (daysAgo === 0) timeString = 'Today';
-            if (daysAgo > 30) timeString = `${Math.floor(daysAgo/30)} month${Math.floor(daysAgo/30) > 1 ? 's' : ''} ago`;
-            else if (daysAgo > 7) timeString = `${Math.floor(daysAgo/7)} week${Math.floor(daysAgo/7) > 1 ? 's' : ''} ago`;
+            if (daysAgo > 30) timeString = `${Math.floor(daysAgo/30)}mo ago`;
+            else if (daysAgo > 7) timeString = `${Math.floor(daysAgo/7)}w ago`;
 
             return (
               <Link 
@@ -195,10 +213,11 @@ export default function DiscoverPage() {
                       {project.title}
                     </h3>
                     <button 
-                      onClick={(e) => hideProject(e, project.id)}
-                      className="p-1 -mt-1 -mr-1 text-zinc-500 hover:text-black dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors shrink-0"
+                      onClick={(e) => toggleSave(e, project)}
+                      className={`p-1.5 -mt-1 -mr-1 rounded-full transition-colors shrink-0 ${isSaved ? 'text-[#057642] dark:text-[#9cf822] bg-[#057642]/10 dark:bg-[#9cf822]/10' : 'text-zinc-500 hover:text-black dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}
+                      aria-label={isSaved ? "Remove from saved" : "Save for later"}
                     >
-                      <X size={18} />
+                      <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
                     </button>
                   </div>
                   
@@ -210,27 +229,28 @@ export default function DiscoverPage() {
                     Nigeria (Remote)
                   </div>
 
-                  <div className="text-[13px] text-zinc-500 mt-1 flex items-center gap-1">
-                    {getCurrencySymbol(project.currency)}{displayBudget.toLocaleString()} Budget 
-                    {displayEquity > 0 && ` • ${displayEquity}% Equity`}
+                  <div className="text-[13px] text-zinc-500 mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5">
+                    <span>{getCurrencySymbol(project.currency)}{displayBudget.toLocaleString()} Budget</span>
+                    {displayEquity > 0 && <span className="hidden sm:inline"> • </span>}
+                    {displayEquity > 0 && <span>{displayEquity}% Equity</span>}
                   </div>
 
                   {openRolesCount > 0 && (
-                    <div className="flex items-center gap-1.5 mt-2.5">
-                      <CheckCircle2 size={14} className="text-[#057642] dark:text-[#9cf822]" />
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <CheckCircle2 size={14} className="text-[#057642] dark:text-[#9cf822] shrink-0" />
                       <span className="text-[12px] font-medium text-zinc-700 dark:text-zinc-300">
-                        Actively reviewing {openRolesCount > 1 ? 'builders' : 'builder'}
+                        Actively reviewing builders
                       </span>
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 mt-2.5 text-[12px] text-zinc-500">
-                    {daysAgo < 7 && <span className="text-[#057642] dark:text-[#9cf822] font-semibold">Be an early applicant</span>}
-                    {daysAgo < 7 && <span className="text-zinc-700 dark:text-zinc-500">•</span>}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[11px] sm:text-[12px] text-zinc-500">
+                    {daysAgo < 7 && <span className="text-[#057642] dark:text-[#9cf822] font-semibold">Early applicant</span>}
+                    {daysAgo < 7 && <span className="text-zinc-700 dark:text-zinc-500 hidden sm:inline">•</span>}
                     <span>{timeString}</span>
                     <span className="text-zinc-700 dark:text-zinc-500">•</span>
                     <div className="flex items-center gap-1">
-                      <Briefcase size={12} /> Easy Apply
+                      <Briefcase size={12} className="shrink-0" /> Apply
                     </div>
                   </div>
                 </div>
@@ -240,8 +260,8 @@ export default function DiscoverPage() {
 
           {filteredProjects.length === 0 && !loading && (
             <div className="py-20 text-center px-4">
-              <h3 className="text-lg font-bold mb-2">No exact matches found</h3>
-              <p className="text-sm text-zinc-500">Try adjusting your search or filters to find what you are looking for.</p>
+              <h3 className="text-lg font-bold mb-2">No projects found</h3>
+              <p className="text-sm text-zinc-500">Try adjusting your filters to find open collaborations.</p>
             </div>
           )}
         </div>
