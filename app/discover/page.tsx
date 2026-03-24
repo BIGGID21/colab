@@ -2,13 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
-import Skeleton from '@/components/Skeleton';
 import { 
-  Grid, Search, User, 
-  Heart, Share2, ArrowUpRight, Bookmark,
-  SlidersHorizontal, Flame, Clock,
-  ChevronDown, Code, Palette, Megaphone, Bot, Boxes, Smartphone,
-  ShieldCheck, Users, MessageSquare, Globe
+  Search, X, CheckCircle2, 
+  Code, Palette, Megaphone, Bot, Boxes, Smartphone, Star, 
+  Clock, MapPin, Briefcase
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -23,7 +20,7 @@ const getCurrencySymbol = (currency: string) => {
 };
 
 const CATEGORIES = [
-  { name: 'All', icon: Grid },
+  { name: 'For you', icon: Star },
   { name: 'Tech', icon: Code },
   { name: 'Design', icon: Palette },
   { name: 'Marketing', icon: Megaphone },
@@ -36,27 +33,15 @@ export default function DiscoverPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [sortBy, setSortBy] = useState<'newest' | 'popular'>('newest');
-  const [isSortOpen, setIsSortOpen] = useState(false);
-  const [likedProjects, setLikedProjects] = useState<string[]>([]);
-  const [savedProjects, setSavedProjects] = useState<string[]>([]);
+  const [activeCategory, setActiveCategory] = useState('For you');
+  const [hiddenProjects, setHiddenProjects] = useState<string[]>([]);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const triggerHaptic = (pattern: number | number[] = 10) => {
-    if (typeof window !== 'undefined' && window.navigator.vibrate) window.navigator.vibrate(pattern);
-  };
-
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setLikedProjects(JSON.parse(localStorage.getItem('likedProjects') || '[]'));
-      setSavedProjects(JSON.parse(localStorage.getItem('savedProjects') || '[]'));
-    }
-
     async function fetchProjects() {
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
@@ -74,10 +59,6 @@ export default function DiscoverPage() {
           .from('project_roles')
           .select('project_id, status');
 
-        if (rolesError) {
-          console.warn("Could not fetch roles. Supabase RLS might be blocking this:", rolesError.message);
-        }
-
         const enhancedProjects = projectsData.map(project => {
           const projectRoles = rolesData?.filter(r => r.project_id === project.id) || [];
           return { ...project, project_roles: projectRoles };
@@ -89,313 +70,181 @@ export default function DiscoverPage() {
     }
     
     fetchProjects();
-
-    const channel = supabase
-      .channel('public:projects')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'projects' }, (payload) => {
-        setProjects((currentProjects) => 
-          currentProjects.map((p) => p.id === payload.new.id ? { ...p, ...payload.new } : p)
-        );
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
   }, [supabase]);
 
-  const toggleLike = async (e: React.MouseEvent, project: any) => {
+  const hideProject = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
-    e.stopPropagation();
-    triggerHaptic(10);
-    const isLiked = likedProjects.includes(project.id);
-    const newLikedProjects = isLiked ? likedProjects.filter(id => id !== project.id) : [...likedProjects, project.id];
-    setLikedProjects(newLikedProjects);
-    localStorage.setItem('likedProjects', JSON.stringify(newLikedProjects));
-    const newCount = isLiked ? Math.max(0, (project.like_count || 0) - 1) : (project.like_count || 0) + 1;
-    setProjects(current => current.map(p => p.id === project.id ? { ...p, like_count: newCount } : p));
-    await supabase.from('projects').update({ like_count: newCount }).eq('id', project.id);
-  };
-
-  const toggleSave = async (e: React.MouseEvent, project: any) => {
-    e.preventDefault();
-    e.stopPropagation();
-    triggerHaptic(10);
-    const isSaved = savedProjects.includes(project.id);
-    const newSavedProjects = isSaved ? savedProjects.filter(id => id !== project.id) : [...savedProjects, project.id];
-    setSavedProjects(newSavedProjects);
-    localStorage.setItem('savedProjects', JSON.stringify(newSavedProjects));
-    const newCount = isSaved ? Math.max(0, (project.save_count || 0) - 1) : (project.save_count || 0) + 1;
-    setProjects(current => current.map(p => p.id === project.id ? { ...p, save_count: newCount } : p));
-    await supabase.from('projects').update({ save_count: newCount }).eq('id', project.id);
-  };
-
-  const handleShare = async (e: React.MouseEvent, project: any) => {
-    e.preventDefault();
-    e.stopPropagation();
-    triggerHaptic([10, 30]);
-    const newCount = (project.share_count || 0) + 1;
-    setProjects(current => current.map(p => p.id === project.id ? { ...p, share_count: newCount } : p));
-    await supabase.from('projects').update({ share_count: newCount }).eq('id', project.id);
-    navigator.clipboard.writeText(`${window.location.origin}/project/${project.id}`);
-    alert("Link copied!");
+    setHiddenProjects(prev => [...prev, id]);
   };
 
   const filteredProjects = projects
+    .filter(p => !hiddenProjects.includes(p.id))
     .filter(p => {
       const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = activeCategory === 'All' || 
+      const matchesCategory = activeCategory === 'For you' || 
         (p.title + ' ' + (p.description || '')).toLowerCase().includes(activeCategory.toLowerCase());
       return matchesSearch && matchesCategory;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'popular') return (b.like_count || 0) - (a.like_count || 0);
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  // --- NEW SKELETON LOADING STATE ---
   if (loading) return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-[#050505] pt-16 px-4 sm:px-10">
-      <div className="max-w-3xl mx-auto space-y-6">
-         <div className="h-12 w-48 bg-zinc-200 dark:bg-zinc-800 rounded-lg animate-pulse mb-8"></div>
-         <Skeleton type="feed" count={3} />
-      </div>
+    <div className="min-h-screen bg-[#0a0a0a] pt-4 px-0">
+       <div className="max-w-2xl mx-auto px-4 mt-20">
+         <div className="w-48 h-6 bg-zinc-800 rounded animate-pulse mb-2"></div>
+         <div className="w-full h-4 bg-zinc-800 rounded animate-pulse mb-6"></div>
+         {[1,2,3,4].map(i => (
+           <div key={i} className="flex gap-3 py-4 border-b border-zinc-800/50 animate-pulse">
+             <div className="w-14 h-14 bg-zinc-800 rounded-sm shrink-0"></div>
+             <div className="flex-grow space-y-2">
+               <div className="w-3/4 h-5 bg-zinc-800 rounded"></div>
+               <div className="w-1/2 h-4 bg-zinc-800 rounded"></div>
+               <div className="w-1/3 h-4 bg-zinc-800 rounded mt-2"></div>
+             </div>
+           </div>
+         ))}
+       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-[#050505] transition-colors duration-300 pb-24 relative overflow-hidden font-sans">
-      <div className="max-w-5xl mx-auto px-4 sm:px-10 pt-8 sm:pt-16 mb-8 relative z-10">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
-          <div className="space-y-2">
-            <h1 className="text-4xl md:text-5xl font-black text-black dark:text-white tracking-tighter flex items-center gap-3">
-              Discover
-            </h1>
-            <p className="text-zinc-500 text-sm md:text-base max-w-md font-medium">
-              Explore high-impact projects. Find your next great collaboration.
-            </p>
-          </div>
+    <div className="min-h-screen bg-white dark:bg-[#0a0a0a] transition-colors duration-300 pb-24 font-sans text-black dark:text-white">
+      
+      {/* SEARCH BAR HEADER */}
+      <div className="sticky top-0 z-50 bg-white dark:bg-[#0a0a0a] pt-4 sm:pt-6 pb-2 px-4 sm:px-6">
+        <div className="max-w-2xl mx-auto relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
+          <input 
+            type="text"
+            placeholder="Start a project search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-zinc-100 dark:bg-[#1a1a1a] border border-transparent focus:border-zinc-300 dark:focus:border-zinc-700 rounded-lg text-sm font-medium focus:outline-none transition-all"
+          />
         </div>
+      </div>
 
-        {/* SEARCH & SORT HEADER */}
-        <div className="flex flex-col lg:flex-row gap-4 mb-6">
-          <div className="relative flex-grow">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
-            <input 
-              type="text"
-              placeholder="Search by title, role, or lead..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-medium text-black dark:text-white focus:outline-none focus:border-[#9cf822] focus:ring-1 focus:ring-[#9cf822] transition-all shadow-sm"
-            />
-          </div>
-
-          <div className="relative shrink-0 z-20">
-            <button 
-              onClick={() => setIsSortOpen(!isSortOpen)}
-              className="w-full lg:w-48 flex items-center justify-between px-5 py-3 bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-bold text-black dark:text-white hover:border-[#9cf822] transition-colors shadow-sm"
-            >
-              <div className="flex items-center gap-2">
-                {sortBy === 'newest' ? <Clock size={16} className="text-zinc-400" /> : <Flame size={16} className="text-rose-500" />}
-                {sortBy === 'newest' ? 'Newest First' : 'Most Popular'}
-              </div>
-              <ChevronDown size={16} className={`text-zinc-400 transition-transform duration-300 ${isSortOpen ? 'rotate-180' : ''}`} />
-            </button>
-            
-            {isSortOpen && (
-              <div className="absolute top-full right-0 mt-2 w-full bg-white dark:bg-[#121212] border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50">
-                <button 
-                  onClick={() => { setSortBy('newest'); setIsSortOpen(false); }}
-                  className={`w-full text-left px-5 py-3 text-sm font-bold transition-colors flex items-center gap-2 ${sortBy === 'newest' ? 'bg-zinc-50 dark:bg-zinc-900 text-[#9cf822]' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-black dark:hover:text-white'}`}
-                >
-                  <Clock size={16} /> Newest First
-                </button>
-                <button 
-                  onClick={() => { setSortBy('popular'); setIsSortOpen(false); }}
-                  className={`w-full text-left px-5 py-3 text-sm font-bold transition-colors flex items-center gap-2 ${sortBy === 'popular' ? 'bg-zinc-50 dark:bg-zinc-900 text-rose-500' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-black dark:hover:text-white'}`}
-                >
-                  <Flame size={16} /> Most Popular
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* HORIZONTAL FILTERS */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-4 mask-linear-fade">
-          <div className="flex items-center gap-2 px-1 text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 pr-4 mr-2 shrink-0">
-             <SlidersHorizontal size={16} />
-             <span className="text-xs font-bold">Filter</span>
-          </div>
+      <div className="max-w-2xl mx-auto">
+        {/* LINKEDIN STYLE TOP NAVIGATION TABS */}
+        <div className="flex overflow-x-auto no-scrollbar border-b border-zinc-200 dark:border-zinc-800/80 px-2 sm:px-4">
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon;
+            const isActive = activeCategory === cat.name;
             return (
               <button
                 key={cat.name}
                 onClick={() => setActiveCategory(cat.name)}
-                className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 border ${
-                  activeCategory === cat.name 
-                    ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-black dark:border-white shadow-md' 
-                    : 'bg-white dark:bg-[#121212] border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900'
-                }`}
+                className="flex flex-col items-center gap-1.5 min-w-[72px] py-3 px-2 relative transition-opacity hover:opacity-80"
               >
-                <Icon size={14} className={activeCategory === cat.name ? '' : 'text-zinc-400'} />
-                {cat.name}
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isActive ? 'bg-[#1a3a1a] dark:bg-[#9cf822]/10' : 'bg-zinc-100 dark:bg-[#1a1a1a]'}`}>
+                  <Icon size={18} className={isActive ? 'text-[#5a9a00] dark:text-[#9cf822]' : 'text-zinc-500'} />
+                </div>
+                <span className={`text-[11px] whitespace-nowrap ${isActive ? 'font-bold text-black dark:text-white' : 'font-medium text-zinc-500'}`}>
+                  {cat.name}
+                </span>
+                {isActive && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-black dark:bg-white rounded-t-full" />}
               </button>
             );
           })}
         </div>
-      </div>
 
-      {/* FEED CONTENT */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-0 relative z-10 pb-20">
-        {filteredProjects.length === 0 ? (
-          <div className="w-full py-24 flex flex-col items-center justify-center text-center bg-white dark:bg-[#121212] rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800">
-            <div className="w-20 h-20 bg-zinc-50 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-6">
-              <Search className="text-zinc-400" size={32} />
-            </div>
-            <h3 className="text-2xl font-black text-black dark:text-white mb-2 tracking-tight">No projects found</h3>
-            <p className="text-zinc-500 max-w-sm font-medium mb-6">We couldn't find any projects matching your current filters.</p>
-            <button 
-              onClick={() => { setSearchQuery(''); setActiveCategory('All'); }}
-              className="px-6 py-3 bg-black dark:bg-white text-white dark:text-black rounded-full text-sm font-bold hover:scale-105 transition-transform"
-            >
-              Clear all filters
-            </button>
+        {/* FEED HEADER */}
+        <div className="px-4 sm:px-6 pt-6 pb-2">
+          <h1 className="text-xl font-bold tracking-tight mb-1">Top project picks for you</h1>
+          <p className="text-[13px] text-zinc-500 leading-snug">
+            Based on your profile, preferences, and activity like applies, searches, and saves
+          </p>
+          <div className="mt-4 text-[13px] text-zinc-500 font-medium">
+            {filteredProjects.length} results
           </div>
-        ) : (
-          <div className="flex flex-col gap-6">
-            {filteredProjects.map((project) => {
-              const isLiked = likedProjects.includes(project.id);
-              const isSaved = savedProjects.includes(project.id);
+        </div>
 
-              const displayImage = project.cover_image_url || project.image_url;
-              const displayBudget = project.budget || project.valuation || 0;
-              const displayEquity = project.equity || project.available_share || 0;
+        {/* JOBS/PROJECTS LIST */}
+        <div className="flex flex-col">
+          {filteredProjects.map((project) => {
+            const displayImage = project.cover_image_url || project.image_url;
+            const displayBudget = project.budget || project.valuation || 0;
+            const displayEquity = project.equity || project.available_share || 0;
+            const openRolesCount = project.project_roles?.filter((r: any) => r.status === 'open' || !r.status).length || 0;
+            
+            // Format relative time (e.g. "1 month ago", "2 weeks ago")
+            const projectDate = new Date(project.created_at);
+            const daysAgo = Math.floor((new Date().getTime() - projectDate.getTime()) / (1000 * 3600 * 24));
+            let timeString = `${daysAgo} days ago`;
+            if (daysAgo === 0) timeString = 'Today';
+            if (daysAgo > 30) timeString = `${Math.floor(daysAgo/30)} month${Math.floor(daysAgo/30) > 1 ? 's' : ''} ago`;
+            else if (daysAgo > 7) timeString = `${Math.floor(daysAgo/7)} week${Math.floor(daysAgo/7) > 1 ? 's' : ''} ago`;
 
-              const openRolesCount = project.project_roles?.filter((r: any) => r.status === 'open' || !r.status).length || 0;
+            return (
+              <Link 
+                href={`/project/${project.id}`} 
+                key={project.id} 
+                className="flex gap-3 px-4 sm:px-6 py-4 border-b border-zinc-200 dark:border-zinc-800/60 hover:bg-zinc-50 dark:hover:bg-[#121212] transition-colors relative group"
+              >
+                {/* SQUARE LOGO */}
+                <div className="w-14 h-14 shrink-0 bg-zinc-100 dark:bg-[#1a1a1a] rounded flex items-center justify-center overflow-hidden border border-zinc-200 dark:border-zinc-800/50 mt-1">
+                  {displayImage ? (
+                    <img src={displayImage} className="w-full h-full object-cover" alt="" />
+                  ) : (
+                    <span className="text-xl font-bold text-zinc-400">{project.title.charAt(0)}</span>
+                  )}
+                </div>
 
-              return (
-                <div 
-                  key={project.id} 
-                  className="group bg-white dark:bg-[#121212] sm:rounded-2xl rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col shadow-sm"
-                >
-                  {/* LINKEDIN-STYLE HEADER */}
-                  <div className="p-4 flex items-start justify-between">
-                    <Link href={`/profile/${project.user_id}`} className="flex items-center gap-3 group/author">
-                      <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700 relative flex items-center justify-center">
-                        <User size={20} className="text-zinc-400 absolute" />
-                        <img 
-                          src={project.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${project.profiles?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} 
-                          onError={(e) => { e.currentTarget.style.display = 'none'; }} 
-                          className="w-full h-full object-cover relative z-10" 
-                          alt="" 
-                        />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-black dark:text-white group-hover/author:text-[#9cf822] transition-colors flex items-center gap-1">
-                          {project.profiles?.full_name || 'Project Lead'}
-                          <span className="text-zinc-400 text-xs font-normal">• 1st</span>
-                        </span>
-                        <span className="text-xs text-zinc-500 capitalize line-clamp-1">
-                          {project.profiles?.role || 'Founder'}
-                        </span>
-                        <span className="text-[10px] text-zinc-400 flex items-center gap-1 mt-0.5">
-                           {new Date(project.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric'})} • <Globe size={10} />
-                        </span>
-                      </div>
-                    </Link>
-                    
-                    <button className="text-zinc-400 hover:text-black dark:hover:text-white p-1">
-                       {/* Context menu icon could go here */}
-                    </button>
-                  </div>
-
-                  {/* POST CONTENT */}
-                  <Link href={`/project/${project.id}`} className="px-4 pb-3 flex flex-col cursor-pointer">
-                    <h3 className="text-base font-bold text-black dark:text-white tracking-tight mb-1 group-hover:text-[#9cf822] transition-colors">
+                {/* CONTENT */}
+                <div className="flex flex-col flex-grow min-w-0">
+                  <div className="flex justify-between items-start gap-4">
+                    <h3 className="text-[16px] font-bold text-[#0a66c2] dark:text-white leading-snug group-hover:underline decoration-1 underline-offset-2">
                       {project.title}
                     </h3>
-                    <p className="text-sm text-zinc-700 dark:text-zinc-300 line-clamp-2 leading-relaxed">
-                      {project.description || "Looking for strategic partners to scale development and market reach."}
-                    </p>
-                  </Link>
-
-                  {/* FULL WIDTH MEDIA */}
-                  <Link href={`/project/${project.id}`} className="w-full bg-zinc-100 dark:bg-zinc-900 aspect-video relative overflow-hidden block cursor-pointer">
-                    {displayImage ? (
-                      <img src={displayImage} className="w-full h-full object-cover" alt={project.title} />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-600 gap-2">
-                        <Grid size={32} strokeWidth={1.5} />
-                        <span className="text-xs font-medium uppercase tracking-widest">No Media</span>
-                      </div>
-                    )}
-                  </Link>
-
-                  {/* BADGES / DATA ROW */}
-                  <div className="p-4 border-b border-zinc-100 dark:border-zinc-800/50">
-                    <div className="flex flex-wrap items-center gap-2 mb-3">
-                      <div className="flex items-center gap-1 px-2 py-1 bg-[#9cf822]/10 text-[#5a9a00] dark:text-[#9cf822] rounded text-[11px] font-bold">
-                        <ShieldCheck size={12} strokeWidth={2.5} /> Secured
-                      </div>
-                      <div className="flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded text-[11px] font-bold">
-                        <Users size={12} strokeWidth={2.5} /> {openRolesCount} Open {openRolesCount === 1 ? 'Role' : 'Roles'}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-4 text-xs font-bold text-black dark:text-white">
-                       <span>Budget: <span className="text-zinc-500 font-medium">{getCurrencySymbol(project.currency)}{displayBudget.toLocaleString()}</span></span>
-                       <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                       <span>Equity: <span className="text-zinc-500 font-medium">{displayEquity}%</span></span>
-                    </div>
+                    <button 
+                      onClick={(e) => hideProject(e, project.id)}
+                      className="p-1 -mt-1 -mr-1 text-zinc-500 hover:text-black dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors shrink-0"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  
+                  <div className="text-[14px] text-zinc-800 dark:text-zinc-200 mt-0.5">
+                    {project.profiles?.full_name || 'Project Lead'}
+                  </div>
+                  
+                  <div className="text-[14px] text-zinc-500 mt-0.5 flex items-center gap-1 truncate">
+                    Nigeria (Remote)
                   </div>
 
-                  {/* LINKEDIN-STYLE ACTION BAR */}
-                  <div className="px-2 py-1 flex items-center justify-between">
-                    <button 
-                      onClick={(e) => toggleLike(e, project)} 
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-colors ${
-                        isLiked 
-                          ? 'text-rose-500 bg-rose-50 dark:bg-rose-500/10' 
-                          : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                      }`}
-                    >
-                      <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
-                      <span>{project.like_count > 0 ? project.like_count : 'Like'}</span>
-                    </button>
+                  <div className="text-[13px] text-zinc-500 mt-1 flex items-center gap-1">
+                    {getCurrencySymbol(project.currency)}{displayBudget.toLocaleString()} Budget 
+                    {displayEquity > 0 && ` • ${displayEquity}% Equity`}
+                  </div>
 
-                    <Link 
-                      href={`/project/${project.id}`}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                    >
-                      <MessageSquare size={18} />
-                      <span>Comment</span>
-                    </Link>
+                  {openRolesCount > 0 && (
+                    <div className="flex items-center gap-1.5 mt-2.5">
+                      <CheckCircle2 size={14} className="text-[#057642] dark:text-[#9cf822]" />
+                      <span className="text-[12px] font-medium text-zinc-700 dark:text-zinc-300">
+                        Actively reviewing {openRolesCount > 1 ? 'builders' : 'builder'}
+                      </span>
+                    </div>
+                  )}
 
-                    <button 
-                      onClick={(e) => toggleSave(e, project)} 
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-colors ${
-                        isSaved 
-                          ? 'text-[#9cf822] bg-[#9cf822]/10' 
-                          : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                      }`}
-                    >
-                      <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
-                      <span>Save</span>
-                    </button>
-
-                    <button 
-                      onClick={(e) => handleShare(e, project)} 
-                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                    >
-                      <Share2 size={18} />
-                      <span>Share</span>
-                    </button>
+                  <div className="flex items-center gap-2 mt-2.5 text-[12px] text-zinc-500">
+                    {daysAgo < 7 && <span className="text-[#057642] dark:text-[#9cf822] font-semibold">Be an early applicant</span>}
+                    {daysAgo < 7 && <span className="text-zinc-700 dark:text-zinc-500">•</span>}
+                    <span>{timeString}</span>
+                    <span className="text-zinc-700 dark:text-zinc-500">•</span>
+                    <div className="flex items-center gap-1">
+                      <Briefcase size={12} /> Easy Apply
+                    </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </Link>
+            );
+          })}
+
+          {filteredProjects.length === 0 && !loading && (
+            <div className="py-20 text-center px-4">
+              <h3 className="text-lg font-bold mb-2">No exact matches found</h3>
+              <p className="text-sm text-zinc-500">Try adjusting your search or filters to find what you are looking for.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
