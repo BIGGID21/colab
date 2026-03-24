@@ -67,7 +67,6 @@ const Navbar = () => (
 );
 
 export default function LandingPage() {
-  const [activeService, setActiveService] = useState(0);
   const [currentHeroImg, setCurrentHeroImg] = useState(0);
 
   // Rotating images for the hero section
@@ -88,35 +87,28 @@ export default function LandingPage() {
     return () => clearInterval(interval);
   }, [heroImages.length]);
 
-  // Integrated the new screenshots and messaging with the existing ecosystem structure
+  // Integrated the new screenshots and messaging with the vertical card structure
   const ecosystemItems = [
     { 
       title: "Lab X Design Suite", 
       desc: "Our custom-built vector engine. Infinite canvas, multiplayer editing, and direct asset handoff for developers.",
       icon: Layout,
-      img: "/lab x screen.png", // UPDATED FILE NAME
-      link: "/lab/new"
+      img: "/lab x screen.png",
+      link: "/lab/new" 
     },
     { 
       title: "The Financial Terminal", 
       desc: "Real-time payout tracking, escrow management, and collective equity dashboards for every project.",
       icon: PieChart,
-      img: "/wallet.png", // UPDATED FILE NAME
+      img: "/wallet.png",
       link: "/wallet"
     },
     { 
       title: "Pro Creator Network", 
       desc: "Verified badges, custom URLs, and unlimited high-res uploads to level up your professional creative career.",
       icon: CreditCard,
-      img: "/billing.png", // UPDATED FILE NAME
+      img: "/billing.png",
       link: "/pricing"
-    },
-    { 
-      title: "The developer’s engine", 
-      desc: "Skip the idea guys. Connect with serious creators with high-fidelity visions ready for robust code.",
-      icon: Code,
-      img: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=2000&auto=format&fit=crop", // Retained dev Unsplash image
-      link: "/community" 
     }
   ];
 
@@ -256,74 +248,64 @@ export default function LandingPage() {
                     </div>
                   ))}
                </div>
+               {/* UPDATED LINK: Pointing to a valid /lab/[id] route pattern. Assuming 'new' creates a session. */}
                <Link href="/lab/new" className="inline-flex items-center gap-2 text-[#9cf822] font-medium hover:opacity-80 transition-opacity">
                   Try Lab X now <ArrowRight size={16} />
                </Link>
             </div>
             <div className="relative group">
                <div className="absolute -inset-4 bg-[#9cf822]/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-               <img src="/lab x screen.png" className="relative rounded-2xl border border-zinc-800 shadow-2xl group-hover:border-[#9cf822]/50 transition-colors" alt="Lab X Interface" /> {/* UPDATED FILE NAME */}
+               <img src="/lab x screen.png" className="relative rounded-2xl border border-zinc-800 shadow-2xl group-hover:border-[#9cf822]/50 transition-colors" alt="Lab X Interface" />
             </div>
          </div>
       </section>
 
-      {/* 4. INTERACTIVE ECOSYSTEM SECTION (Updated with your screenshots) */}
+      {/* 4. VERTICAL ECOSYSTEM SECTION (Updated Layout based on reference image) */}
       <section id="ecosystem" className="py-32 bg-[#0a0a0a] border-b border-zinc-900">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="flex items-center gap-4 mb-16">
-            <div className="px-4 py-1.5 bg-[#9cf822] text-black text-[10px] font-medium rounded-full">Why us</div>
-            <h2 className="text-4xl font-medium">Our <span className="text-[#9cf822]">ecosystem</span></h2>
+          <div className="flex flex-col items-center text-center mb-24">
+            <div className="px-4 py-1.5 bg-[#9cf822] text-black text-[10px] font-medium rounded-full mb-6">Why us</div>
+            <h2 className="text-5xl lg:text-6xl font-medium tracking-tight max-w-2xl">
+              Our <span className="text-[#9cf822]">ecosystem</span> is built for scale.
+            </h2>
+            <p className="text-zinc-400 mt-6 max-w-xl text-lg">We offer a robust environment tailored to help you launch faster, track earnings, and collaborate seamlessly.</p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
-            {/* Left Column: Interactive List */}
-            <div className="lg:col-span-5 space-y-4">
-              <p className="text-zinc-400 mb-8 font-medium">We offer a robust environment tailored to help you launch faster.</p>
-              {ecosystemItems.map((item, idx) => {
-                const isActive = activeService === idx;
-                return (
-                  <button 
-                    key={idx}
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setActiveService(idx);
-                    }}
-                    className={`w-full text-left flex items-center justify-between px-6 py-5 rounded-full transition-all duration-300 border relative z-20 cursor-pointer ${
-                      isActive 
-                        ? 'bg-white text-black border-white scale-[1.02]' 
-                        : 'bg-transparent text-white border-zinc-800 hover:border-zinc-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4 pointer-events-none">
-                      <span className="text-xs font-medium opacity-50">0{idx + 1}</span>
-                      <item.icon size={20} className={isActive ? 'text-[#9cf822]' : 'text-zinc-500'} />
-                      <span className="font-medium text-lg">{item.title}</span>
-                    </div>
-                    <ArrowRight size={20} className={`pointer-events-none ${isActive ? 'text-black' : 'text-zinc-600'}`} />
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Right Column: Dynamic Content Box */}
-            <div className="lg:col-span-7 relative">
-               <div className="w-full h-[500px] rounded-[2.5rem] bg-zinc-900 overflow-hidden relative border border-zinc-800 group">
-                  <img 
-                    src={ecosystemItems[activeService].img}
-                    className="absolute inset-0 w-full h-full object-cover opacity-80 transition-opacity duration-500 ease-in-out group-hover:scale-105" 
-                    alt="Ecosystem Feature" 
-                  />
-                  
-                  {/* Floating Green Card */}
-                  <div className="absolute bottom-8 right-8 bg-[#9cf822] text-black p-6 rounded-3xl max-w-[240px] shadow-2xl z-30 transition-all">
-                    <p className="font-medium text-sm mb-4 leading-tight">{ecosystemItems[activeService].desc}</p>
-                    <Link href={ecosystemItems[activeService].link} className="flex items-center gap-2 text-xs font-medium hover:opacity-70 transition-opacity">
-                      See how we work <ArrowUpRight size={16} />
-                    </Link>
+          {/* Vertical Stacked Cards */}
+          <div className="flex flex-col gap-24">
+            {ecosystemItems.map((item, idx) => (
+              <div key={idx} className="flex flex-col group">
+                
+                {/* Image Container with premium frame effect */}
+                <div className="w-full aspect-video rounded-[2.5rem] bg-zinc-900 border border-zinc-800 p-2 md:p-4 mb-8 shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]">
+                  <div className="w-full h-full rounded-[2rem] overflow-hidden relative bg-black">
+                     <img 
+                        src={item.img}
+                        className="w-full h-full object-cover opacity-90 transition-opacity duration-500 group-hover:opacity-100" 
+                        alt={item.title} 
+                     />
+                     <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-[2rem]"></div>
                   </div>
-               </div>
-            </div>
+                </div>
+
+                {/* Text Content Below Image */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start px-4">
+                   <div className="md:col-span-5 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center border border-zinc-800 text-[#9cf822]">
+                         <item.icon size={24} />
+                      </div>
+                      <h3 className="text-2xl font-medium text-white">{item.title}</h3>
+                   </div>
+                   <div className="md:col-span-7 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <p className="text-zinc-400 text-lg leading-relaxed max-w-lg">{item.desc}</p>
+                      <Link href={item.link} className="inline-flex items-center justify-center w-12 h-12 rounded-full border border-zinc-700 hover:border-[#9cf822] hover:bg-[#9cf822] hover:text-black transition-all text-white shrink-0">
+                         <ArrowUpRight size={20} />
+                      </Link>
+                   </div>
+                </div>
+                
+              </div>
+            ))}
           </div>
         </div>
       </section>
