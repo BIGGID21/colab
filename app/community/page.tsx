@@ -89,8 +89,6 @@ export default function CommunityFeedPage() {
   // Editor Modal States
   const [pendingFile, setPendingFile] = useState<{file: File, type: string, url: string} | null>(null);
   const [cropMode, setCropMode] = useState<'original' | 'square' | 'portrait'>('original');
-  const [videoTrimStart, setVideoTrimStart] = useState(0);
-  const [videoTrimEnd, setVideoTrimEnd] = useState(15);
   
   const [isPosting, setIsPosting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -284,12 +282,7 @@ export default function CommunityFeedPage() {
       
       const { data: { publicUrl } } = supabase.storage.from('workspace_files').getPublicUrl(fileName);
       
-      // If video, we append the trim metadata (In a real app, backend uses this to trim)
-      const urlWithTrimData = pendingFile.type === 'video' 
-        ? `${publicUrl}#t=${videoTrimStart},${videoTrimEnd}`
-        : publicUrl;
-
-      setPostMedia(prev => [...prev, { url: urlWithTrimData, type: pendingFile.type }]);
+      setPostMedia(prev => [...prev, { url: publicUrl, type: pendingFile.type }]);
     } catch (err: any) { 
       console.error(err);
       alert("Failed to process and upload media."); 
@@ -522,19 +515,6 @@ export default function CommunityFeedPage() {
               {pendingFile.type === 'video' ? (
                 <div className="w-full space-y-4">
                   <video src={pendingFile.url} className="w-full h-64 bg-black rounded-xl object-contain" controls />
-                  <div className="bg-yellow-500/10 border border-yellow-500/50 text-yellow-600 dark:text-yellow-400 p-3 rounded-lg text-xs font-medium">
-                    Note: Precise in-browser video trimming requires a heavy processing engine. Use the sliders below to mark start/end times for the backend processor.
-                  </div>
-                  <div className="flex gap-4 items-center">
-                    <div className="flex-1">
-                      <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block">Start (sec)</label>
-                      <input type="number" value={videoTrimStart} onChange={(e) => setVideoTrimStart(Number(e.target.value))} className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-sm text-black dark:text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block">End (sec)</label>
-                      <input type="number" value={videoTrimEnd} onChange={(e) => setVideoTrimEnd(Number(e.target.value))} className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-sm text-black dark:text-white" />
-                    </div>
-                  </div>
                 </div>
               ) : (
                 <div className="w-full flex flex-col items-center">
