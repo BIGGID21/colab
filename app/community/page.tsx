@@ -8,7 +8,7 @@ import {
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
   BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown, Bookmark,
-  VolumeX, Volume2, Trophy, Medal, Flame
+  VolumeX, Volume2
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -49,7 +49,7 @@ function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
 
   return (
     <div 
-      className="relative bg-black w-full flex justify-center items-center h-auto max-h-[800px] cursor-pointer sm:rounded-2xl rounded-none overflow-hidden group"
+      className="relative bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full flex justify-center items-center h-auto max-h-[800px] cursor-pointer sm:rounded-2xl rounded-none overflow-hidden group"
       onClick={onExpand}
     >
       <video 
@@ -81,11 +81,6 @@ export default function CommunityFeedPage() {
   
   const [trendingTags, setTrendingTags] = useState<{tag: string, count: number}[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
-  
-  const [topPosters, setTopPosters] = useState<any[]>([]);
-  const [topEngaged, setTopEngaged] = useState<any[]>([]);
-  const [leaderboardTab, setLeaderboardTab] = useState<'posts' | 'engagement'>('engagement');
-  const [currentUserStreak, setCurrentUserStreak] = useState(0); 
   
   const [postMedia, setPostMedia] = useState<{url: string, type: string}[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -188,72 +183,6 @@ export default function CommunityFeedPage() {
         })).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       }));
 
-      // --- LEADERBOARD & STREAK AGGREGATION LOGIC ---
-      const userStats: Record<string, any> = {};
-
-      formattedPosts.forEach(post => {
-        if (post.profiles?.role?.toLowerCase() === 'official') return;
-
-        const userId = post.user_id;
-        const dateStr = new Date(post.created_at).toISOString().split('T')[0];
-
-        if (!userStats[userId]) {
-          userStats[userId] = {
-            id: userId,
-            profile: post.profiles,
-            postCount: 0,
-            engagementCount: 0,
-            postDates: new Set<string>()
-          };
-        }
-        userStats[userId].postCount += 1;
-        userStats[userId].engagementCount += (post.likes_count || 0) + (post.comments?.length || 0);
-        userStats[userId].postDates.add(dateStr);
-      });
-
-      // Calculate Streaks
-      const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-      Object.values(userStats).forEach(stat => {
-        const dates = Array.from(stat.postDates).sort((a: any, b: any) => b.localeCompare(a));
-        let streak = 0;
-        
-        if (dates.includes(todayStr) || dates.includes(yesterdayStr)) {
-          let checkDate = dates.includes(todayStr) ? new Date() : yesterday;
-          
-          while(true) {
-            const checkStr = checkDate.toISOString().split('T')[0];
-            if (dates.includes(checkStr)) {
-              streak++;
-              checkDate.setDate(checkDate.getDate() - 1);
-            } else {
-              break;
-            }
-          }
-        }
-        stat.streak = streak;
-
-        if (stat.id === authUser.id) {
-          setCurrentUserStreak(streak);
-        }
-      });
-
-      const topByPosts = Object.values(userStats)
-        .sort((a, b) => b.postCount - a.postCount)
-        .slice(0, 5); 
-      
-      const topByEngagement = Object.values(userStats)
-        .sort((a, b) => b.engagementCount - a.engagementCount)
-        .slice(0, 5); 
-
-      setTopPosters(topByPosts);
-      setTopEngaged(topByEngagement);
-      // ----------------------------------------------
-
       const sortedPosts = formattedPosts.sort((a, b) => {
         const aOfficial = a.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
         const bOfficial = b.profiles?.role?.toLowerCase() === 'official' ? 1 : 0;
@@ -334,8 +263,6 @@ export default function CommunityFeedPage() {
         setHasPostedBefore(true);
         triggerHaptic([50, 100, 150]); 
       }
-      
-      setCurrentUserStreak(prev => prev === 0 ? 1 : prev);
 
       setNewPost('');
       setPostMedia([]); 
@@ -481,6 +408,13 @@ export default function CommunityFeedPage() {
     return `${Math.floor(diff / 86400)}d`;
   };
 
+  // Helper function to handle broken image loads smoothly
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.onerror = null; 
+    e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="%23a1a1aa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>';
+    e.currentTarget.className = "w-16 h-16 opacity-30 object-contain";
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
 
   // Reusable avatar helper
@@ -557,15 +491,6 @@ export default function CommunityFeedPage() {
                   <img src={userAvatar} className="w-full h-full object-cover" alt="Profile" />
                 </div>
                 <div className="flex-grow flex flex-col min-w-0">
-                  
-                  {/* COMPOSER STREAK BADGE (Inline & Clean) */}
-                  {currentUserStreak > 0 && (
-                    <div className="mb-2 inline-flex self-start items-center gap-1.5 px-2.5 py-1 bg-orange-500/10 border border-orange-500/20 rounded-md">
-                      <Flame size={12} className="text-orange-500 animate-pulse" />
-                      <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">{currentUserStreak} Day Streak</span>
-                    </div>
-                  )}
-
                   <textarea 
                     ref={textAreaRef}
                     value={newPost} onChange={(e) => setNewPost(e.target.value)}
@@ -574,18 +499,18 @@ export default function CommunityFeedPage() {
                   />
                   
                   {postMedia.length > 0 && (
-                    <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${postMedia.length > 1 ? 'grid gap-0.5 grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
+                    <div className={`mt-3 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${postMedia.length > 1 ? 'grid gap-[1px] grid-cols-2 bg-zinc-200 dark:bg-zinc-800' : ''}`}>
                       {postMedia.map((m, idx) => {
                         const isVideo = m.type === 'video' || m.url.includes('.mp4');
                         return (
                           <div 
                             key={idx} 
-                            className={`relative bg-black w-full flex justify-center items-center rounded-2xl overflow-hidden ${isVideo ? 'h-auto max-h-[800px]' : 'aspect-[4/5]'}`} 
+                            className={`relative bg-zinc-50 dark:bg-zinc-900 w-full flex justify-center items-center rounded-2xl overflow-hidden ${isVideo ? 'h-auto max-h-[800px]' : 'aspect-[4/5]'}`} 
                           >
                             {isVideo ? (
                               <video src={m.url} className="w-full h-auto max-h-[800px] object-contain rounded-2xl" autoPlay muted loop playsInline />
                             ) : (
-                              <img src={m.url} className="w-full h-full object-cover" />
+                              <img src={m.url} onError={handleImageError} className="w-full h-full object-cover" />
                             )}
                             <button type="button" onClick={() => removeMedia(idx)} className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 backdrop-blur-sm rounded-full text-white transition-colors z-10">
                               <X size={14}/>
@@ -608,74 +533,6 @@ export default function CommunityFeedPage() {
               </div>
             </form>
           </div>
-
-          {/* --- EDGE-TO-EDGE MOBILE LEADERBOARD (Visible < lg) --- */}
-          {(topPosters.length > 0 || topEngaged.length > 0) && (
-            <div className="lg:hidden w-full bg-white dark:bg-black py-4 sm:p-8 sm:rounded-[2.5rem] sm:border sm:border-zinc-200 sm:dark:border-zinc-800 sm:shadow-sm">
-              <div className="flex items-center justify-between mb-4 px-4">
-                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#9cf822] flex items-center gap-1.5">
-                  <Trophy size={14} /> Top Builders
-                </h4>
-                <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-lg p-1">
-                  <button 
-                    onClick={() => setLeaderboardTab('engagement')}
-                    className={`px-3 py-1.5 text-[10px] font-bold rounded-md transition-all ${leaderboardTab === 'engagement' ? 'bg-white dark:bg-[#222] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
-                  >
-                    Engaged
-                  </button>
-                  <button 
-                    onClick={() => setLeaderboardTab('posts')}
-                    className={`px-3 py-1.5 text-[10px] font-bold rounded-md transition-all ${leaderboardTab === 'posts' ? 'bg-white dark:bg-[#222] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
-                  >
-                    Active
-                  </button>
-                </div>
-              </div>
-              
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 px-4 snap-x snap-mandatory">
-                {(leaderboardTab === 'posts' ? topPosters : topEngaged).map((userStat, index) => {
-                  const rankColors = ['text-yellow-500', 'text-zinc-400', 'text-amber-700'];
-                  const rankIcon = index === 0 ? <Trophy size={14} className={rankColors[index]} /> : <Medal size={14} className={rankColors[index] || 'text-zinc-500'} />;
-                  
-                  return (
-                    <div 
-                      key={userStat.id} 
-                      className="relative shrink-0 w-[140px] bg-zinc-50 dark:bg-[#121212] border border-zinc-100 dark:border-zinc-800 rounded-2xl p-4 flex flex-col items-center text-center cursor-pointer snap-start hover:border-[#9cf822]/50 transition-colors"
-                      onClick={() => router.push(`/profile/${userStat.id}`)}
-                    >
-                      <div className="absolute top-2 left-2 flex items-center justify-center w-6 h-6 bg-white dark:bg-black rounded-full shadow-sm border border-zinc-100 dark:border-zinc-800">
-                        {index < 3 ? rankIcon : <span className="text-[10px] font-black text-zinc-400">#{index + 1}</span>}
-                      </div>
-
-                      <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-zinc-200 dark:border-zinc-700 mb-2 mt-1">
-                        <img src={userStat.profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${userStat.profile?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} className="w-full h-full object-cover" />
-                      </div>
-                      <p className="text-xs font-bold text-black dark:text-white w-full truncate mb-0.5 flex justify-center items-center gap-1">
-                        {userStat.profile?.full_name?.split(' ')[0] || 'Builder'}
-                        {userStat.profile?.is_verified && <BadgeCheck size={10} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
-                      </p>
-                      
-                      {/* Integrated clean streak inline below name on mobile */}
-                      <div className="flex items-center justify-center gap-2 w-full mt-1">
-                        <p className="text-[10px] font-medium text-zinc-500 flex items-center justify-center gap-1">
-                          {leaderboardTab === 'posts' ? (
-                            <><Edit size={10} /> {userStat.postCount}</>
-                          ) : (
-                            <><Heart size={10} className="text-rose-500" /> {userStat.engagementCount}</>
-                          )}
-                        </p>
-                        {userStat.streak >= 2 && (
-                          <div className="flex items-center text-orange-500 bg-orange-500/10 px-1 py-0.5 rounded text-[9px] font-bold">
-                            <Flame size={8} className="mr-0.5" /> {userStat.streak}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {posts.map((post) => {
             const isOfficial = post.profiles?.role?.toLowerCase() === 'official';
@@ -729,7 +586,7 @@ export default function CommunityFeedPage() {
                         )}
                         <span className="text-[11px] text-zinc-500 font-normal mt-0.5 flex items-center gap-1">
                           {formatDistanceToNowShort(new Date(post.created_at))} <Globe size={10} />
-                          {isOfficial && <span className="ml-1 text-[#9cf822] font-bold uppercase tracking-widest text-[9px]">Pinned</span>}
+                          {isOfficial && <span className="ml-1 text-[#9cf822] font-bold uppercase tracking-widest text-[9px]"></span>}
                         </span>
                       </div>
                       
@@ -781,8 +638,8 @@ export default function CommunityFeedPage() {
                         return isVideo ? (
                           <FeedVideo key={i} url={m.url} onExpand={() => setExpandedMedia({url: m.url, type: 'video'})} />
                         ) : (
-                          <div key={i} className="relative bg-black w-full flex justify-center items-center aspect-square sm:aspect-auto sm:max-h-[600px] cursor-pointer sm:rounded-2xl rounded-none overflow-hidden" onClick={() => setExpandedMedia({url: m.url, type: 'image'})}>
-                            <img src={m.url} className="w-full h-full object-cover sm:object-contain hover:opacity-90 transition-opacity" />
+                          <div key={i} className="relative bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 w-full flex justify-center items-center aspect-square sm:aspect-auto sm:max-h-[600px] cursor-pointer sm:rounded-2xl rounded-none overflow-hidden" onClick={() => setExpandedMedia({url: m.url, type: 'image'})}>
+                            <img src={m.url} onError={handleImageError} className="w-full h-full object-cover sm:object-contain hover:opacity-90 transition-opacity" />
                           </div>
                         );
                       })}
@@ -872,68 +729,6 @@ export default function CommunityFeedPage() {
                 ))}
               </div>
             </div>
-
-            {/* --- DESKTOP LEADERBOARD WIDGET --- */}
-            {(topPosters.length > 0 || topEngaged.length > 0) && (
-              <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-sm">
-                <div className="flex items-center justify-between mb-6">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-[#9cf822] flex items-center gap-2">
-                    <Trophy size={14} /> Top Builders
-                  </h4>
-                </div>
-
-                <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-lg p-1 mb-6">
-                  <button 
-                    onClick={() => setLeaderboardTab('engagement')}
-                    className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${leaderboardTab === 'engagement' ? 'bg-white dark:bg-[#222] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
-                  >
-                    Most Engaged
-                  </button>
-                  <button 
-                    onClick={() => setLeaderboardTab('posts')}
-                    className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${leaderboardTab === 'posts' ? 'bg-white dark:bg-[#222] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
-                  >
-                    Most Active
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {(leaderboardTab === 'posts' ? topPosters : topEngaged).map((userStat, index) => {
-                    const rankColors = ['text-yellow-500', 'text-zinc-400', 'text-amber-700'];
-                    const rankIcon = index === 0 ? <Trophy size={16} className={rankColors[index]} /> : <Medal size={16} className={rankColors[index] || 'text-zinc-500'} />;
-
-                    return (
-                      <div key={userStat.id} className="flex items-center gap-3 group cursor-pointer p-2 -mx-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors" onClick={() => router.push(`/profile/${userStat.id}`)}>
-                        <div className="flex items-center justify-center w-6 font-black text-sm text-zinc-400 group-hover:text-[#9cf822] transition-colors">
-                          {index < 3 ? rankIcon : `#${index + 1}`}
-                        </div>
-                        <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-zinc-100 dark:border-zinc-800">
-                          <img src={userStat.profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${userStat.profile?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-grow min-w-0">
-                          <p className="text-sm font-bold text-black dark:text-white truncate flex items-center gap-1 group-hover:text-[#9cf822] transition-colors">
-                            {userStat.profile?.full_name || 'Anonymous Builder'}
-                            {userStat.profile?.is_verified && <BadgeCheck size={12} fill="#9cf822" className="text-white dark:text-black shrink-0" />}
-                            {userStat.streak >= 2 && (
-                              <span className="ml-1 text-[10px] text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-orange-500/20">
-                                <Flame size={10} /> {userStat.streak}
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-[11px] font-medium text-zinc-500 flex items-center gap-1 mt-0.5">
-                            {leaderboardTab === 'posts' ? (
-                              <><Edit size={10} /> {userStat.postCount} updates</>
-                            ) : (
-                              <><Heart size={10} className="text-rose-500" /> {userStat.engagementCount} interactions</>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             <div className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-sm">
                 <h4 className="text-[10px] font-normal text-[#9cf822] tracking-tight mb-6 flex items-center gap-2"><Clock size={12} /> What is happening</h4>
