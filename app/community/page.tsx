@@ -8,7 +8,7 @@ import {
   Heart, MessageSquare, Share2, Sparkles, TrendingUp, 
   Code, Briefcase, Globe, X, Trash2, Repeat, Maximize2, User,
   BadgeCheck, PartyPopper, Zap, Clock, Edit, Home, Search, Plus, Bell, ChevronDown, Bookmark,
-  VolumeX, Volume2
+  VolumeX, Volume2, Scissors, Crop
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -34,7 +34,7 @@ function ExpandableText({ text, limit = 280 }: { text: string, limit?: number })
   );
 }
 
-// Custom component to handle video play states, looping, and mute toggle
+// --- Video Component ---
 function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
   const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -58,7 +58,6 @@ function FeedVideo({ url, onExpand }: { url: string, onExpand: () => void }) {
         className="w-full h-auto max-h-[800px] object-contain sm:rounded-2xl rounded-none" 
         autoPlay muted={isMuted} loop playsInline
       />
-      
       <button 
         onClick={toggleMute}
         className="absolute bottom-4 right-4 p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full text-white transition-all shadow-lg z-20"
@@ -82,9 +81,16 @@ export default function CommunityFeedPage() {
   const [trendingTags, setTrendingTags] = useState<{tag: string, count: number}[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   
+  // Media States
   const [postMedia, setPostMedia] = useState<{url: string, type: string}[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [expandedMedia, setExpandedMedia] = useState<{url: string, type: string} | null>(null);
+  
+  // Editor Modal States
+  const [pendingFile, setPendingFile] = useState<{file: File, type: string, url: string} | null>(null);
+  const [cropMode, setCropMode] = useState<'original' | 'square' | 'portrait'>('original');
+  const [videoTrimStart, setVideoTrimStart] = useState(0);
+  const [videoTrimEnd, setVideoTrimEnd] = useState(15);
   
   const [isPosting, setIsPosting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -101,7 +107,6 @@ export default function CommunityFeedPage() {
   const [replyTo, setReplyTo] = useState<{commentId: string, userName: string} | null>(null);
 
   const [savedPosts, setSavedPosts] = useState<string[]>([]);
-  
   const [hasPostedBefore, setHasPostedBefore] = useState(true); 
   const [showFirstPostModal, setShowFirstPostModal] = useState(false);
 
@@ -208,24 +213,89 @@ export default function CommunityFeedPage() {
     fetchFeed();
   }, [supabase, router]);
 
-  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+  // --- MEDIA HANDLING & EDITING ---
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fileType = file.type.startsWith('video/') ? 'video' : 'image';
+    const fileUrl = URL.createObjectURL(file);
+    setPendingFile({ file, type: fileType, url: fileUrl });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const processAndUploadMedia = async () => {
+    if (!pendingFile) return;
+    setPendingFile(null); // Close modal
     setIsUploadingImage(true);
     triggerHaptic([10, 20]);
-    const uploadedFiles: {url: string, type: string}[] = [];
+
     try {
-      for (const file of files) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `community-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const fileType = file.type.startsWith('video/') ? 'video' : 'image';
-        const { error: uploadError } = await supabase.storage.from('workspace_files').upload(fileName, file);
-        if (uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from('workspace_files').getPublicUrl(fileName);
-        uploadedFiles.push({ url: publicUrl, type: fileType });
+      let finalFile = pendingFile.file;
+
+      // In-Browser Image Cropping via Canvas
+      if (pendingFile.type === 'image' && cropMode !== 'original') {
+        finalFile = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.src = pendingFile.url;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return reject('Canvas not supported');
+
+            let targetRatio = cropMode === 'square' ? 1 : (4/5);
+            let imgRatio = img.width / img.height;
+            
+            let sWidth = img.width;
+            let sHeight = img.height;
+            let sX = 0;
+            let sY = 0;
+
+            if (imgRatio > targetRatio) {
+              sWidth = img.height * targetRatio;
+              sX = (img.width - sWidth) / 2;
+            } else {
+              sHeight = img.width / targetRatio;
+              sY = (img.height - sHeight) / 2;
+            }
+
+            canvas.width = sWidth;
+            canvas.height = sHeight;
+            ctx.drawImage(img, sX, sY, sWidth, sHeight, 0, 0, sWidth, sHeight);
+            
+            canvas.toBlob((blob) => {
+              if (blob) {
+                const newFile = new File([blob], pendingFile.file.name, { type: pendingFile.file.type });
+                resolve(newFile);
+              } else {
+                reject('Blob conversion failed');
+              }
+            }, pendingFile.file.type, 0.9);
+          };
+          img.onerror = (e) => reject(e);
+        });
       }
-      setPostMedia(prev => [...prev, ...uploadedFiles]);
-    } catch (err: any) { alert("Failed to upload media."); } finally { setIsUploadingImage(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
+
+      // Upload to Supabase
+      const fileExt = finalFile.name.split('.').pop();
+      const fileName = `community-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('workspace_files').upload(fileName, finalFile);
+      
+      if (uploadError) throw uploadError;
+      
+      const { data: { publicUrl } } = supabase.storage.from('workspace_files').getPublicUrl(fileName);
+      
+      // If video, we append the trim metadata (In a real app, backend uses this to trim)
+      const urlWithTrimData = pendingFile.type === 'video' 
+        ? `${publicUrl}#t=${videoTrimStart},${videoTrimEnd}`
+        : publicUrl;
+
+      setPostMedia(prev => [...prev, { url: urlWithTrimData, type: pendingFile.type }]);
+    } catch (err: any) { 
+      console.error(err);
+      alert("Failed to process and upload media."); 
+    } finally { 
+      setIsUploadingImage(false); 
+    }
   };
 
   const removeMedia = (indexToRemove: number) => {
@@ -415,7 +485,6 @@ export default function CommunityFeedPage() {
     e.currentTarget.className = "w-16 h-16 opacity-30 object-contain";
   };
 
-  // --- UPDATED LOADING STATE ---
   if (loading) return (
     <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black pb-28 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 pt-0 sm:pt-8 px-0 sm:px-6">
       <div className="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-10">
@@ -433,8 +502,67 @@ export default function CommunityFeedPage() {
   const userAvatar = profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profile?.full_name || user?.user_metadata?.full_name || 'User'}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`;
 
   return (
-    <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible">
+    <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 sm:bg-white sm:dark:bg-black transition-colors duration-300 pb-28 sm:pb-24 w-[100vw] ml-[calc(-50vw+50%)] sm:w-full sm:ml-0 overflow-x-hidden sm:overflow-visible relative">
       
+      {/* --- MEDIA EDITOR MODAL --- */}
+      {pendingFile && (
+        <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#121212] w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+              <h3 className="font-bold text-black dark:text-white flex items-center gap-2">
+                {pendingFile.type === 'video' ? <Scissors size={18}/> : <Crop size={18}/>} 
+                Edit Media
+              </h3>
+              <button onClick={() => setPendingFile(null)} className="text-zinc-500 hover:text-black dark:hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 flex flex-col items-center bg-zinc-100 dark:bg-black">
+              {pendingFile.type === 'video' ? (
+                <div className="w-full space-y-4">
+                  <video src={pendingFile.url} className="w-full h-64 bg-black rounded-xl object-contain" controls />
+                  <div className="bg-yellow-500/10 border border-yellow-500/50 text-yellow-600 dark:text-yellow-400 p-3 rounded-lg text-xs font-medium">
+                    Note: Precise in-browser video trimming requires a heavy processing engine. Use the sliders below to mark start/end times for the backend processor.
+                  </div>
+                  <div className="flex gap-4 items-center">
+                    <div className="flex-1">
+                      <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block">Start (sec)</label>
+                      <input type="number" value={videoTrimStart} onChange={(e) => setVideoTrimStart(Number(e.target.value))} className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-sm text-black dark:text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] uppercase font-bold text-zinc-500 mb-1 block">End (sec)</label>
+                      <input type="number" value={videoTrimEnd} onChange={(e) => setVideoTrimEnd(Number(e.target.value))} className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-sm text-black dark:text-white" />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full flex flex-col items-center">
+                  <div className={`transition-all duration-300 bg-zinc-200 dark:bg-zinc-900 rounded-xl overflow-hidden ${cropMode === 'square' ? 'w-64 h-64' : cropMode === 'portrait' ? 'w-52 h-64' : 'w-full h-64'}`}>
+                    <img src={pendingFile.url} className="w-full h-full object-cover" alt="Preview" />
+                  </div>
+                  <div className="flex gap-2 mt-6 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                    <button onClick={() => setCropMode('original')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${cropMode === 'original' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}>Original</button>
+                    <button onClick={() => setCropMode('square')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${cropMode === 'square' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}>Square</button>
+                    <button onClick={() => setCropMode('portrait')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${cropMode === 'portrait' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}>4:5 Portrait</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end">
+              <button 
+                onClick={processAndUploadMedia}
+                className="px-6 py-2.5 bg-[#9cf822] text-black text-sm font-bold rounded-xl hover:scale-105 active:scale-95 transition-all"
+              >
+                Apply & Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- CONFETTI MODAL --- */}
       {showFirstPostModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setShowFirstPostModal(false)}>
           <div 
@@ -536,13 +664,21 @@ export default function CommunityFeedPage() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900">
+
+              {/* --- LOADING LINE --- */}
+              {isUploadingImage && (
+                <div className="w-full mt-4 h-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#9cf822] rounded-full animate-[pulse_1s_ease-in-out_infinite,slide_2s_ease-in-out_infinite_alternate] w-1/2 shadow-[0_0_10px_#9cf822]"></div>
+                </div>
+              )}
+
+              <div className={`flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-900 ${isUploadingImage ? 'mt-2' : 'mt-4'}`}>
                 <div className="flex items-center gap-2">
-                  <input type="file" ref={fileInputRef} onChange={handleMediaUpload} accept="image/*,video/*" className="hidden" />
+                  <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*,video/*" className="hidden" />
                   <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-[#9cf822] hover:bg-[#9cf822]/10 rounded-full transition-colors"><ImageIcon size={20} /></button>
                 </div>
-                <button type="submit" disabled={isPosting || (!newPost.trim() && postMedia.length === 0)} className="px-8 py-3 bg-[#9cf822] text-black font-normal text-xs rounded-2xl transition-all active:scale-95 shadow-lg shadow-[#9cf822]/20 tracking-tight">
-                  Post update
+                <button type="submit" disabled={isPosting || isUploadingImage || (!newPost.trim() && postMedia.length === 0)} className="px-8 py-3 bg-[#9cf822] text-black font-normal text-xs rounded-2xl transition-all active:scale-95 shadow-lg shadow-[#9cf822]/20 tracking-tight disabled:opacity-50 disabled:active:scale-100">
+                  {isUploadingImage ? 'Processing...' : 'Post update'}
                 </button>
               </div>
             </form>
@@ -601,7 +737,6 @@ export default function CommunityFeedPage() {
                         )}
                         <span className="text-[11px] text-zinc-500 font-normal mt-0.5 flex items-center gap-1">
                           {formatDistanceToNowShort(new Date(post.created_at))} <Globe size={10} />
-                          {isOfficial && <span className="ml-1 text-[#9cf822] font-bold uppercase tracking-widest text-[9px]"></span>}
                         </span>
                       </div>
                       
