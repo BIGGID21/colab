@@ -10,7 +10,7 @@ import {
   Home, Compass, PlusCircle, FolderClosed, Settings, User, 
   LogOut, TrendingUp, ChevronUp, Menu, X, ChevronLeft, ChevronRight,
   HelpCircle, FileText, Shield, Bell, Search, Palette, Sun, Moon, CreditCard,
-  Globe, BadgeCheck, Wallet, ArrowUpRight 
+  Globe, BadgeCheck, Wallet, ArrowUpRight, MessageSquare 
 } from 'lucide-react';
 import Modal from '@/components/Modal'; 
 import SearchModal from '@/components/SearchModal'; 
@@ -233,11 +233,13 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const isCommunityFeed = pathname === '/community';
   const isMessagesPage = pathname?.startsWith('/messages');
 
+  // UPDATED NAV ITEMS: Added Messages Link for Desktop
   const navItems = [
     { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true, tourClass: 'sidebar-home' }, 
     { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true, tourClass: 'sidebar-dashboard' },
     { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true, tourClass: 'sidebar-create' },
     { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true, tourClass: 'sidebar-community' },
+    { name: 'Messages', icon: MessageSquare, href: '/messages', showOnMobileBar: false, tourClass: 'sidebar-messages' }, // <-- NEW DESKTOP LINK
     { name: 'Wallet', icon: Wallet, href: '/wallet', showOnMobileBar: false, tourClass: 'sidebar-wallet' },
     { name: 'Notifications', icon: Bell, href: '/notifications', count: unreadNotifications, showOnMobileBar: true, tourClass: 'sidebar-notifications' },
     { name: 'Search', icon: Search, onClick: () => setActiveModal('search'), showOnMobileBar: false, tourClass: 'sidebar-search' },
@@ -269,6 +271,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
 
       {showSidebar && !isAppLoading && (
         <>
+          {/* UPDATED MOBILE TOPBAR: Added global Messages Icon */}
           {!isMessagesPage && (
             <div 
               className={`md:hidden flex items-center justify-between p-4 h-16 fixed top-0 w-full z-[100] transition-transform duration-300 ease-in-out
@@ -278,7 +281,11 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
               <BrandLogo isMobile />
               <div className="flex items-center gap-4 text-zinc-600 dark:text-zinc-300">
                 <button className="mobile-sidebar-search" onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
-                <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu"><Menu size={24} /></button>
+                {/* Global Messages Entry on Mobile */}
+                <Link href="/messages" className="relative p-1 -mr-1 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors" aria-label="Messages">
+                  <MessageSquare size={20} />
+                </Link>
+                <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu" className="ml-1"><Menu size={24} /></button>
               </div>
             </div>
           )}
@@ -305,7 +312,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
 
             <nav className="px-4 space-y-1 flex-grow">
               {navItems.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive = pathname === item.href || (item.name === 'Messages' && pathname?.startsWith('/messages'));
                 const handleNavClick = (e: React.MouseEvent) => {
                   if (item.name === 'Home' && isActive) {
                     e.preventDefault();
