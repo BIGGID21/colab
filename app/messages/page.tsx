@@ -20,6 +20,7 @@ function InboxContent() {
   const urlUserId = searchParams.get('u') || searchParams.get('compose');
 
   const [loading, setLoading] = useState(true);
+  const [isChatLoading, setIsChatLoading] = useState(false); // NEW: Localized loading state
   const [user, setUser] = useState<any>(null);
   
   // Chat State
@@ -125,7 +126,7 @@ function InboxContent() {
         }
       } else if (sortedContacts.length > 0 && typeof window !== 'undefined' && window.innerWidth > 768) {
         currentActiveUser = sortedContacts[0].user;
-        router.replace(`?u=${currentActiveUser.id}`, { scroll: false });
+        window.history.replaceState(null, '', `?u=${currentActiveUser.id}`);
       }
 
       // 3. Fetch Messages for the Resolved User
@@ -138,7 +139,7 @@ function InboxContent() {
     };
 
     initializeInbox();
-  }, [urlUserId]);
+  }, []); // UPDATED: Empty dependency array ensures this only runs on mount
 
   const fetchMessages = async (myId: string, targetId: string) => {
     const { data, error } = await supabase
@@ -161,6 +162,7 @@ function InboxContent() {
     
     scrollToBottom();
     setLoading(false);
+    setIsChatLoading(false); // Clear local loading state
   };
 
   useEffect(() => {
@@ -181,10 +183,21 @@ function InboxContent() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
-  const handleSelectContact = (contactUser: any) => {
+  // UPDATED: Completely handles routing via state and replaceState for zero-latency UI
+  const handleSelectContact = async (contactUser: any) => {
     if (activeChatUser?.id === contactUser.id) return; 
-    setLoading(true); 
-    router.push(`?u=${contactUser.id}`, { scroll: false });
+    
+    setActiveChatUser(contactUser);
+    setMessages([]); 
+    setIsChatLoading(true);
+    
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `?u=${contactUser.id}`);
+    }
+
+    if (user && contactUser.id) {
+      await fetchMessages(user.id, contactUser.id);
+    }
   };
 
   const scrollToBottom = () => {
@@ -377,7 +390,13 @@ function InboxContent() {
             {/* Active Chat Header */}
             <div className="w-full h-16 min-h-[64px] px-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-black/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
               <div className="flex items-center gap-4">
-                <button onClick={() => { setActiveChatUser(null); router.replace('/messages'); }} className="md:hidden p-2 -ml-2 text-black dark:text-white rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                <button 
+                  onClick={() => { 
+                    setActiveChatUser(null); 
+                    if (typeof window !== 'undefined') window.history.replaceState(null, '', '/messages');
+                  }} 
+                  className="md:hidden p-2 -ml-2 text-black dark:text-white rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+                >
                   <ArrowLeft size={20} />
                 </button>
                 <Link href={`/profile/${activeChatUser.id}`} className="flex items-center gap-3 group">
@@ -409,7 +428,11 @@ function InboxContent() {
                 backgroundRepeat: 'repeat',
               }}
             >
-              {messages.length === 0 ? (
+              {isChatLoading ? (
+                <div className="h-full flex items-center justify-center relative z-10">
+                  <Loader2 className="animate-spin text-[#9cf822] w-8 h-8" />
+                </div>
+              ) : messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center relative z-10">
                    <div className="w-16 h-16 rounded-full overflow-hidden mb-4 shadow-lg">
                       {activeChatUser.avatar_url ? <img src={activeChatUser.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-zinc-200" />}
