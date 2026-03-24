@@ -588,7 +588,7 @@ export default function CommunityFeedPage() {
                         )}
                         <span className="text-[11px] text-zinc-500 font-normal mt-0.5 flex items-center gap-1">
                           {formatDistanceToNowShort(new Date(post.created_at))} <Globe size={10} />
-                          {isOfficial && <span className="ml-1 text-[#9cf822] font-bold uppercase tracking-widest text-[9px]">Pinned</span>}
+                          {isOfficial && <span className="ml-1 text-[#9cf822] font-bold uppercase tracking-widest text-[9px]"></span>}
                         </span>
                       </div>
                       
