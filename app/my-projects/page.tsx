@@ -69,7 +69,9 @@ export default function DashboardPage() {
       setMyCollaborations(collabsData || []);
 
       if (typeof window !== 'undefined') {
-        const savedIds = JSON.parse(localStorage.getItem('savedProjects') || '[]');
+        // Scoped to the specific authenticated user
+        const userSavedKey = `savedProjects_${authUser.id}`;
+        const savedIds = JSON.parse(localStorage.getItem(userSavedKey) || '[]');
         if (savedIds.length > 0) {
           const { data: savedData } = await supabase.from('projects').select('*, profiles:user_id(full_name, avatar_url)').in('id', savedIds);
           setSavedProjects(savedData || []);
@@ -111,9 +113,40 @@ export default function DashboardPage() {
 
   useEffect(() => { fetchData(); }, [router, searchParams]);
 
+  // --- SKELETON LOADING STATE ---
   if (loading) return (
-    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
-      <div className="w-5 h-5 border-2 border-[#9cf822] border-t-transparent rounded-full animate-spin" />
+    <div className="min-h-screen bg-white dark:bg-black p-6 md:p-10 font-sans">
+      <div className="max-w-6xl mx-auto">
+        {/* Header Skeleton */}
+        <div className="flex justify-between items-center mb-10">
+          <div>
+            <div className="w-48 h-8 bg-zinc-200 dark:bg-zinc-900 rounded animate-pulse mb-2"></div>
+            <div className="w-32 h-4 bg-zinc-200 dark:bg-zinc-900 rounded animate-pulse"></div>
+          </div>
+          <div className="w-32 h-10 bg-zinc-200 dark:bg-zinc-900 rounded-lg animate-pulse"></div>
+        </div>
+        
+        {/* Stats Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-28 bg-zinc-200 dark:bg-zinc-900 rounded-2xl animate-pulse"></div>
+          ))}
+        </div>
+
+        {/* Tabs Skeleton */}
+        <div className="flex gap-8 border-b border-zinc-200 dark:border-zinc-900 mb-10 pb-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="w-24 h-6 bg-zinc-200 dark:bg-zinc-900 rounded animate-pulse"></div>
+          ))}
+        </div>
+
+        {/* Grid Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-[280px] bg-zinc-200 dark:bg-zinc-900 rounded-2xl animate-pulse"></div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 
