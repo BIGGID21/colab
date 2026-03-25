@@ -34,6 +34,7 @@ export default function DiscoverPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('For you');
   const [savedProjects, setSavedProjects] = useState<string[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,11 +46,18 @@ export default function DiscoverPage() {
   };
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setSavedProjects(JSON.parse(localStorage.getItem('savedProjects') || '[]'));
-    }
+    async function loadData() {
+      // 1. Get the current authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
 
-    async function fetchProjects() {
+      // 2. Fetch user-specific saved projects if they exist
+      if (user && typeof window !== 'undefined') {
+        const userSavedKey = `savedProjects_${user.id}`;
+        setSavedProjects(JSON.parse(localStorage.getItem(userSavedKey) || '[]'));
+      }
+
+      // 3. Fetch feed projects
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select(`*, profiles:user_id(full_name, avatar_url, role)`)
@@ -67,17 +75,27 @@ export default function DiscoverPage() {
       setLoading(false);
     }
     
-    fetchProjects();
+    loadData();
   }, [supabase]);
 
   const toggleSave = async (e: React.MouseEvent, project: any) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    if (!currentUser) {
+      alert("Please sign in to save projects.");
+      return;
+    }
+
     triggerHaptic(10);
     const isSaved = savedProjects.includes(project.id);
     const newSavedProjects = isSaved ? savedProjects.filter(id => id !== project.id) : [...savedProjects, project.id];
+    
     setSavedProjects(newSavedProjects);
-    localStorage.setItem('savedProjects', JSON.stringify(newSavedProjects));
+    
+    // Save to localStorage scoped to the specific user
+    const userSavedKey = `savedProjects_${currentUser.id}`;
+    localStorage.setItem(userSavedKey, JSON.stringify(newSavedProjects));
     
     // Update backend save count
     const newCount = isSaved ? Math.max(0, (project.save_count || 0) - 1) : (project.save_count || 0) + 1;
