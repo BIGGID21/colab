@@ -128,6 +128,9 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const [isMobileNavVisible, setIsMobileNavVisible] = useState(true);
   const lastScrollY = useRef(0);
   
+  // Unread Messages State
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -164,6 +167,50 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // --- REAL-TIME MESSAGING LISTENER ---
+  useEffect(() => {
+    if (!user) return;
+    let channel: any;
+
+    const fetchUnreadMessages = async () => {
+      // 1. Initial Load
+      const { count } = await supabase
+        .from('direct_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('receiver_id', user.id)
+        .eq('is_read', false);
+
+      setUnreadMessages(count || 0);
+
+      // 2. Real-time Subscription
+      channel = supabase.channel('global_unread_msgs')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `receiver_id=eq.${user.id}`
+        }, () => {
+          setUnreadMessages(prev => prev + 1);
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `receiver_id=eq.${user.id}`
+        }, () => {
+          // Fetch again to ensure accuracy if multiple messages are marked read
+          fetchUnreadMessages();
+        })
+        .subscribe();
+    };
+
+    fetchUnreadMessages();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [user, supabase]);
 
   // --- DYNAMIC TOUR LOGIC ---
   useEffect(() => {
@@ -233,13 +280,13 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const isCommunityFeed = pathname === '/community';
   const isMessagesPage = pathname?.startsWith('/messages');
 
-  // UPDATED NAV ITEMS: Added Messages Link for Desktop
+  // UPDATED NAV ITEMS: Added count listener for Messages
   const navItems = [
     { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true, tourClass: 'sidebar-home' }, 
     { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true, tourClass: 'sidebar-dashboard' },
     { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true, tourClass: 'sidebar-create' },
     { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true, tourClass: 'sidebar-community' },
-    { name: 'Messages', icon: MessageSquare, href: '/messages', showOnMobileBar: false, tourClass: 'sidebar-messages' }, // <-- NEW DESKTOP LINK
+    { name: 'Messages', icon: MessageSquare, href: '/messages', count: unreadMessages, showOnMobileBar: false, tourClass: 'sidebar-messages' },
     { name: 'Wallet', icon: Wallet, href: '/wallet', showOnMobileBar: false, tourClass: 'sidebar-wallet' },
     { name: 'Notifications', icon: Bell, href: '/notifications', count: unreadNotifications, showOnMobileBar: true, tourClass: 'sidebar-notifications' },
     { name: 'Search', icon: Search, onClick: () => setActiveModal('search'), showOnMobileBar: false, tourClass: 'sidebar-search' },
@@ -271,7 +318,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
 
       {showSidebar && !isAppLoading && (
         <>
-          {/* UPDATED MOBILE TOPBAR: Added global Messages Icon */}
+          {/* UPDATED MOBILE TOPBAR: Message icon with badge */}
           {!isMessagesPage && (
             <div 
               className={`md:hidden flex items-center justify-between p-4 h-16 fixed top-0 w-full z-[100] transition-transform duration-300 ease-in-out
@@ -281,9 +328,13 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
               <BrandLogo isMobile />
               <div className="flex items-center gap-4 text-zinc-600 dark:text-zinc-300">
                 <button className="mobile-sidebar-search" onClick={() => setActiveModal('search')} aria-label="Search"><Search size={20} /></button>
-                {/* Global Messages Entry on Mobile */}
                 <Link href="/messages" className="relative p-1 -mr-1 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors" aria-label="Messages">
                   <MessageSquare size={20} />
+                  {unreadMessages > 0 && (
+                    <span className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center bg-red-500 text-[9px] font-black text-white rounded-full border-2 border-white dark:border-black animate-in zoom-in translate-x-1 -translate-y-1">
+                      {unreadMessages > 9 ? '9+' : unreadMessages}
+                    </span>
+                  )}
                 </Link>
                 <button onClick={() => setIsMobileMenuOpen(true)} aria-label="Menu" className="ml-1"><Menu size={24} /></button>
               </div>
