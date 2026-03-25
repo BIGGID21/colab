@@ -14,6 +14,67 @@ import { formatDistanceToNow } from 'date-fns';
 // Custom WhatsApp-style collaboration doodle background
 const CHAT_WALLPAPER_SVG = `data:image/svg+xml,%3Csvg width='150' height='150' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='rgba(128,128,128,0.06)' stroke-width='2' fill='none' fill-rule='evenodd' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M25 25h10v10H25zM110 30c0-5.52 4.48-10 10-10s10 4.48 10 10-4.48 10-10 10-10-4.48-10-10zM30 110l10-10 10 10M115 110h-10v-10h10v10zm-15-5h-10m-5 0h-5m25-5v-10m0-5v-5M45 45l10-10 10 10m-10-10v20M95 95a15 15 0 1 0 0-30 15 15 0 0 0 0 30zM90 80h10M95 75v10M25 85a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM120 70l10-10 10 10M55 125v-10h10v10H55z'/%3E%3C/g%3E%3C/svg%3E`;
 
+// --- SKELETON LOADING COMPONENT ---
+function InboxSkeleton() {
+  return (
+    <div className="flex flex-col md:flex-row w-full h-screen bg-white dark:bg-black overflow-hidden font-sans">
+      {/* LEFT SIDEBAR SKELETON */}
+      <div className="w-full md:w-80 lg:w-[400px] flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black flex flex-col h-full">
+        <div className="px-4 py-3 shrink-0">
+          <div className="flex items-center justify-between mb-4 mt-2">
+            <div className="w-32 h-7 bg-zinc-200 dark:bg-zinc-900 rounded-md animate-pulse"></div>
+            <div className="w-16 h-6 bg-zinc-200 dark:bg-zinc-900 rounded-full animate-pulse"></div>
+          </div>
+          <div className="w-full h-10 bg-zinc-100 dark:bg-zinc-900 rounded-full animate-pulse"></div>
+        </div>
+        <div className="flex-1 overflow-y-auto mt-2">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="w-full px-4 py-3 flex items-start gap-3">
+              <div className="w-12 h-12 rounded-full bg-zinc-200 dark:bg-zinc-800 animate-pulse shrink-0"></div>
+              <div className="flex-1 space-y-2 mt-1">
+                <div className="flex justify-between">
+                   <div className="w-24 h-4 bg-zinc-200 dark:bg-zinc-900 rounded animate-pulse"></div>
+                   <div className="w-10 h-3 bg-zinc-200 dark:bg-zinc-900 rounded animate-pulse"></div>
+                </div>
+                <div className="w-3/4 h-3 bg-zinc-200 dark:bg-zinc-900 rounded animate-pulse"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* RIGHT PANEL SKELETON (Hidden on mobile by default) */}
+      <div className="hidden md:flex flex-col bg-zinc-50 dark:bg-[#0a0a0a] min-h-0 w-full h-full relative">
+        {/* Header */}
+        <div className="w-full h-16 min-h-[64px] px-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-800 animate-pulse"></div>
+            <div className="w-32 h-4 bg-zinc-200 dark:bg-zinc-900 rounded animate-pulse"></div>
+          </div>
+        </div>
+        
+        {/* Messages Body */}
+        <div className="flex-1 p-6 space-y-6">
+          <div className="flex justify-start">
+            <div className="w-64 h-16 bg-zinc-200 dark:bg-zinc-800 rounded-2xl rounded-bl-sm animate-pulse"></div>
+          </div>
+          <div className="flex justify-end">
+            <div className="w-48 h-12 bg-[#f0fdf4] dark:bg-[#9cf822]/10 rounded-2xl rounded-br-sm animate-pulse"></div>
+          </div>
+          <div className="flex justify-start">
+            <div className="w-40 h-10 bg-zinc-200 dark:bg-zinc-800 rounded-2xl rounded-bl-sm animate-pulse"></div>
+          </div>
+        </div>
+
+        {/* Input Area */}
+        <div className="w-full bg-white dark:bg-black border-t border-zinc-200 dark:border-zinc-800 shrink-0 p-3 pb-[calc(12px+env(safe-area-inset-bottom,0px))]">
+          <div className="w-full h-11 bg-zinc-100 dark:bg-zinc-900 rounded-[24px] animate-pulse"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InboxContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -139,7 +200,7 @@ function InboxContent() {
     };
 
     initializeInbox();
-  }, []); // UPDATED: Empty dependency array ensures this only runs on mount
+  }, []); // Empty dependency array ensures this only runs on mount
 
   const fetchMessages = async (myId: string, targetId: string) => {
     const { data, error } = await supabase
@@ -183,7 +244,7 @@ function InboxContent() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
-  // UPDATED: Completely handles routing via state and replaceState for zero-latency UI
+  // Completely handles routing via state and replaceState for zero-latency UI
   const handleSelectContact = async (contactUser: any) => {
     if (activeChatUser?.id === contactUser.id) return; 
     
@@ -298,7 +359,7 @@ function InboxContent() {
     setShowProModal(false);
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black"><Loader2 className="animate-spin text-[#9cf822]" /></div>;
+  if (loading) return <InboxSkeleton />;
 
   return (
     <div className="flex flex-col md:flex-row w-full h-screen bg-white dark:bg-black overflow-hidden font-sans">
@@ -598,7 +659,7 @@ function InboxContent() {
 
 export default function InboxPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-white dark:bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#9cf822]" /></div>}>
+    <Suspense fallback={<InboxSkeleton />}>
       <InboxContent />
     </Suspense>
   );
