@@ -7,29 +7,29 @@ import {
   Folder, Users, Plus, Activity, 
   ArrowRight, Settings, Image as ImageIcon,
   Bookmark, BadgeCheck, Zap, Eye, TrendingUp, X, PartyPopper, Sparkles,
-  LayoutGrid
+  MoreHorizontal, ChevronRight, Edit3, Compass
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { formatDistanceToNow } from 'date-fns';
 
-// Helper to generate consistent, vibrant SpaceWork-style gradients
-const getVibrantGradient = (id: string) => {
-  const gradients = [
-    'from-violet-500 via-purple-500 to-fuchsia-500',
-    'from-blue-500 via-cyan-400 to-teal-400',
-    'from-rose-400 via-fuchsia-500 to-indigo-500',
-    'from-amber-400 via-orange-500 to-rose-500',
-    'from-emerald-400 via-teal-500 to-cyan-500'
+// Authentic iOS Shortcuts Colors
+const getAppleColor = (id: string) => {
+  const colors = [
+    'bg-[#34C759]', // Green
+    'bg-[#007AFF]', // Blue
+    'bg-[#FF2D55]', // Pink
+    'bg-[#FF9500]', // Orange
+    'bg-[#5856D6]', // Purple
+    'bg-[#FFCC00]', // Yellow (Text needs to be carefully handled, but we'll use white with text-shadow)
   ];
   const charCodeSum = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return gradients[charCodeSum % gradients.length];
+  return colors[charCodeSum % colors.length];
 };
 
 export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'owned' | 'collaborations' | 'saved'>('owned');
   
   const [myProjects, setMyProjects] = useState<any[]>([]);
   const [myCollaborations, setMyCollaborations] = useState<any[]>([]);
@@ -112,319 +112,285 @@ export default function DashboardPage() {
   useEffect(() => { fetchData(); }, [router, searchParams]);
 
   if (loading) return (
-    <div className="min-h-screen bg-[#FDFDFD] dark:bg-[#0a0a0a] p-6 md:p-10 font-sans">
-      <div className="max-w-6xl mx-auto space-y-10">
-        <div className="flex justify-between items-center">
-          <div>
-            <div className="w-48 h-8 bg-zinc-200 dark:bg-zinc-900 rounded-lg animate-pulse mb-2"></div>
-            <div className="w-32 h-4 bg-zinc-200 dark:bg-zinc-900 rounded animate-pulse"></div>
-          </div>
-          <div className="w-32 h-10 bg-zinc-200 dark:bg-zinc-900 rounded-lg animate-pulse"></div>
+    <div className="min-h-screen bg-[#F2F2F7] dark:bg-black p-4 md:p-8 font-sans">
+      <div className="max-w-5xl mx-auto space-y-8">
+        <div className="w-48 h-10 bg-zinc-300 dark:bg-[#1C1C1E] rounded-xl animate-pulse"></div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <div key={i} className="aspect-[4/3] bg-zinc-300 dark:bg-[#1C1C1E] rounded-[24px] animate-pulse"></div>)}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2, 3].map(i => <div key={i} className="h-28 bg-zinc-200 dark:bg-zinc-900 rounded-[20px] animate-pulse"></div>)}
-        </div>
-        <div className="w-72 h-12 bg-zinc-200 dark:bg-zinc-900 rounded-xl animate-pulse"></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map(i => <div key={i} className="h-[280px] bg-zinc-200 dark:bg-zinc-900 rounded-3xl animate-pulse"></div>)}
-        </div>
+        <div className="w-32 h-8 bg-zinc-300 dark:bg-[#1C1C1E] rounded-lg animate-pulse mt-8"></div>
+        <div className="h-32 bg-zinc-300 dark:bg-[#1C1C1E] rounded-[24px] animate-pulse"></div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] dark:bg-[#0a0a0a] text-zinc-900 dark:text-white p-6 md:p-10 font-sans selection:bg-[#9cf822] selection:text-black transition-colors duration-500 relative">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-[#F2F2F7] dark:bg-black text-black dark:text-white p-4 md:p-8 font-sans selection:bg-[#007AFF] selection:text-white transition-colors duration-500 pb-24">
+      <div className="max-w-5xl mx-auto">
         
         {/* HEADER */}
-        <header className="mb-10 flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-[28px] font-bold tracking-tight text-black dark:text-white">My dashboard</h1>
-              {isVerified && <span className="text-[10px] font-bold bg-[#9cf822]/10 text-[#9cf822] px-2 py-0.5 rounded-full border border-[#9cf822]/20 tracking-widest translate-y-0.5">PRO</span>}
-            </div>
-            <p className="text-[15px] text-zinc-500 mt-1">Manage your work and insights.</p>
+        <header className="mb-6 flex items-center justify-between px-2">
+          <div className="flex items-center gap-2">
+            <h1 className="text-[28px] md:text-[34px] font-bold tracking-tight">Workspace</h1>
+            {isVerified && <BadgeCheck size={24} fill="#007AFF" className="text-white dark:text-black mt-1" />}
           </div>
-          <button 
-            onClick={() => router.push('/create')}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#9cf822] text-black rounded-xl text-sm font-bold shadow-[0_8px_20px_rgba(156,248,34,0.25)] hover:scale-105 transition-transform"
-          >
-            <Plus size={18} strokeWidth={2.5}/> <span className="hidden sm:inline">New project</span>
+          <button onClick={() => router.push('/create')} className="p-2 text-[#007AFF] hover:bg-[#007AFF]/10 rounded-full transition-colors">
+            <Plus size={28} />
           </button>
         </header>
 
-        {/* STATS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-          <StatCard title="Total projects" value={myProjects.length} />
-          <StatCard 
-            title="Profile views" 
-            value={isVerified ? totalViews : '—'} 
-            isPro={isVerified}
-            icon={isVerified ? <TrendingUp size={16} className="text-[#9cf822]"/> : null}
-            onClick={() => isVerified && setIsInsightsOpen(true)}
-            clickable={isVerified}
-          />
-          <StatCard title="Active collaborations" value={myCollaborations.filter(c => c.status === 'accepted').length} accent />
+        {/* QUICK ACTIONS (Modeled exactly like Shortcuts top grid) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+          <button onClick={() => router.push('/create')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#34C759] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm">
+            <div className="flex justify-between items-start w-full">
+               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                 <Plus size={18} strokeWidth={3} />
+               </div>
+               <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                 <MoreHorizontal size={14} />
+               </div>
+            </div>
+            <span className="font-bold text-[16px] leading-tight">New<br/>Project</span>
+          </button>
+
+          <button onClick={() => router.push('/discover')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#007AFF] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm">
+            <div className="flex justify-between items-start w-full">
+               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                 <Compass size={18} strokeWidth={2.5} />
+               </div>
+               <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                 <MoreHorizontal size={14} />
+               </div>
+            </div>
+            <span className="font-bold text-[16px] leading-tight">Browse<br/>Briefs</span>
+          </button>
+
+          <button onClick={() => router.push('/community')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#FF2D55] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm">
+            <div className="flex justify-between items-start w-full">
+               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                 <Users size={18} strokeWidth={2.5} />
+               </div>
+               <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                 <MoreHorizontal size={14} />
+               </div>
+            </div>
+            <span className="font-bold text-[16px] leading-tight">Find<br/>Teammates</span>
+          </button>
+
+          <button onClick={() => isVerified && setIsInsightsOpen(true)} className={`relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#FF9500] overflow-hidden group transition-opacity text-left shadow-sm ${!isVerified ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}>
+            <div className="flex justify-between items-start w-full">
+               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                 <TrendingUp size={18} strokeWidth={2.5} />
+               </div>
+               <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                 <MoreHorizontal size={14} />
+               </div>
+            </div>
+            <span className="font-bold text-[16px] leading-tight drop-shadow-sm">{totalViews}<br/>Profile Views</span>
+          </button>
         </div>
 
-        {/* RECENT VIEWERS (Only visible to PRO) */}
-        {isVerified && viewers.length > 0 && (
-          <section className="mb-12 animate-in fade-in slide-in-from-bottom-2 duration-1000">
-            <div className="flex items-center justify-between mb-4 px-1">
-              <h2 className="text-sm font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider flex items-center gap-2">
-                Recent Viewers <Zap size={14} className="text-[#9cf822] fill-[#9cf822]"/>
-              </h2>
-            </div>
-            <div className="bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800/80 rounded-[20px] shadow-sm overflow-hidden">
-                <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
-                  {viewers.slice(0, 3).map((v, i) => (
-                    <div 
-                      key={i} 
-                      onClick={() => router.push(`/profile/${v.viewer?.id}`)}
-                      className="flex items-center justify-between p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <img src={v.viewer?.avatar_url || `https://ui-avatars.com/api/?name=${v.viewer?.full_name}`} className="w-10 h-10 rounded-full object-cover border border-zinc-200 dark:border-zinc-800" />
-                        <div>
-                          <p className="text-[15px] font-bold text-zinc-900 dark:text-white group-hover:text-[#9cf822] transition-colors">{v.viewer?.full_name}</p>
-                          <p className="text-xs text-zinc-500">{v.viewer?.role || 'Creator'}</p>
-                        </div>
-                      </div>
-                      <ArrowRight size={16} className="text-zinc-300 dark:text-zinc-700 group-hover:text-zinc-400 transition-all transform group-hover:translate-x-1" />
+        {/* SECTION: MY PROJECTS */}
+        <div className="mb-8">
+          <div className="flex items-center gap-1 px-2 mb-3 cursor-pointer group w-max">
+            <Folder size={20} className="text-black dark:text-white group-hover:text-[#007AFF] transition-colors" fill="currentColor" />
+            <h2 className="text-[20px] font-bold text-black dark:text-white group-hover:text-[#007AFF] transition-colors flex items-center">
+              Owned <ChevronRight size={20} className="text-zinc-400 group-hover:text-[#007AFF] ml-0.5" />
+            </h2>
+          </div>
+          
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] p-4 shadow-sm">
+            {myProjects.length === 0 ? (
+              <div className="py-8 text-center text-zinc-500 font-medium">No projects yet.</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {myProjects.map(p => (
+                  <button 
+                    key={p.id} 
+                    onClick={() => router.push(`/studio/${p.id}`)}
+                    className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
+                  >
+                    {/* Background Image if exists */}
+                    {(p.cover_image_url || p.image_url) && (
+                      <>
+                        <img src={p.cover_image_url || p.image_url} className="absolute inset-0 w-full h-full object-cover z-0" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-0" />
+                      </>
+                    )}
+                    
+                    <div className="flex justify-between items-start w-full relative z-10">
+                       <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                         <Edit3 size={14} strokeWidth={2.5} />
+                       </div>
+                       <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md hover:bg-white/40 transition-colors" onClick={(e) => { e.stopPropagation(); router.push(`/project/${p.id}`); }}>
+                         <Eye size={12} />
+                       </div>
                     </div>
-                  ))}
-                </div>
-            </div>
-          </section>
-        )}
-
-        {/* SPACEWORK STYLE SEGMENTED PILLS */}
-        <div className="flex items-center justify-between mb-8 mt-4">
-          <div className="flex items-center p-1.5 bg-zinc-100 dark:bg-zinc-900/60 rounded-xl overflow-x-auto no-scrollbar">
-            {[
-              { id: 'owned', label: 'By me', count: myProjects.length },
-              { id: 'collaborations', label: 'Collaborations', count: myCollaborations.length },
-              { id: 'saved', label: 'Saved', count: savedProjects.length }
-            ].map((tab) => (
-              <button 
-                key={tab.id} 
-                onClick={() => setActiveTab(tab.id as any)} 
-                className={`px-5 py-2 text-[14px] font-bold rounded-lg transition-all whitespace-nowrap flex items-center gap-2
-                  ${activeTab === tab.id 
-                    ? 'bg-white text-black dark:bg-[#1f1f1f] dark:text-white shadow-[0_2px_10px_rgba(0,0,0,0.04)]' 
-                    : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
-              >
-                {tab.label}
-              </button>
-            ))}
+                    <span className="font-bold text-[14px] leading-tight relative z-10 drop-shadow-md line-clamp-2">{p.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* CONTENT GRID - SPACEWORK CARD STYLE */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 gap-y-10 pb-20">
+        {/* SECTION: COLLABORATIONS */}
+        <div className="mb-8">
+          <div className="flex items-center gap-1 px-2 mb-3 cursor-pointer group w-max">
+            <Users size={20} className="text-black dark:text-white group-hover:text-[#007AFF] transition-colors" fill="currentColor" />
+            <h2 className="text-[20px] font-bold text-black dark:text-white group-hover:text-[#007AFF] transition-colors flex items-center">
+              Collaborations <ChevronRight size={20} className="text-zinc-400 group-hover:text-[#007AFF] ml-0.5" />
+            </h2>
+          </div>
           
-          {/* TAB: OWNED PROJECTS */}
-          {activeTab === 'owned' && myProjects.length === 0 && (
-            <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-4">
-                <Folder size={28} className="text-zinc-400" />
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] p-4 shadow-sm">
+            {myCollaborations.length === 0 ? (
+              <div className="py-8 text-center text-zinc-500 font-medium">No active collaborations.</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {myCollaborations.map(c => {
+                  const p = c.projects;
+                  if (!p) return null;
+                  return (
+                    <button 
+                      key={c.id} 
+                      onClick={() => router.push(`/project/${p.id}`)}
+                      className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
+                    >
+                      {(p.cover_image_url || p.image_url) && (
+                        <>
+                          <img src={p.cover_image_url || p.image_url} className="absolute inset-0 w-full h-full object-cover z-0" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-0" />
+                        </>
+                      )}
+                      
+                      <div className="flex justify-between items-start w-full relative z-10">
+                         <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                           <Users size={14} strokeWidth={2.5} />
+                         </div>
+                         <div className={`px-2 py-0.5 rounded-full backdrop-blur-md text-[9px] font-bold uppercase tracking-wider ${c.status === 'accepted' ? 'bg-[#34C759]/80' : c.status === 'rejected' ? 'bg-[#FF2D55]/80' : 'bg-[#FF9500]/80'}`}>
+                           {c.status}
+                         </div>
+                      </div>
+                      <div className="relative z-10 drop-shadow-md">
+                        <span className="font-bold text-[14px] leading-tight line-clamp-2">{p.title}</span>
+                        <span className="text-[10px] text-white/80 capitalize line-clamp-1">{c.role}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <h3 className="text-lg font-bold text-black dark:text-white mb-1">Create your first project</h3>
-              <p className="text-sm text-zinc-500 mb-6 max-w-sm">Bring your ideas to life and start collaborating.</p>
-              <button onClick={() => router.push('/create')} className="px-5 py-2.5 bg-black dark:bg-white text-white dark:text-black rounded-xl text-sm font-bold hover:scale-105 transition-transform shadow-lg">
-                Start Building
-              </button>
-            </div>
-          )}
-          {activeTab === 'owned' && myProjects.map(p => (
-            <div key={p.id} className="group cursor-pointer flex flex-col">
-              {/* Card Thumbnail */}
-              <div className={`aspect-[16/10] rounded-[24px] overflow-hidden relative shadow-sm group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)] transition-all duration-300 bg-gradient-to-br ${getVibrantGradient(p.id)}`}>
-                {p.cover_image_url || p.image_url ? (
-                  <img src={p.cover_image_url || p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-                    <span className="text-white/90 font-black text-2xl tracking-tight leading-tight mix-blend-overlay drop-shadow-sm">{p.title}</span>
-                  </div>
-                )}
-                
-                {/* Hover Actions Overlay */}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3 backdrop-blur-[2px]">
-                   <button onClick={(e) => { e.stopPropagation(); router.push(`/studio/${p.id}`); }} className="px-5 py-2.5 bg-white text-black text-sm font-bold rounded-full hover:scale-105 transition-transform shadow-xl">Manage</button>
-                   <button onClick={(e) => { e.stopPropagation(); router.push(`/project/${p.id}`); }} className="p-2.5 bg-black/60 text-white rounded-full hover:bg-black transition-colors shadow-xl backdrop-blur-md"><Eye size={18}/></button>
-                </div>
-              </div>
-              
-              {/* Card Metadata Below */}
-              <div className="pt-4 px-1">
-                <h3 className="font-bold text-[17px] text-black dark:text-white leading-tight mb-1 truncate group-hover:text-[#9cf822] transition-colors">{p.title}</h3>
-                <p className="text-[13px] text-zinc-500 font-medium">Updated {formatDistanceToNow(new Date(p.created_at))} ago</p>
-              </div>
-            </div>
-          ))}
+            )}
+          </div>
+        </div>
 
-          {/* TAB: COLLABORATIONS */}
-          {activeTab === 'collaborations' && myCollaborations.length === 0 && (
-            <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-4">
-                <Users size={28} className="text-zinc-400" />
-              </div>
-              <h3 className="text-lg font-bold text-black dark:text-white mb-1">No active collaborations</h3>
-              <p className="text-sm text-zinc-500 mb-6 max-w-sm">Apply for projects on the Discover page to join a team.</p>
-              <button onClick={() => router.push('/discover')} className="px-5 py-2.5 bg-black dark:bg-white text-white dark:text-black rounded-xl text-sm font-bold hover:scale-105 transition-transform shadow-lg">
-                Browse Projects
-              </button>
-            </div>
-          )}
-          {activeTab === 'collaborations' && myCollaborations.map(c => {
-            const p = c.projects;
-            if (!p) return null;
-            return (
-              <div key={c.id} onClick={() => router.push(`/project/${p.id}`)} className="group cursor-pointer flex flex-col">
-                <div className={`aspect-[16/10] rounded-[24px] overflow-hidden relative shadow-sm group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)] transition-all duration-300 bg-gradient-to-br ${getVibrantGradient(p.id)}`}>
-                  {p.cover_image_url || p.image_url ? (
-                    <img src={p.cover_image_url || p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-                      <span className="text-white/90 font-black text-2xl tracking-tight leading-tight mix-blend-overlay drop-shadow-sm">{p.title}</span>
+        {/* SECTION: SAVED */}
+        <div className="mb-8">
+          <div className="flex items-center gap-1 px-2 mb-3 cursor-pointer group w-max">
+            <Bookmark size={20} className="text-black dark:text-white group-hover:text-[#007AFF] transition-colors" fill="currentColor" />
+            <h2 className="text-[20px] font-bold text-black dark:text-white group-hover:text-[#007AFF] transition-colors flex items-center">
+              Saved <ChevronRight size={20} className="text-zinc-400 group-hover:text-[#007AFF] ml-0.5" />
+            </h2>
+          </div>
+          
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] p-4 shadow-sm">
+            {savedProjects.length === 0 ? (
+              <div className="py-8 text-center text-zinc-500 font-medium">No saved projects yet.</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {savedProjects.map(p => (
+                  <button 
+                    key={p.id} 
+                    onClick={() => router.push(`/project/${p.id}`)}
+                    className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
+                  >
+                    {(p.cover_image_url || p.image_url) && (
+                      <>
+                        <img src={p.cover_image_url || p.image_url} className="absolute inset-0 w-full h-full object-cover z-0" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-0" />
+                      </>
+                    )}
+                    
+                    <div className="flex justify-between items-start w-full relative z-10">
+                       <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
+                         <Bookmark size={14} fill="currentColor" />
+                       </div>
+                       <img src={p.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${p.profiles?.full_name || 'User'}`} className="w-6 h-6 rounded-full border border-white/20 object-cover" />
                     </div>
-                  )}
-                  
-                  {/* Status Badge */}
-                  <div className="absolute top-4 right-4 px-3 py-1.5 bg-black/50 backdrop-blur-md rounded-full shadow-lg">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${c.status === 'accepted' ? 'text-[#9cf822]' : c.status === 'rejected' ? 'text-rose-400' : 'text-amber-400'}`}>
-                      {c.status}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="pt-4 px-1">
-                  <h3 className="font-bold text-[17px] text-black dark:text-white leading-tight mb-1 truncate group-hover:text-[#9cf822] transition-colors">{p.title}</h3>
-                  <p className="text-[13px] text-zinc-500 font-medium capitalize">
-                    Role: <span className="text-black dark:text-white">{c.role}</span>
-                  </p>
-                </div>
+                    <span className="font-bold text-[14px] leading-tight relative z-10 drop-shadow-md line-clamp-2">{p.title}</span>
+                  </button>
+                ))}
               </div>
-            );
-          })}
+            )}
+          </div>
+        </div>
 
-          {/* TAB: SAVED PROJECTS */}
-          {activeTab === 'saved' && savedProjects.length === 0 && (
-            <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-4">
-                <Bookmark size={28} className="text-zinc-400" />
-              </div>
-              <h3 className="text-lg font-bold text-black dark:text-white mb-1">No saved projects</h3>
-              <p className="text-sm text-zinc-500 mb-6 max-w-sm">Hit the bookmark icon on the Discover page to save projects for later.</p>
-              <button onClick={() => router.push('/discover')} className="px-5 py-2.5 bg-black dark:bg-white text-white dark:text-black rounded-xl text-sm font-bold hover:scale-105 transition-transform shadow-lg">
-                Explore Discover
-              </button>
-            </div>
-          )}
-          {activeTab === 'saved' && savedProjects.map(p => (
-            <div key={p.id} onClick={() => router.push(`/project/${p.id}`)} className="group cursor-pointer flex flex-col">
-              <div className={`aspect-[16/10] rounded-[24px] overflow-hidden relative shadow-sm group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)] transition-all duration-300 bg-gradient-to-br ${getVibrantGradient(p.id)}`}>
-                {p.cover_image_url || p.image_url ? (
-                  <img src={p.cover_image_url || p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-                    <span className="text-white/90 font-black text-2xl tracking-tight leading-tight mix-blend-overlay drop-shadow-sm">{p.title}</span>
-                  </div>
-                )}
-                
-                {/* Active Bookmark Badge */}
-                <div className="absolute top-4 right-4 p-2.5 bg-black/60 backdrop-blur-md rounded-full text-white shadow-xl hover:scale-110 transition-transform">
-                   <Bookmark size={16} fill="currentColor" className="text-[#9cf822]" />
-                </div>
-              </div>
-              
-              <div className="pt-4 px-1 flex items-start justify-between">
-                <div className="min-w-0 flex-1 pr-4">
-                  <h3 className="font-bold text-[17px] text-black dark:text-white leading-tight mb-1.5 truncate group-hover:text-[#9cf822] transition-colors">{p.title}</h3>
-                  <div className="flex items-center gap-2">
-                     <img src={p.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${p.profiles?.full_name || 'User'}&background=random`} className="w-5 h-5 rounded-full object-cover border border-zinc-200 dark:border-zinc-700" />
-                     <span className="text-[12px] font-medium text-zinc-500 truncate">{p.profiles?.full_name || 'Creator'}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-
-        </section>
       </div>
 
       {/* --- WELCOME TO PRO CELEBRATION MODAL --- */}
       {showWelcome && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-[#0a0a0a] border-2 border-[#9cf822] rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-[0_0_50px_-12px_rgba(156,248,34,0.5)] relative overflow-hidden">
-            <button onClick={() => setShowWelcome(false)} className="absolute top-6 right-6 text-zinc-400 hover:text-black dark:hover:text-white transition-colors">
-              <X size={20} />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[32px] p-8 max-w-sm w-full text-center relative overflow-hidden shadow-2xl">
+            <button onClick={() => setShowWelcome(false)} className="absolute top-6 right-6 text-zinc-400 hover:text-black dark:hover:text-white transition-colors bg-zinc-100 dark:bg-zinc-800 p-2 rounded-full">
+              <X size={16} strokeWidth={3} />
             </button>
-            <div className="mb-6 inline-flex p-4 bg-[#9cf822]/20 rounded-full text-[#9cf822] animate-bounce">
+            <div className="mb-6 inline-flex p-4 bg-[#007AFF] rounded-full text-white shadow-lg shadow-[#007AFF]/30">
               <BadgeCheck size={40} />
             </div>
-            <h2 className="text-3xl font-black mb-2 flex items-center justify-center gap-2">
-              You're PRO! <Sparkles className="text-[#9cf822]" size={24} />
+            <h2 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2 text-black dark:text-white">
+              You're PRO
             </h2>
             <p className="text-zinc-500 dark:text-zinc-400 mb-8 font-medium leading-relaxed">
               Welcome to the inner circle. Your badge is live, your search ranking is boosted, and the creative world is watching.
             </p>
             <button 
               onClick={() => setShowWelcome(false)}
-              className="w-full py-4 bg-[#9cf822] text-black font-black rounded-2xl hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+              className="w-full py-4 bg-[#007AFF] text-white font-bold rounded-2xl hover:bg-[#007AFF]/90 transition-colors flex items-center justify-center gap-2 text-lg"
             >
-              <PartyPopper size={20} /> Let's Go!
+              Let's Go
             </button>
           </div>
         </div>
       )}
 
-      {/* INSIGHTS MODAL */}
+      {/* INSIGHTS MODAL (iOS Style Modal) */}
       {isInsightsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#111] w-full max-w-sm rounded-[24px] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
-              <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Analytics</h3>
-              <button onClick={() => setIsInsightsOpen(false)} className="text-zinc-400 hover:text-black dark:hover:text-white transition-colors"><X size={18} /></button>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#F2F2F7] dark:bg-[#1C1C1E] w-full max-w-sm rounded-t-[32px] sm:rounded-[32px] overflow-hidden animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0 shadow-2xl">
+            <div className="p-4 flex justify-between items-center bg-white dark:bg-[#1C1C1E] border-b border-zinc-200 dark:border-zinc-800">
+              <button onClick={() => setIsInsightsOpen(false)} className="text-[#007AFF] font-medium px-2">Close</button>
+              <h3 className="font-bold text-black dark:text-white">Insights</h3>
+              <div className="w-12"></div> {/* Spacer for centering */}
             </div>
-            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
-              <div className="p-5 bg-[#9cf822]/5 rounded-2xl border border-[#9cf822]/10 mb-4">
-                <p className="text-[10px] font-semibold text-[#9cf822] uppercase tracking-wider mb-1">Total Profile Views</p>
-                <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100">{totalViews}</p>
+            
+            <div className="p-4 max-h-[70vh] overflow-y-auto">
+              <div className="bg-white dark:bg-black rounded-[20px] p-4 mb-4 text-center">
+                <p className="text-[13px] font-medium text-zinc-500 uppercase tracking-widest mb-1">Profile Views</p>
+                <p className="text-4xl font-bold text-black dark:text-white">{totalViews}</p>
               </div>
-              <div className="space-y-3">
-                {viewers.map((v, i) => (
-                  <div key={i} className="flex items-center gap-3 p-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-colors">
-                    <img src={v.viewer?.avatar_url || `https://ui-avatars.com/api/?name=${v.viewer?.full_name}`} className="w-9 h-9 rounded-full border border-zinc-100 dark:border-zinc-800" />
-                    <div className="flex-grow">
-                      <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{v.viewer?.full_name}</p>
-                      <p className="text-[10px] text-zinc-500 font-medium lowercase tracking-tight">{v.viewer?.role || 'Creator'}</p>
+
+              <div className="bg-white dark:bg-black rounded-[20px] overflow-hidden">
+                <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50 dark:bg-black">
+                   <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Recent Viewers</p>
+                </div>
+                <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
+                  {viewers.length > 0 ? viewers.map((v, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors">
+                      <img src={v.viewer?.avatar_url || `https://ui-avatars.com/api/?name=${v.viewer?.full_name}`} className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 object-cover" />
+                      <div className="flex-grow">
+                        <p className="text-[15px] font-semibold text-black dark:text-white leading-tight">{v.viewer?.full_name}</p>
+                        <p className="text-[13px] text-zinc-500 leading-tight">{v.viewer?.role || 'Creator'}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )) : (
+                    <div className="p-6 text-center text-sm text-zinc-500">No recent activity.</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// SPACEWORK STYLE STAT CARD
-function StatCard({ title, value, accent, isPro, icon, onClick, clickable }: any) {
-  return (
-    <div 
-      onClick={onClick}
-      className={`p-6 bg-white dark:bg-[#111] rounded-[20px] transition-all border
-        ${accent ? 'border-[#9cf822]/30 shadow-[0_4px_20px_rgba(156,248,34,0.08)]' : 'border-zinc-200 dark:border-zinc-800/80 shadow-sm'}
-        ${clickable ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : ''}`}
-    >
-      <div className="flex justify-between items-start mb-2">
-        <p className="text-zinc-400 dark:text-zinc-500 text-[11px] font-bold uppercase tracking-widest">{title}</p>
-        {icon}
-      </div>
-      <p className={`text-[32px] font-black tracking-tight ${accent ? 'text-[#9cf822]' : 'text-zinc-900 dark:text-white'}`}>{value}</p>
     </div>
   );
 }
