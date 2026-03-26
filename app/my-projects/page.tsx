@@ -113,20 +113,20 @@ export default function DashboardPage() {
   useEffect(() => { fetchData(); }, [router, searchParams]);
 
   if (loading) return (
-    <div className="min-h-screen bg-[#F2F2F7] dark:bg-black p-4 md:p-8 font-sans">
+    <div className="min-h-screen bg-white dark:bg-black p-4 md:p-8 font-sans">
       <div className="max-w-5xl mx-auto space-y-8">
-        <div className="w-48 h-10 bg-zinc-300 dark:bg-[#1C1C1E] rounded-xl animate-pulse"></div>
+        <div className="w-48 h-10 bg-zinc-100 dark:bg-[#1C1C1E] rounded-xl animate-pulse"></div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <div key={i} className="aspect-[4/3] bg-zinc-300 dark:bg-[#1C1C1E] rounded-[24px] animate-pulse"></div>)}
+          {[1, 2, 3, 4].map(i => <div key={i} className="aspect-[4/3] bg-zinc-100 dark:bg-[#1C1C1E] rounded-[24px] animate-pulse"></div>)}
         </div>
-        <div className="w-32 h-8 bg-zinc-300 dark:bg-[#1C1C1E] rounded-lg animate-pulse mt-8"></div>
-        <div className="h-32 bg-zinc-300 dark:bg-[#1C1C1E] rounded-[24px] animate-pulse"></div>
+        <div className="w-32 h-8 bg-zinc-100 dark:bg-[#1C1C1E] rounded-lg animate-pulse mt-8"></div>
+        <div className="h-32 bg-zinc-100 dark:bg-[#1C1C1E] rounded-[24px] animate-pulse"></div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F2F2F7] dark:bg-black text-black dark:text-white p-4 md:p-8 font-sans selection:bg-[#007AFF] selection:text-white transition-colors duration-500 pb-24">
+    <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white p-4 md:p-8 font-sans selection:bg-[#007AFF] selection:text-white transition-colors duration-500 pb-24">
       <div className="max-w-5xl mx-auto">
         
         {/* HEADER */}
@@ -142,7 +142,7 @@ export default function DashboardPage() {
 
         {/* QUICK ACTIONS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-          <button onClick={() => router.push('/create')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#34C759] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm">
+          <button onClick={() => router.push('/create')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#34C759] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm border border-transparent dark:border-white/5">
             {/* Background Watermark */}
             <FolderPlus size={110} strokeWidth={1} className="absolute -bottom-6 -right-6 text-white/20 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 pointer-events-none" />
             
@@ -154,10 +154,10 @@ export default function DashboardPage() {
                  <MoreHorizontal size={14} />
                </div>
             </div>
-            <span className="font-bold text-[16px] leading-tight relative z-10">New<br/>Project</span>
+            <span className="font-bold text-[16px] leading-tight relative z-10 drop-shadow-sm">New<br/>Project</span>
           </button>
 
-          <button onClick={() => router.push('/discover')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#007AFF] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm">
+          <button onClick={() => router.push('/discover')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#007AFF] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm border border-transparent dark:border-white/5">
             {/* Background Watermark */}
             <Telescope size={110} strokeWidth={1} className="absolute -bottom-6 -right-4 text-white/20 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 pointer-events-none" />
             
@@ -169,10 +169,10 @@ export default function DashboardPage() {
                  <MoreHorizontal size={14} />
                </div>
             </div>
-            <span className="font-bold text-[16px] leading-tight relative z-10">Browse<br/>Briefs</span>
+            <span className="font-bold text-[16px] leading-tight relative z-10 drop-shadow-sm">Browse<br/>Briefs</span>
           </button>
 
-          <button onClick={() => router.push('/community')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#FF2D55] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm">
+          <button onClick={() => router.push('/community')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#FF2D55] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm border border-transparent dark:border-white/5">
             {/* Background Watermark */}
             <UsersRound size={110} strokeWidth={1} className="absolute -bottom-6 -right-6 text-white/20 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 pointer-events-none" />
             
@@ -184,22 +184,24 @@ export default function DashboardPage() {
                  <MoreHorizontal size={14} />
                </div>
             </div>
-            <span className="font-bold text-[16px] leading-tight relative z-10">Find<br/>Teammates</span>
+            <span className="font-bold text-[16px] leading-tight relative z-10 drop-shadow-sm">Find<br/>Teammates</span>
           </button>
 
-          <button onClick={() => isVerified && setIsInsightsOpen(true)} className={`relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between overflow-hidden group transition-opacity text-left shadow-sm ${!isVerified ? 'bg-zinc-300 dark:bg-zinc-800 cursor-not-allowed' : 'bg-[#FF9500] hover:opacity-90'}`}>
+          <button onClick={() => isVerified && setIsInsightsOpen(true)} className={`relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between overflow-hidden group transition-opacity text-left shadow-sm border border-transparent dark:border-white/5 ${!isVerified ? 'bg-zinc-200 dark:bg-zinc-800 cursor-not-allowed' : 'bg-[#FF9500] hover:opacity-90'}`}>
             {/* Background Watermark */}
             <LineChart size={110} strokeWidth={1} className="absolute -bottom-6 -right-4 text-white/20 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 pointer-events-none" />
             
             <div className="flex justify-between items-start w-full relative z-10">
-               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
-                 <TrendingUp size={18} strokeWidth={2.5} />
+               <div className="w-8 h-8 rounded-full bg-black/10 dark:bg-white/20 flex items-center justify-center backdrop-blur-md">
+                 <TrendingUp size={18} strokeWidth={2.5} className={!isVerified ? 'text-zinc-400 dark:text-zinc-500' : 'text-white'} />
                </div>
-               <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
-                 <MoreHorizontal size={14} />
+               <div className="w-6 h-6 rounded-full bg-black/10 dark:bg-white/20 flex items-center justify-center backdrop-blur-md">
+                 <MoreHorizontal size={14} className={!isVerified ? 'text-zinc-400 dark:text-zinc-500' : 'text-white'} />
                </div>
             </div>
-            <span className="font-bold text-[16px] leading-tight relative z-10 drop-shadow-sm">{!isVerified ? 'PRO Only' : totalViews}<br/>Profile Views</span>
+            <span className={`font-bold text-[16px] leading-tight relative z-10 drop-shadow-sm ${!isVerified ? 'text-zinc-400 dark:text-zinc-500 drop-shadow-none' : 'text-white'}`}>
+              {!isVerified ? 'PRO Only' : totalViews}<br/>Profile Views
+            </span>
           </button>
         </div>
 
@@ -212,7 +214,7 @@ export default function DashboardPage() {
             </h2>
           </div>
           
-          <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] p-4 shadow-sm">
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] p-4 shadow-sm border border-zinc-100 dark:border-transparent">
             {myProjects.length === 0 ? (
               <div className="py-8 text-center text-zinc-500 font-medium">No projects yet.</div>
             ) : (
@@ -221,7 +223,7 @@ export default function DashboardPage() {
                   <button 
                     key={p.id} 
                     onClick={() => router.push(`/studio/${p.id}`)}
-                    className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
+                    className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform shadow-sm border border-transparent dark:border-white/5 ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
                   >
                     {/* Background Content */}
                     {(p.cover_image_url || p.image_url) ? (
@@ -258,7 +260,7 @@ export default function DashboardPage() {
             </h2>
           </div>
           
-          <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] p-4 shadow-sm">
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] p-4 shadow-sm border border-zinc-100 dark:border-transparent">
             {myCollaborations.length === 0 ? (
               <div className="py-8 text-center text-zinc-500 font-medium">No active collaborations.</div>
             ) : (
@@ -270,7 +272,7 @@ export default function DashboardPage() {
                     <button 
                       key={c.id} 
                       onClick={() => router.push(`/project/${p.id}`)}
-                      className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
+                      className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform shadow-sm border border-transparent dark:border-white/5 ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
                     >
                       {/* Background Content */}
                       {(p.cover_image_url || p.image_url) ? (
@@ -311,7 +313,7 @@ export default function DashboardPage() {
             </h2>
           </div>
           
-          <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] p-4 shadow-sm">
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[24px] p-4 shadow-sm border border-zinc-100 dark:border-transparent">
             {savedProjects.length === 0 ? (
               <div className="py-8 text-center text-zinc-500 font-medium">No saved projects yet.</div>
             ) : (
@@ -320,7 +322,7 @@ export default function DashboardPage() {
                   <button 
                     key={p.id} 
                     onClick={() => router.push(`/project/${p.id}`)}
-                    className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
+                    className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform shadow-sm border border-transparent dark:border-white/5 ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
                   >
                     {/* Background Content */}
                     {(p.cover_image_url || p.image_url) ? (
@@ -377,26 +379,26 @@ export default function DashboardPage() {
       {/* INSIGHTS MODAL (iOS Style Modal) */}
       {isInsightsOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#F2F2F7] dark:bg-[#1C1C1E] w-full max-w-sm rounded-t-[32px] sm:rounded-[32px] overflow-hidden animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0 shadow-2xl">
-            <div className="p-4 flex justify-between items-center bg-white dark:bg-[#1C1C1E] border-b border-zinc-200 dark:border-zinc-800">
+          <div className="bg-white dark:bg-[#1C1C1E] w-full max-w-sm rounded-t-[32px] sm:rounded-[32px] overflow-hidden animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0 shadow-2xl border border-zinc-100 dark:border-transparent">
+            <div className="p-4 flex justify-between items-center bg-white dark:bg-[#1C1C1E] border-b border-zinc-100 dark:border-zinc-800">
               <button onClick={() => setIsInsightsOpen(false)} className="text-[#007AFF] font-medium px-2">Close</button>
               <h3 className="font-bold text-black dark:text-white">Insights</h3>
               <div className="w-12"></div>
             </div>
             
             <div className="p-4 max-h-[70vh] overflow-y-auto">
-              <div className="bg-white dark:bg-black rounded-[20px] p-4 mb-4 text-center">
+              <div className="bg-zinc-50 dark:bg-black rounded-[20px] p-4 mb-4 text-center">
                 <p className="text-[13px] font-medium text-zinc-500 uppercase tracking-widest mb-1">Profile Views</p>
                 <p className="text-4xl font-bold text-black dark:text-white">{totalViews}</p>
               </div>
 
-              <div className="bg-white dark:bg-black rounded-[20px] overflow-hidden">
-                <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50 dark:bg-black">
+              <div className="bg-zinc-50 dark:bg-black rounded-[20px] overflow-hidden">
+                <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800/50 bg-zinc-100 dark:bg-zinc-900/50">
                    <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Recent Viewers</p>
                 </div>
-                <div className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
+                <div className="divide-y divide-zinc-200 dark:divide-zinc-800/50">
                   {viewers.length > 0 ? viewers.map((v, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors">
+                    <div key={i} className="flex items-center gap-3 p-3 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
                       <img src={v.viewer?.avatar_url || `https://ui-avatars.com/api/?name=${v.viewer?.full_name}`} className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 object-cover" />
                       <div className="flex-grow">
                         <p className="text-[15px] font-semibold text-black dark:text-white leading-tight">{v.viewer?.full_name}</p>
