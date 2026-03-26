@@ -7,7 +7,8 @@ import {
   Folder, Users, Plus, Activity, 
   ArrowRight, Settings, Image as ImageIcon,
   Bookmark, BadgeCheck, Zap, Eye, TrendingUp, X, PartyPopper, Sparkles,
-  MoreHorizontal, ChevronRight, Edit3, Compass
+  MoreHorizontal, ChevronRight, Edit3, Compass,
+  FolderPlus, Telescope, UsersRound, LineChart
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { formatDistanceToNow } from 'date-fns';
@@ -20,7 +21,7 @@ const getAppleColor = (id: string) => {
     'bg-[#FF2D55]', // Pink
     'bg-[#FF9500]', // Orange
     'bg-[#5856D6]', // Purple
-    'bg-[#FFCC00]', // Yellow (Text needs to be carefully handled, but we'll use white with text-shadow)
+    'bg-[#AF52DE]', // Light Purple
   ];
   const charCodeSum = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return colors[charCodeSum % colors.length];
@@ -139,10 +140,13 @@ export default function DashboardPage() {
           </button>
         </header>
 
-        {/* QUICK ACTIONS (Modeled exactly like Shortcuts top grid) */}
+        {/* QUICK ACTIONS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           <button onClick={() => router.push('/create')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#34C759] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm">
-            <div className="flex justify-between items-start w-full">
+            {/* Background Watermark */}
+            <FolderPlus size={110} strokeWidth={1} className="absolute -bottom-6 -right-6 text-white/20 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 pointer-events-none" />
+            
+            <div className="flex justify-between items-start w-full relative z-10">
                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
                  <Plus size={18} strokeWidth={3} />
                </div>
@@ -150,11 +154,14 @@ export default function DashboardPage() {
                  <MoreHorizontal size={14} />
                </div>
             </div>
-            <span className="font-bold text-[16px] leading-tight">New<br/>Project</span>
+            <span className="font-bold text-[16px] leading-tight relative z-10">New<br/>Project</span>
           </button>
 
           <button onClick={() => router.push('/discover')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#007AFF] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm">
-            <div className="flex justify-between items-start w-full">
+            {/* Background Watermark */}
+            <Telescope size={110} strokeWidth={1} className="absolute -bottom-6 -right-4 text-white/20 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 pointer-events-none" />
+            
+            <div className="flex justify-between items-start w-full relative z-10">
                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
                  <Compass size={18} strokeWidth={2.5} />
                </div>
@@ -162,11 +169,14 @@ export default function DashboardPage() {
                  <MoreHorizontal size={14} />
                </div>
             </div>
-            <span className="font-bold text-[16px] leading-tight">Browse<br/>Briefs</span>
+            <span className="font-bold text-[16px] leading-tight relative z-10">Browse<br/>Briefs</span>
           </button>
 
           <button onClick={() => router.push('/community')} className="relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#FF2D55] overflow-hidden group hover:opacity-90 transition-opacity text-left shadow-sm">
-            <div className="flex justify-between items-start w-full">
+            {/* Background Watermark */}
+            <UsersRound size={110} strokeWidth={1} className="absolute -bottom-6 -right-6 text-white/20 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 pointer-events-none" />
+            
+            <div className="flex justify-between items-start w-full relative z-10">
                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
                  <Users size={18} strokeWidth={2.5} />
                </div>
@@ -174,11 +184,14 @@ export default function DashboardPage() {
                  <MoreHorizontal size={14} />
                </div>
             </div>
-            <span className="font-bold text-[16px] leading-tight">Find<br/>Teammates</span>
+            <span className="font-bold text-[16px] leading-tight relative z-10">Find<br/>Teammates</span>
           </button>
 
-          <button onClick={() => isVerified && setIsInsightsOpen(true)} className={`relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between bg-[#FF9500] overflow-hidden group transition-opacity text-left shadow-sm ${!isVerified ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}>
-            <div className="flex justify-between items-start w-full">
+          <button onClick={() => isVerified && setIsInsightsOpen(true)} className={`relative aspect-[4/3] rounded-[24px] p-4 text-white flex flex-col justify-between overflow-hidden group transition-opacity text-left shadow-sm ${!isVerified ? 'bg-zinc-300 dark:bg-zinc-800 cursor-not-allowed' : 'bg-[#FF9500] hover:opacity-90'}`}>
+            {/* Background Watermark */}
+            <LineChart size={110} strokeWidth={1} className="absolute -bottom-6 -right-4 text-white/20 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 pointer-events-none" />
+            
+            <div className="flex justify-between items-start w-full relative z-10">
                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md">
                  <TrendingUp size={18} strokeWidth={2.5} />
                </div>
@@ -186,7 +199,7 @@ export default function DashboardPage() {
                  <MoreHorizontal size={14} />
                </div>
             </div>
-            <span className="font-bold text-[16px] leading-tight drop-shadow-sm">{totalViews}<br/>Profile Views</span>
+            <span className="font-bold text-[16px] leading-tight relative z-10 drop-shadow-sm">{!isVerified ? 'PRO Only' : totalViews}<br/>Profile Views</span>
           </button>
         </div>
 
@@ -210,12 +223,14 @@ export default function DashboardPage() {
                     onClick={() => router.push(`/studio/${p.id}`)}
                     className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
                   >
-                    {/* Background Image if exists */}
-                    {(p.cover_image_url || p.image_url) && (
+                    {/* Background Content */}
+                    {(p.cover_image_url || p.image_url) ? (
                       <>
                         <img src={p.cover_image_url || p.image_url} className="absolute inset-0 w-full h-full object-cover z-0" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-0" />
                       </>
+                    ) : (
+                      <Folder size={90} strokeWidth={1} className="absolute -bottom-6 -right-6 text-white/10 group-hover:scale-110 transition-all duration-500 pointer-events-none" />
                     )}
                     
                     <div className="flex justify-between items-start w-full relative z-10">
@@ -257,11 +272,14 @@ export default function DashboardPage() {
                       onClick={() => router.push(`/project/${p.id}`)}
                       className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
                     >
-                      {(p.cover_image_url || p.image_url) && (
+                      {/* Background Content */}
+                      {(p.cover_image_url || p.image_url) ? (
                         <>
                           <img src={p.cover_image_url || p.image_url} className="absolute inset-0 w-full h-full object-cover z-0" />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-0" />
                         </>
+                      ) : (
+                        <UsersRound size={90} strokeWidth={1} className="absolute -bottom-6 -right-6 text-white/10 group-hover:scale-110 transition-all duration-500 pointer-events-none" />
                       )}
                       
                       <div className="flex justify-between items-start w-full relative z-10">
@@ -304,11 +322,14 @@ export default function DashboardPage() {
                     onClick={() => router.push(`/project/${p.id}`)}
                     className={`relative aspect-[4/3] rounded-[18px] p-3 text-white flex flex-col justify-between overflow-hidden group text-left hover:scale-[0.98] transition-transform ${!p.cover_image_url && !p.image_url ? getAppleColor(p.id) : 'bg-zinc-800'}`}
                   >
-                    {(p.cover_image_url || p.image_url) && (
+                    {/* Background Content */}
+                    {(p.cover_image_url || p.image_url) ? (
                       <>
                         <img src={p.cover_image_url || p.image_url} className="absolute inset-0 w-full h-full object-cover z-0" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-0" />
                       </>
+                    ) : (
+                      <Bookmark size={90} strokeWidth={1} fill="currentColor" className="absolute -bottom-6 -right-6 text-white/10 group-hover:scale-110 transition-all duration-500 pointer-events-none" />
                     )}
                     
                     <div className="flex justify-between items-start w-full relative z-10">
@@ -360,7 +381,7 @@ export default function DashboardPage() {
             <div className="p-4 flex justify-between items-center bg-white dark:bg-[#1C1C1E] border-b border-zinc-200 dark:border-zinc-800">
               <button onClick={() => setIsInsightsOpen(false)} className="text-[#007AFF] font-medium px-2">Close</button>
               <h3 className="font-bold text-black dark:text-white">Insights</h3>
-              <div className="w-12"></div> {/* Spacer for centering */}
+              <div className="w-12"></div>
             </div>
             
             <div className="p-4 max-h-[70vh] overflow-y-auto">
