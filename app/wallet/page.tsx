@@ -115,7 +115,7 @@ export default function WalletPage() {
           setSelectedBankId(banks[0].id);
         }
 
-       // 5. Fetch Active Contracts (Collaborations that are accepted)
+        // 5. Fetch Active Contracts (Collaborations that are accepted)
         const { data: collabs } = await supabase
           .from('collaborations')
           .select('id, role, status, projects(title)')
@@ -124,7 +124,6 @@ export default function WalletPage() {
         
         if (collabs) {
           const formattedContracts = collabs.map((c: any) => {
-            // Safely handle whether Supabase returns an array or a single object
             const projectData = Array.isArray(c.projects) ? c.projects[0] : c.projects;
             
             return {
@@ -358,22 +357,24 @@ export default function WalletPage() {
   // ==========================================
   if (isLocked) {
     return (
-      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-between bg-[#F2F2F7] dark:bg-black text-black dark:text-white pt-20 pb-12 px-6 animate-in slide-in-from-bottom-4 duration-300">
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#F2F2F7] dark:bg-black text-black dark:text-white px-6 animate-in slide-in-from-bottom-4 duration-300">
         <button onClick={() => router.back()} className="absolute top-12 left-6 text-[#007AFF] font-medium flex items-center gap-1">
           <ArrowLeft size={20} /> Back
         </button>
-        <div className="flex flex-col items-center mt-10">
+        
+        {/* NEW: Wrapper with negative margin to pull everything up beautifully */}
+        <div className="flex flex-col items-center w-full max-w-[280px] -mt-20">
           <div className="w-16 h-16 bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 flex items-center justify-center mb-6">
             {isSettingUp ? <Shield size={28} className="text-[#007AFF]" /> : <Lock size={28} className="text-black dark:text-white" />}
           </div>
           <h1 className="text-2xl font-bold mb-2">
             {isSettingUp ? (setupStep === 'create' ? 'Create Wallet PIN' : 'Confirm Wallet PIN') : 'Enter Wallet PIN'}
           </h1>
-          <p className="text-zinc-500 text-sm mb-12 text-center max-w-xs">
+          <p className="text-zinc-500 text-sm mb-12 text-center">
             {isSettingUp ? 'This 4-digit PIN will secure your funds and escrow contracts.' : 'Your wallet automatically locks after 5 minutes of inactivity.'}
           </p>
 
-          <div className={`flex gap-4 mb-12 ${errorShake ? 'animate-shake' : ''}`}>
+          <div className={`flex gap-4 mb-10 ${errorShake ? 'animate-shake' : ''}`}>
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className={`w-4 h-4 rounded-full transition-all duration-200 border-2 ${
                   enteredPin.length > i ? 'bg-black border-black dark:bg-white dark:border-white scale-110' : 'bg-transparent border-zinc-300 dark:border-zinc-700'
@@ -381,22 +382,23 @@ export default function WalletPage() {
               />
             ))}
           </div>
-        </div>
 
-        <div className="w-full max-w-[280px] grid grid-cols-3 gap-x-6 gap-y-4 mb-8">
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-            <button key={num} onClick={() => handleNumberClick(num.toString())} className="w-20 h-20 rounded-full bg-white dark:bg-[#1C1C1E] text-3xl font-normal shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors mx-auto flex items-center justify-center border border-zinc-100 dark:border-zinc-800/50">
-              {num}
+          <div className="w-full grid grid-cols-3 gap-x-6 gap-y-4">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+              <button key={num} onClick={() => handleNumberClick(num.toString())} className="w-20 h-20 rounded-full bg-white dark:bg-[#1C1C1E] text-3xl font-normal shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors mx-auto flex items-center justify-center border border-zinc-100 dark:border-zinc-800/50">
+                {num}
             </button>
-          ))}
-          <div className="w-20 h-20 mx-auto flex items-center justify-center">
-             {!isSettingUp && <Fingerprint size={32} className="text-[#007AFF] opacity-80" />}
+            ))}
+            <div className="w-20 h-20 mx-auto flex items-center justify-center">
+              {!isSettingUp && <Fingerprint size={32} className="text-[#007AFF] opacity-80" />}
+            </div>
+            <button onClick={() => handleNumberClick('0')} className="w-20 h-20 rounded-full bg-white dark:bg-[#1C1C1E] text-3xl font-normal shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors mx-auto flex items-center justify-center border border-zinc-100 dark:border-zinc-800/50">0</button>
+            <button onClick={() => setEnteredPin(prev => prev.slice(0, -1))} className="w-20 h-20 mx-auto flex items-center justify-center text-zinc-600 dark:text-zinc-400 active:text-black dark:active:text-white transition-colors">
+              {enteredPin.length > 0 ? <Delete size={28} /> : null}
+            </button>
           </div>
-          <button onClick={() => handleNumberClick('0')} className="w-20 h-20 rounded-full bg-white dark:bg-[#1C1C1E] text-3xl font-normal shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors mx-auto flex items-center justify-center border border-zinc-100 dark:border-zinc-800/50">0</button>
-          <button onClick={() => setEnteredPin(prev => prev.slice(0, -1))} className="w-20 h-20 mx-auto flex items-center justify-center text-zinc-600 dark:text-zinc-400 active:text-black dark:active:text-white transition-colors">
-            {enteredPin.length > 0 ? <Delete size={28} /> : null}
-          </button>
         </div>
+        
         <style jsx>{`
           @keyframes shake { 0%, 100% { transform: translateX(0); } 25%, 75% { transform: translateX(-10px); } 50% { transform: translateX(10px); } }
           .animate-shake { animation: shake 0.4s ease-in-out; }
