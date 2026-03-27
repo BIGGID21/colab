@@ -131,6 +131,10 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   // Unread Messages State
   const [unreadMessages, setUnreadMessages] = useState(0);
 
+  // Wallet State for Sidebar
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [escrowBalance, setEscrowBalance] = useState(0);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -212,6 +216,45 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     };
   }, [user, supabase]);
 
+  // --- REAL-TIME WALLET LISTENER ---
+  useEffect(() => {
+    if (!user) return;
+    let channel: any;
+
+    const fetchWallet = async () => {
+      // Fetch initial balance
+      const { data } = await supabase
+        .from('wallets')
+        .select('balance, escrow_balance')
+        .eq('user_id', user.id)
+        .single();
+
+      if (data) {
+        setWalletBalance(Number(data.balance || 0));
+        setEscrowBalance(Number(data.escrow_balance || 0));
+      }
+
+      // Subscribe to updates so sidebar always matches the main wallet
+      channel = supabase.channel('global_wallet_updates')
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'wallets',
+          filter: `user_id=eq.${user.id}`
+        }, (payload) => {
+          setWalletBalance(Number(payload.new.balance || 0));
+          setEscrowBalance(Number(payload.new.escrow_balance || 0));
+        })
+        .subscribe();
+    };
+
+    fetchWallet();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [user, supabase]);
+
   // --- DYNAMIC TOUR LOGIC ---
   useEffect(() => {
     if (isAppLoading || typeof window === 'undefined') return;
@@ -281,10 +324,10 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const isCommunityFeed = pathname === '/community';
   const isMessagesPage = pathname?.startsWith('/messages');
 
-  // UPDATED NAV ITEMS: Added count listener for Messages
+  // UPDATED NAV ITEMS: Added count listener for Messages and fixed Dashboard link
   const navItems = [
     { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true, tourClass: 'sidebar-home' }, 
-    { name: 'Dashboard', icon: FolderClosed, href: '/dashboard', showOnMobileBar: true, tourClass: 'sidebar-dashboard' },
+    { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true, tourClass: 'sidebar-dashboard' },
     { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true, tourClass: 'sidebar-create' },
     { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true, tourClass: 'sidebar-community' },
     { name: 'Messages', icon: MessageSquare, href: '/messages', count: unreadMessages, showOnMobileBar: false, tourClass: 'sidebar-messages' },
@@ -297,6 +340,23 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const isVerified = profile?.is_verified || false;
   const fullNameStr = profile?.full_name || user?.user_metadata?.full_name || 'User';
   const finalAvatar = profile?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${fullNameStr}&backgroundColor=9cf822&fontFamily=Arial&fontWeight=bold`;
+
+  // --- Currency Formatting for Sidebar ---
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 2
+    }).format(amount || 0);
+  };
+
+  const getAmountParts = (amount: number) => {
+    const formatted = formatCurrency(amount);
+    const [main, cents] = formatted.split('.');
+    return { dollars: main, cents: cents ? `.${cents}` : '.00' };
+  };
+
+  const balanceParts = getAmountParts(walletBalance);
 
   return (
     <>
@@ -422,12 +482,12 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
                     <ArrowUpRight size={14} className="text-zinc-400 dark:text-zinc-500 group-hover:text-black dark:group-hover:text-[#9cf822] transition-colors" />
                   </div>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-medium text-zinc-900 dark:text-white">₦4,250</span>
-                    <span className="text-xs text-zinc-500 font-medium">.00</span>
+                    <span className="text-2xl font-medium text-zinc-900 dark:text-white">{balanceParts.dollars}</span>
+                    <span className="text-xs text-zinc-500 font-medium">{balanceParts.cents}</span>
                   </div>
                   <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                     <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">In Escrow</span>
-                    <span className="text-xs font-medium text-green-600 dark:text-[#9cf822]">₦1,200</span>
+                    <span className="text-xs font-medium text-green-600 dark:text-[#9cf822]">{formatCurrency(escrowBalance)}</span>
                   </div>
                 </Link>
               </div>
