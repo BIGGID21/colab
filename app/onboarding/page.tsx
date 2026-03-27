@@ -29,8 +29,8 @@ export default function OnboardingPage() {
     if (user) {
       localStorage.setItem(`colab_onboarding_${user.id}`, 'true');
     }
-    // Push them into the app!
-    router.push('/dashboard');
+    // Push them into the app to the correct route!
+    router.push('/my-projects');
   };
 
   return (
