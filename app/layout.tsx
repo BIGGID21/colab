@@ -273,7 +273,8 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
 
   const modalContent: Record<string, { title: string, content: React.ReactNode }> = {};
 
-  const isAuthPage = pathname === '/login' || pathname === '/signup';
+  // ADDED /onboarding to the auth check so navigation doesn't render there
+  const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/onboarding';
   const isMarketingPage = pathname === '/' || pathname === '/about' || pathname === '/terms' || pathname === '/privacy' || pathname === '/blog';
   const showSidebar = !isAuthPage && !isMarketingPage;
 
@@ -283,7 +284,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   // UPDATED NAV ITEMS: Added count listener for Messages
   const navItems = [
     { name: 'Home', icon: Home, href: '/discover', showOnMobileBar: true, tourClass: 'sidebar-home' }, 
-    { name: 'Dashboard', icon: FolderClosed, href: '/my-projects', showOnMobileBar: true, tourClass: 'sidebar-dashboard' },
+    { name: 'Dashboard', icon: FolderClosed, href: '/dashboard', showOnMobileBar: true, tourClass: 'sidebar-dashboard' },
     { name: 'Create', icon: PlusCircle, href: '/create', showOnMobileBar: true, tourClass: 'sidebar-create' },
     { name: 'Community', icon: Globe, href: '/community', showOnMobileBar: true, tourClass: 'sidebar-community' },
     { name: 'Messages', icon: MessageSquare, href: '/messages', count: unreadMessages, showOnMobileBar: false, tourClass: 'sidebar-messages' },

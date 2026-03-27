@@ -115,7 +115,8 @@ export default function SignupPage() {
       }
       // ========================================
 
-      router.push(`/profile/${data.user.id}?setupProfile=true`);
+      // UPDATED: Push to the new full-screen Onboarding experience!
+      router.push('/onboarding');
     }
   };
 
